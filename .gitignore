@@ -1,0 +1,20 @@
+# OS/IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Dependencies/build artifacts
+node_modules/
+vendor/
+
+# CodeIgniter writable directory (keep index.html)
+writable/*
+!writable/index.html
+
+# Environment and logs
+.env
+*.log
+
+# Ignore nested copy of project
+HMS/

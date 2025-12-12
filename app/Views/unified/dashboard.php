@@ -380,28 +380,6 @@
                     </div>
                 </div>
 
-                <div class="overview-card" tabindex="0">
-                    <div class="card-header-modern">
-                        <div class="card-icon-modern green" aria-hidden="true">
-                            <i class="fas fa-pills"></i>
-                        </div>
-                        <div class="card-info">
-                            <h3 class="card-title-modern">Medications</h3>
-                            <p class="card-subtitle">Medication schedule</p>
-                        </div>
-                    </div>
-                    <div class="card-metrics">
-                        <div class="metric">
-                            <div class="metric-value orange"><?= esc($stats['medications_due'] ?? 0) ?></div>
-                            <div class="metric-label">Due Today</div>
-                        </div>
-                        <div class="metric">
-                            <div class="metric-value red"><?= esc($stats['medications_overdue'] ?? 0) ?></div>
-                            <div class="metric-label">Overdue</div>
-                        </div>
-                    </div>
-                </div>
-
             <?php elseif ($userRole === 'receptionist'): ?>
                 <!-- Receptionist Dashboard Cards -->
                 <div class="overview-card" tabindex="0">
@@ -470,6 +448,206 @@
                         <div class="metric">
                             <div class="metric-value green"><?= esc($stats['monthly_patients'] ?? 0) ?></div>
                             <div class="metric-label">Monthly Patients</div>
+                        </div>
+                    </div>
+                </div>
+
+            <?php elseif ($userRole === 'pharmacist'): ?>
+                <!-- Pharmacist Dashboard Cards -->
+                <div class="overview-card" tabindex="0">
+                    <div class="card-header-modern">
+                        <div class="card-icon-modern blue" aria-hidden="true">
+                            <i class="fas fa-prescription-bottle-alt"></i>
+                        </div>
+                        <div class="card-info">
+                            <h3 class="card-title-modern">Prescriptions</h3>
+                            <p class="card-subtitle">Prescription management</p>
+                        </div>
+                    </div>
+                    <div class="card-metrics">
+                        <div class="metric">
+                            <div class="metric-value blue"><?= esc($stats['total_prescriptions'] ?? 0) ?></div>
+                            <div class="metric-label">Total</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value orange"><?= esc($stats['pending_prescriptions'] ?? 0) ?></div>
+                            <div class="metric-label">Pending</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value green"><?= esc($stats['ready_prescriptions'] ?? 0) ?></div>
+                            <div class="metric-label">Ready</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overview-card" tabindex="0">
+                    <div class="card-header-modern">
+                        <div class="card-icon-modern green" aria-hidden="true">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="card-info">
+                            <h3 class="card-title-modern">Dispensed Today</h3>
+                            <p class="card-subtitle">Today's activity</p>
+                        </div>
+                    </div>
+                    <div class="card-metrics">
+                        <div class="metric">
+                            <div class="metric-value green"><?= esc($stats['dispensed_today'] ?? 0) ?></div>
+                            <div class="metric-label">Dispensed</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overview-card" tabindex="0">
+                    <div class="card-header-modern">
+                        <div class="card-icon-modern red" aria-hidden="true">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="card-info">
+                            <h3 class="card-title-modern">Inventory Alerts</h3>
+                            <p class="card-subtitle">Stock management</p>
+                        </div>
+                    </div>
+                    <div class="card-metrics">
+                        <div class="metric">
+                            <div class="metric-value orange"><?= esc($stats['low_stock_items'] ?? 0) ?></div>
+                            <div class="metric-label">Low Stock</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value red"><?= esc($stats['expired_items'] ?? 0) ?></div>
+                            <div class="metric-label">Expired</div>
+                        </div>
+                    </div>
+                </div>
+
+            <?php elseif ($userRole === 'accountant'): ?>
+                <!-- Accountant Dashboard Cards -->
+                <div class="overview-card" tabindex="0">
+                    <div class="card-header-modern">
+                        <div class="card-icon-modern green" aria-hidden="true">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="card-info">
+                            <h3 class="card-title-modern">Revenue</h3>
+                            <p class="card-subtitle">Financial overview</p>
+                        </div>
+                    </div>
+                    <div class="card-metrics">
+                        <div class="metric">
+                            <div class="metric-value green">₱<?= number_format($stats['total_revenue'] ?? 0, 2) ?></div>
+                            <div class="metric-label">Total Revenue</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value blue">₱<?= number_format($stats['today_revenue'] ?? 0, 2) ?></div>
+                            <div class="metric-label">Today</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value purple">₱<?= number_format($stats['monthly_revenue'] ?? 0, 2) ?></div>
+                            <div class="metric-label">This Month</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overview-card" tabindex="0">
+                    <div class="card-header-modern">
+                        <div class="card-icon-modern orange" aria-hidden="true">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                        </div>
+                        <div class="card-info">
+                            <h3 class="card-title-modern">Billing Accounts</h3>
+                            <p class="card-subtitle">Account status</p>
+                        </div>
+                    </div>
+                    <div class="card-metrics">
+                        <div class="metric">
+                            <div class="metric-value orange"><?= esc($stats['pending_bills'] ?? 0) ?></div>
+                            <div class="metric-label">Pending</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value green"><?= esc($stats['paid_bills'] ?? 0) ?></div>
+                            <div class="metric-label">Paid</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overview-card" tabindex="0">
+                    <div class="card-header-modern">
+                        <div class="card-icon-modern blue" aria-hidden="true">
+                            <i class="fas fa-exchange-alt"></i>
+                        </div>
+                        <div class="card-info">
+                            <h3 class="card-title-modern">Transactions</h3>
+                            <p class="card-subtitle">Payment records</p>
+                        </div>
+                    </div>
+                    <div class="card-metrics">
+                        <div class="metric">
+                            <div class="metric-value blue"><?= esc($stats['total_transactions'] ?? 0) ?></div>
+                            <div class="metric-label">Total</div>
+                        </div>
+                    </div>
+                </div>
+
+            <?php elseif ($userRole === 'laboratorist'): ?>
+                <!-- Laboratorist Dashboard Cards -->
+                <div class="overview-card" tabindex="0">
+                    <div class="card-header-modern">
+                        <div class="card-icon-modern blue" aria-hidden="true">
+                            <i class="fas fa-flask"></i>
+                        </div>
+                        <div class="card-info">
+                            <h3 class="card-title-modern">Lab Orders</h3>
+                            <p class="card-subtitle">Test management</p>
+                        </div>
+                    </div>
+                    <div class="card-metrics">
+                        <div class="metric">
+                            <div class="metric-value blue"><?= esc($stats['total_orders'] ?? 0) ?></div>
+                            <div class="metric-label">Total</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value orange"><?= esc($stats['pending_orders'] ?? 0) ?></div>
+                            <div class="metric-label">Pending</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value yellow"><?= esc($stats['in_progress'] ?? 0) ?></div>
+                            <div class="metric-label">In Progress</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overview-card" tabindex="0">
+                    <div class="card-header-modern">
+                        <div class="card-icon-modern green" aria-hidden="true">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="card-info">
+                            <h3 class="card-title-modern">Completed Today</h3>
+                            <p class="card-subtitle">Today's activity</p>
+                        </div>
+                    </div>
+                    <div class="card-metrics">
+                        <div class="metric">
+                            <div class="metric-value green"><?= esc($stats['completed_today'] ?? 0) ?></div>
+                            <div class="metric-label">Completed</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overview-card" tabindex="0">
+                    <div class="card-header-modern">
+                        <div class="card-icon-modern red" aria-hidden="true">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="card-info">
+                            <h3 class="card-title-modern">Urgent Orders</h3>
+                            <p class="card-subtitle">Priority tests</p>
+                        </div>
+                    </div>
+                    <div class="card-metrics">
+                        <div class="metric">
+                            <div class="metric-value red"><?= esc($stats['urgent_orders'] ?? 0) ?></div>
+                            <div class="metric-label">Urgent/Stat</div>
                         </div>
                     </div>
                 </div>

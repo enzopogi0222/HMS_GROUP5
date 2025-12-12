@@ -53,43 +53,71 @@ class DashboardService
         $stats = [];
 
         // Total patients + trends and types
-        if ($this->db->tableExists('patient')) {
-            $patientTable = $this->db->table('patient');
+        // Check for both 'patient' and 'patients' table names
+        $patientTableName = null;
+        if ($this->db->tableExists('patients')) {
+            $patientTableName = 'patients';
+        } elseif ($this->db->tableExists('patient')) {
+            $patientTableName = 'patient';
+        }
+
+        if ($patientTableName) {
+            $patientTable = $this->db->table($patientTableName);
 
             // Overall counts
             $stats['total_patients'] = $patientTable->countAllResults();
 
-            $stats['active_patients'] = $this->db->table('patient')
+            $stats['active_patients'] = $this->db->table($patientTableName)
                 ->where('status', 'Active')
                 ->countAllResults();
 
             // Patient type breakdown
-            $stats['inpatients'] = $this->db->table('patient')
-                ->where('patient_type', 'Inpatient')
-                ->countAllResults();
+            if ($this->db->fieldExists('patient_type', $patientTableName)) {
+                $stats['inpatients'] = $this->db->table($patientTableName)
+                    ->groupStart()
+                        ->where('patient_type', 'Inpatient')
+                        ->orWhere('patient_type', 'inpatient')
+                    ->groupEnd()
+                    ->countAllResults();
 
-            $stats['outpatients'] = $this->db->table('patient')
-                ->where('patient_type', 'Outpatient')
-                ->countAllResults();
+                $stats['outpatients'] = $this->db->table($patientTableName)
+                    ->groupStart()
+                        ->where('patient_type', 'Outpatient')
+                        ->orWhere('patient_type', 'outpatient')
+                    ->groupEnd()
+                    ->countAllResults();
 
-            $stats['emergency_patients'] = $this->db->table('patient')
-                ->where('patient_type', 'Emergency')
-                ->countAllResults();
+                $stats['emergency_patients'] = $this->db->table($patientTableName)
+                    ->groupStart()
+                        ->where('patient_type', 'Emergency')
+                        ->orWhere('patient_type', 'emergency')
+                    ->groupEnd()
+                    ->countAllResults();
+            } else {
+                $stats['inpatients'] = 0;
+                $stats['outpatients'] = 0;
+                $stats['emergency_patients'] = 0;
+            }
 
             // Trends: new patients this week and this month
             $today = date('Y-m-d');
             $weekAgo = date('Y-m-d', strtotime('-7 days'));
             $monthAgo = date('Y-m-d', strtotime('-30 days'));
 
-            $stats['weekly_new_patients'] = $this->db->table('patient')
-                ->where('date_registered >=', $weekAgo)
-                ->where('date_registered <=', $today)
-                ->countAllResults();
+            if ($this->db->fieldExists('date_registered', $patientTableName)) {
+                $stats['weekly_new_patients'] = $this->db->table($patientTableName)
+                    ->where('date_registered >=', $weekAgo)
+                    ->where('date_registered <=', $today)
+                    ->countAllResults();
 
-            $stats['monthly_patients'] = $this->db->table('patient')
-                ->where('date_registered >=', $monthAgo)
-                ->where('date_registered <=', $today)
-                ->countAllResults();
+                $stats['monthly_patients'] = $this->db->table($patientTableName)
+                    ->where('date_registered >=', $monthAgo)
+                    ->where('date_registered <=', $today)
+                    ->countAllResults();
+            } else {
+                $stats['weekly_new_patients'] = 0;
+                $stats['monthly_patients'] = 0;
+            }
         } else {
             $stats['total_patients'] = 0;
             $stats['active_patients'] = 0;
@@ -500,44 +528,51 @@ class DashboardService
     private function getNurseStats($staffId)
     {
         $stats = [];
+        $today = date('Y-m-d');
 
-        // Get nurse department
-        $nurse = $this->db->table('staff')
-            ->select('department')
-            ->where('staff_id', $staffId)
-            ->get()
-            ->getRow();
+        // Initialize default values
+        $stats['total_patients'] = 0;
+        $stats['critical_patients'] = 0;
 
-        $department = $nurse->department ?? null;
+        // Patients statistics - Nurses can see all patients
+        // Check for both 'patient' and 'patients' table names
+        try {
+            $patientTable = null;
+            if ($this->db->tableExists('patients')) {
+                $patientTable = 'patients';
+            } elseif ($this->db->tableExists('patient')) {
+                $patientTable = 'patient';
+            }
 
-        if ($department) {
-            // Department patients
-            $stats['department_patients'] = $this->db->table('patient p')
-                ->join('staff s', 's.staff_id = p.primary_doctor_id', 'left')
-                ->where('s.department', $department)
-                ->countAllResults();
+            if ($patientTable) {
+                $stats['total_patients'] = $this->db->table($patientTable)
+                    ->countAllResults();
 
-            $stats['critical_patients'] = $this->db->table('patient p')
-                ->join('staff s', 's.staff_id = p.primary_doctor_id', 'left')
-                ->where('s.department', $department)
-                ->where('p.patient_type', 'emergency')
-                ->countAllResults();
-        } else {
-            $stats['department_patients'] = 0;
-            $stats['critical_patients'] = 0;
+                // Critical patients are those with Emergency patient_type
+                // Check for both capitalized and lowercase variations
+                if ($this->db->fieldExists('patient_type', $patientTable)) {
+                    $stats['critical_patients'] = $this->db->table($patientTable)
+                        ->groupStart()
+                            ->where('patient_type', 'Emergency')
+                            ->orWhere('patient_type', 'emergency')
+                        ->groupEnd()
+                        ->countAllResults();
+                } else {
+                    $stats['critical_patients'] = 0;
+                }
+            } else {
+                log_message('debug', 'Nurse stats: Neither patient nor patients table exists');
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'Nurse patients stats error: ' . $e->getMessage());
         }
 
-        // Medications
-        $today = date('Y-m-d');
-        $stats['medications_due'] = $this->db->table('prescriptions')
-            ->where('DATE(next_dose)', $today)
-            ->where('status', 'active')
-            ->countAllResults();
-
-        $stats['medications_overdue'] = $this->db->table('prescriptions')
-            ->where('DATE(next_dose) <', $today)
-            ->where('status', 'active')
-            ->countAllResults();
+        // Debug logging (only in development)
+        if (ENVIRONMENT === 'development') {
+            log_message('debug', 'Nurse stats result: ' . json_encode($stats));
+            log_message('debug', 'Nurse stats - Total patients: ' . $stats['total_patients']);
+            log_message('debug', 'Nurse stats - Critical patients: ' . $stats['critical_patients']);
+        }
 
         return $stats;
     }
@@ -549,37 +584,62 @@ class DashboardService
     {
         $stats = [];
         $today = date('Y-m-d');
+        $weekAgo = date('Y-m-d', strtotime('-7 days'));
+        $monthAgo = date('Y-m-d', strtotime('-30 days'));
 
-        // Appointments
-        $stats['total_appointments'] = $this->db->table('appointments')
-            ->where('appointment_date', $today)
-            ->countAllResults();
+        // Initialize default values
+        $stats['total_appointments'] = 0;
+        $stats['scheduled_today'] = 0;
+        $stats['cancelled_today'] = 0;
+        $stats['new_patients_today'] = 0;
+        $stats['total_patients'] = 0;
+        $stats['weekly_appointments'] = 0;
+        $stats['monthly_patients'] = 0;
 
-        $stats['scheduled_today'] = $this->db->table('appointments')
-            ->where('appointment_date', $today)
-            ->where('status', 'scheduled')
-            ->countAllResults();
+        // Appointments statistics
+        try {
+            if ($this->db->tableExists('appointments')) {
+                $stats['total_appointments'] = $this->db->table('appointments')
+                    ->where('appointment_date', $today)
+                    ->countAllResults();
 
-        $stats['cancelled_today'] = $this->db->table('appointments')
-            ->where('appointment_date', $today)
-            ->where('status', 'cancelled')
-            ->countAllResults();
+                $stats['scheduled_today'] = $this->db->table('appointments')
+                    ->where('appointment_date', $today)
+                    ->where('status', 'scheduled')
+                    ->countAllResults();
 
-        // Patients
-        $stats['new_patients_today'] = $this->db->table('patient')
-            ->where('DATE(date_registered)', $today)
-            ->countAllResults();
+                $stats['cancelled_today'] = $this->db->table('appointments')
+                    ->where('appointment_date', $today)
+                    ->where('status', 'cancelled')
+                    ->countAllResults();
 
-        $stats['total_patients'] = $this->db->table('patient')->countAllResults();
+                $stats['weekly_appointments'] = $this->db->table('appointments')
+                    ->where('appointment_date >=', $weekAgo)
+                    ->where('appointment_date <=', $today)
+                    ->countAllResults();
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'Receptionist appointments stats error: ' . $e->getMessage());
+        }
 
-        // Weekly and monthly stats
-        $stats['weekly_appointments'] = $this->db->table('appointments')
-            ->where('appointment_date >=', date('Y-m-d', strtotime('-7 days')))
-            ->countAllResults();
+        // Patients statistics
+        try {
+            if ($this->db->tableExists('patient')) {
+                $stats['total_patients'] = $this->db->table('patient')
+                    ->countAllResults();
 
-        $stats['monthly_patients'] = $this->db->table('patient')
-            ->where('date_registered >=', date('Y-m-d', strtotime('-30 days')))
-            ->countAllResults();
+                $stats['new_patients_today'] = $this->db->table('patient')
+                    ->where('date_registered', $today)
+                    ->countAllResults();
+
+                $stats['monthly_patients'] = $this->db->table('patient')
+                    ->where('date_registered >=', $monthAgo)
+                    ->where('date_registered <=', $today)
+                    ->countAllResults();
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'Receptionist patients stats error: ' . $e->getMessage());
+        }
 
         return $stats;
     }
@@ -756,12 +816,279 @@ class DashboardService
     }
 
     /**
-     * Placeholder methods for other roles
+     * Pharmacist dashboard statistics
      */
-    private function getAccountantStats() { return []; }
-    private function getPharmacistStats() { return []; }
-    private function getLaboratoristStats() { return []; }
-    private function getITStats() { return []; }
+    private function getPharmacistStats()
+    {
+        $stats = [];
+        $today = date('Y-m-d');
+        $todayStart = $today . ' 00:00:00';
+        $todayEnd = $today . ' 23:59:59';
+
+        // Initialize default values
+        $stats['total_prescriptions'] = 0;
+        $stats['pending_prescriptions'] = 0;
+        $stats['ready_prescriptions'] = 0;
+        $stats['dispensed_today'] = 0;
+        $stats['low_stock_items'] = 0;
+        $stats['expired_items'] = 0;
+
+        // Prescriptions statistics
+        try {
+            if ($this->db->tableExists('prescriptions')) {
+                // Total prescriptions
+                $stats['total_prescriptions'] = $this->db->table('prescriptions')
+                    ->countAllResults();
+
+                // Pending prescriptions (queued, verifying)
+                $stats['pending_prescriptions'] = $this->db->table('prescriptions')
+                    ->whereIn('status', ['queued', 'verifying'])
+                    ->countAllResults();
+
+                // Ready to dispense
+                $stats['ready_prescriptions'] = $this->db->table('prescriptions')
+                    ->where('status', 'ready')
+                    ->countAllResults();
+
+                // Dispensed today
+                if ($this->db->fieldExists('dispensed_at', 'prescriptions')) {
+                    $stats['dispensed_today'] = $this->db->table('prescriptions')
+                        ->where('status', 'dispensed')
+                        ->where('dispensed_at >=', $todayStart)
+                        ->where('dispensed_at <=', $todayEnd)
+                        ->countAllResults();
+                } else {
+                    // Fallback: count dispensed status created today
+                    $stats['dispensed_today'] = $this->db->table('prescriptions')
+                        ->where('status', 'dispensed')
+                        ->where('created_at >=', $todayStart)
+                        ->where('created_at <=', $todayEnd)
+                        ->countAllResults();
+                }
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'Pharmacist prescriptions stats error: ' . $e->getMessage());
+        }
+
+        // Pharmacy inventory statistics
+        try {
+            if ($this->db->tableExists('pharmacy_inventory')) {
+                // Low stock items (stock_quantity <= min_stock_level and not expired)
+                $stats['low_stock_items'] = $this->db->table('pharmacy_inventory')
+                    ->where('stock_quantity <= min_stock_level', null, false)
+                    ->groupStart()
+                        ->where('expiry_date >=', $today)
+                        ->orWhere('expiry_date IS NULL', null, false)
+                    ->groupEnd()
+                    ->countAllResults();
+
+                // Expired items
+                $stats['expired_items'] = $this->db->table('pharmacy_inventory')
+                    ->where('expiry_date <', $today)
+                    ->where('expiry_date IS NOT NULL', null, false)
+                    ->countAllResults();
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'Pharmacist inventory stats error: ' . $e->getMessage());
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Accountant dashboard statistics
+     */
+    private function getAccountantStats()
+    {
+        $stats = [];
+        $today = date('Y-m-d');
+        $todayStart = $today . ' 00:00:00';
+        $todayEnd = $today . ' 23:59:59';
+        $monthStart = date('Y-m-01');
+        $monthEnd = date('Y-m-t');
+
+        // Initialize default values
+        $stats['total_revenue'] = 0;
+        $stats['today_revenue'] = 0;
+        $stats['monthly_revenue'] = 0;
+        $stats['pending_bills'] = 0;
+        $stats['paid_bills'] = 0;
+        $stats['total_transactions'] = 0;
+
+        // Revenue/Income statistics
+        try {
+            // Try transactions table first (newer structure)
+            if ($this->db->tableExists('transactions')) {
+                // Total revenue from completed payments
+                $totalRevenueRow = $this->db->table('transactions')
+                    ->selectSum('amount')
+                    ->where('type', 'payment')
+                    ->where('payment_status', 'completed')
+                    ->get()
+                    ->getRow();
+                $stats['total_revenue'] = (float)($totalRevenueRow->amount ?? 0);
+
+                // Today's revenue
+                $todayRevenueRow = $this->db->table('transactions')
+                    ->selectSum('amount')
+                    ->where('type', 'payment')
+                    ->where('payment_status', 'completed')
+                    ->where('transaction_date', $today)
+                    ->get()
+                    ->getRow();
+                $stats['today_revenue'] = (float)($todayRevenueRow->amount ?? 0);
+
+                // Monthly revenue
+                $monthlyRevenueRow = $this->db->table('transactions')
+                    ->selectSum('amount')
+                    ->where('type', 'payment')
+                    ->where('payment_status', 'completed')
+                    ->where('transaction_date >=', $monthStart)
+                    ->where('transaction_date <=', $monthEnd)
+                    ->get()
+                    ->getRow();
+                $stats['monthly_revenue'] = (float)($monthlyRevenueRow->amount ?? 0);
+
+                // Total transactions count
+                $stats['total_transactions'] = $this->db->table('transactions')
+                    ->where('type', 'payment')
+                    ->countAllResults();
+            }
+            // Fallback to payments table if transactions doesn't exist
+            elseif ($this->db->tableExists('payments')) {
+                $totalRevenueRow = $this->db->table('payments')
+                    ->selectSum('amount')
+                    ->where('status', 'completed')
+                    ->get()
+                    ->getRow();
+                $stats['total_revenue'] = (float)($totalRevenueRow->amount ?? 0);
+
+                if ($this->db->fieldExists('payment_date', 'payments')) {
+                    $todayRevenueRow = $this->db->table('payments')
+                        ->selectSum('amount')
+                        ->where('status', 'completed')
+                        ->where('payment_date', $today)
+                        ->get()
+                        ->getRow();
+                    $stats['today_revenue'] = (float)($todayRevenueRow->amount ?? 0);
+
+                    $monthlyRevenueRow = $this->db->table('payments')
+                        ->selectSum('amount')
+                        ->where('status', 'completed')
+                        ->where('payment_date >=', $monthStart)
+                        ->where('payment_date <=', $monthEnd)
+                        ->get()
+                        ->getRow();
+                    $stats['monthly_revenue'] = (float)($monthlyRevenueRow->amount ?? 0);
+                }
+
+                $stats['total_transactions'] = $this->db->table('payments')->countAllResults();
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'Accountant revenue stats error: ' . $e->getMessage());
+        }
+
+        // Billing accounts statistics
+        try {
+            if ($this->db->tableExists('billing_accounts')) {
+                // Pending bills (unpaid billing accounts)
+                if ($this->db->fieldExists('status', 'billing_accounts')) {
+                    $stats['pending_bills'] = $this->db->table('billing_accounts')
+                        ->groupStart()
+                            ->where('status', 'pending')
+                            ->orWhere('status', 'unpaid')
+                        ->groupEnd()
+                        ->countAllResults();
+
+                    $stats['paid_bills'] = $this->db->table('billing_accounts')
+                        ->where('status', 'paid')
+                        ->countAllResults();
+                } else {
+                    // If no status field, count all as pending
+                    $stats['pending_bills'] = $this->db->table('billing_accounts')
+                        ->countAllResults();
+                    $stats['paid_bills'] = 0;
+                }
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'Accountant billing stats error: ' . $e->getMessage());
+        }
+
+        return $stats;
+    }
+    /**
+     * Laboratorist dashboard statistics
+     */
+    private function getLaboratoristStats()
+    {
+        $stats = [];
+        $today = date('Y-m-d');
+        $todayStart = $today . ' 00:00:00';
+        $todayEnd = $today . ' 23:59:59';
+
+        // Initialize default values
+        $stats['total_orders'] = 0;
+        $stats['pending_orders'] = 0;
+        $stats['in_progress'] = 0;
+        $stats['completed_today'] = 0;
+        $stats['urgent_orders'] = 0;
+
+        // Lab orders statistics
+        try {
+            if ($this->db->tableExists('lab_orders')) {
+                // Total lab orders
+                $stats['total_orders'] = $this->db->table('lab_orders')
+                    ->countAllResults();
+
+                // Pending orders (ordered status)
+                $stats['pending_orders'] = $this->db->table('lab_orders')
+                    ->where('status', 'ordered')
+                    ->countAllResults();
+
+                // In progress orders
+                $stats['in_progress'] = $this->db->table('lab_orders')
+                    ->where('status', 'in_progress')
+                    ->countAllResults();
+
+                // Completed today
+                if ($this->db->fieldExists('completed_at', 'lab_orders')) {
+                    $stats['completed_today'] = $this->db->table('lab_orders')
+                        ->where('status', 'completed')
+                        ->where('completed_at >=', $todayStart)
+                        ->where('completed_at <=', $todayEnd)
+                        ->countAllResults();
+                } else {
+                    // Fallback: count completed orders created today
+                    $stats['completed_today'] = $this->db->table('lab_orders')
+                        ->where('status', 'completed')
+                        ->where('created_at >=', $todayStart)
+                        ->where('created_at <=', $todayEnd)
+                        ->countAllResults();
+                }
+
+                // Urgent/stat priority orders (pending or in progress)
+                if ($this->db->fieldExists('priority', 'lab_orders')) {
+                    $stats['urgent_orders'] = $this->db->table('lab_orders')
+                        ->whereIn('priority', ['urgent', 'stat'])
+                        ->whereIn('status', ['ordered', 'in_progress'])
+                        ->countAllResults();
+                }
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'Laboratorist stats error: ' . $e->getMessage());
+        }
+
+        return $stats;
+    }
+    /**
+     * IT Staff dashboard statistics
+     * IT staff see the same system-wide statistics as admin
+     */
+    private function getITStats()
+    {
+        // IT staff have the same view as admin, so return admin stats
+        return $this->getAdminStats();
+    }
     private function getDefaultStats() { return []; }
     
     private function getNurseActivities($staffId, $limit) { return []; }

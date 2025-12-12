@@ -23,7 +23,6 @@ $moduleMappings = [
         'nurse' => ['url' => 'nurse/patients', 'icon' => 'fas fa-users', 'label' => 'Patients'],
         'receptionist' => ['url' => 'receptionist/patients', 'icon' => 'fas fa-users', 'label' => 'Patient Registration'],
         'laboratorist' => ['url' => 'unified/patient-records', 'icon' => 'fas fa-folder-open', 'label' => 'Patient Records'],
-        'accountant' => ['url' => 'unified/patient-records', 'icon' => 'fas fa-folder-open', 'label' => 'Patient Records'],
         'it_staff' => ['url' => 'it-staff/patients', 'icon' => 'fas fa-user-injured', 'label' => 'Patient Management'],
     ],
     'appointments' => [
@@ -59,13 +58,11 @@ $moduleMappings = [
     ],
     'reports' => [
         'admin' => ['url' => 'admin/analytics', 'icon' => 'fas fa-chart-bar', 'label' => 'Analytics & Reports'],
-        'accountant' => ['url' => 'accountant/analytics', 'icon' => 'fas fa-chart-bar', 'label' => 'Analytics'],
         'laboratorist' => ['url' => 'laboratorist/reports', 'icon' => 'fas fa-chart-bar', 'label' => 'Reports'],
         'pharmacist' => ['url' => 'pharmacist/reports', 'icon' => 'fas fa-chart-bar', 'label' => 'Reports'],
         'it_staff' => ['url' => 'admin/analytics', 'icon' => 'fas fa-chart-bar', 'label' => 'Analytics & Reports'],
     ],
     'billing' => [
-        'accountant' => ['url' => 'accountant/billing', 'icon' => 'fas fa-file-invoice-dollar', 'label' => 'Billing Management'],
         'admin' => ['url' => 'admin/financial-management', 'icon' => 'fas fa-dollar-sign', 'label' => 'Billing Management'],
     ],
     'system' => [
@@ -87,9 +84,8 @@ $additionalModules = [
     'rooms' => [
         'admin' => ['url' => 'admin/room-management', 'icon' => 'fas fa-bed', 'label' => 'Room Management'],
     ],
-   
     'financial' => [
-        'accountant' => ['url' => 'accountant/financial', 'icon' => 'fas fa-dollar-sign', 'label' => 'Financial Reports'],
+        'accountant' => ['url' => 'accountant/financial', 'icon' => 'fas fa-dollar-sign', 'label' => 'Billing Reports'],
     ],
     'results' => [
         'laboratorist' => ['url' => 'laboratorist/results', 'icon' => 'fas fa-file-medical-alt', 'label' => 'Test Results'],

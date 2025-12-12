@@ -34,7 +34,7 @@
                 $pageTitles = [
                     'admin'       => 'Billing Management',
                     'doctor'      => 'My Financial Records',
-                    'accountant'  => 'Financial Overview',
+                    'accountant'  => 'Billing Overview',
                     'receptionist'=> 'Billing & Payments'
                 ];
                 echo esc($pageTitles[$userRole] ?? 'Billing Management');

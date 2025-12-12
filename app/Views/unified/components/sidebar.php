@@ -22,7 +22,6 @@ $moduleMappings = [
         'doctor' => ['url' => 'doctor/patient-management', 'icon' => 'fas fa-user-injured', 'label' => 'Patient Management'],
         'nurse' => ['url' => 'nurse/patients', 'icon' => 'fas fa-users', 'label' => 'Patients'],
         'receptionist' => ['url' => 'receptionist/patients', 'icon' => 'fas fa-users', 'label' => 'Patient Registration'],
-        'laboratorist' => ['url' => 'unified/patient-records', 'icon' => 'fas fa-folder-open', 'label' => 'Patient Records'],
         'it_staff' => ['url' => 'it-staff/patients', 'icon' => 'fas fa-user-injured', 'label' => 'Patient Management'],
     ],
     'appointments' => [
@@ -58,7 +57,6 @@ $moduleMappings = [
     ],
     'reports' => [
         'admin' => ['url' => 'admin/analytics', 'icon' => 'fas fa-chart-bar', 'label' => 'Analytics & Reports'],
-        'laboratorist' => ['url' => 'laboratorist/reports', 'icon' => 'fas fa-chart-bar', 'label' => 'Reports'],
         'pharmacist' => ['url' => 'pharmacist/reports', 'icon' => 'fas fa-chart-bar', 'label' => 'Reports'],
         'it_staff' => ['url' => 'admin/analytics', 'icon' => 'fas fa-chart-bar', 'label' => 'Analytics & Reports'],
     ],
@@ -86,9 +84,6 @@ $additionalModules = [
     ],
     'financial' => [
         'accountant' => ['url' => 'accountant/financial', 'icon' => 'fas fa-dollar-sign', 'label' => 'Billing Reports'],
-    ],
-    'results' => [
-        'laboratorist' => ['url' => 'laboratorist/results', 'icon' => 'fas fa-file-medical-alt', 'label' => 'Test Results'],
     ],
     'patient_records' => [
         'admin' => ['url' => 'unified/patient-records', 'icon' => 'fas fa-folder-open', 'label' => 'Patient Records'],
@@ -167,13 +162,6 @@ if (PermissionManager::hasAnyPermission($userRole, 'prescriptions', $inventoryPe
 if (PermissionManager::hasAnyPermission($userRole, 'billing', ['view', 'create', 'edit', 'process'])) {
     if (isset($additionalModules['financial'][$userRole])) {
         $navigationItems[] = array_merge($additionalModules['financial'][$userRole], ['module' => 'financial']);
-    }
-}
-
-// Lab results - for laboratorists (they have reports permission)
-if (PermissionManager::hasAnyPermission($userRole, 'reports', ['view', 'generate'])) {
-    if (isset($additionalModules['results'][$userRole])) {
-        $navigationItems[] = array_merge($additionalModules['results'][$userRole], ['module' => 'results']);
     }
 }
 

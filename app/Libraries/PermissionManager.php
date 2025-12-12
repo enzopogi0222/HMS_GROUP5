@@ -13,6 +13,7 @@ class PermissionManager
             'resources' => ['view', 'create', 'edit', 'delete', 'view_all'],
             'shifts' => ['view', 'create', 'edit', 'delete'],
             'prescriptions' => ['view', 'create', 'edit', 'delete', 'view_all'], // Admin can create prescriptions
+            'lab_orders' => ['view', 'create', 'edit', 'delete', 'view_all'], // Admin can create lab orders
             'reports' => ['view', 'generate', 'export'],
             'system' => ['settings', 'backup', 'maintenance']
         ],
@@ -22,6 +23,7 @@ class PermissionManager
             'resources' => ['view', 'view_assigned'],
             'shifts' => ['view', 'edit', 'view_own', 'edit_own'],
             'prescriptions' => ['view', 'create', 'edit', 'view_own'],
+            'lab_orders' => ['view', 'create', 'edit', 'view_own'],
         
         ],
         'receptionist' => [
@@ -51,6 +53,7 @@ class PermissionManager
         'laboratorist' => [
             'patients' => ['view'],
             'resources' => ['view', 'create', 'edit', 'delete', 'view_assigned'], // Can manage lab resources
+            'lab_orders' => ['view', 'edit', 'view_all'], // Can process and complete lab orders
             'reports' => ['view', 'generate']
         ],
         'it_staff' => [

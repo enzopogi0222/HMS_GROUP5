@@ -81,17 +81,18 @@ return [];
                     $o['patient_type'] = $this->getPatientType((int)$o['patient_id']);
                 }
                 
-                // For outpatients: only include if paid
+                // For outpatients: include if paid OR if status is 'in_progress' (newly created orders)
                 // For inpatients: include all (no payment check needed)
                 $patientType = strtolower($o['patient_type'] ?? 'outpatient');
                 $labOrderId = (int)($o['lab_order_id'] ?? 0);
+                $orderStatus = strtolower($o['status'] ?? 'ordered');
                 
                 if ($patientType === 'outpatient' && $labOrderId > 0) {
-                    // Only include if lab order is paid
-                    if ($this->isLabOrderPaid($labOrderId)) {
+                    // Include if lab order is paid OR if it's in 'in_progress' status (newly created)
+                    if ($this->isLabOrderPaid($labOrderId) || $orderStatus === 'in_progress') {
                         $filteredOrders[] = $o;
                     }
-                    // Skip unpaid outpatient lab orders - they won't appear in the table
+                    // Skip unpaid outpatient lab orders that are not in progress
                 } else {
                     // Include all inpatient lab orders (no payment check)
                     $filteredOrders[] = $o;
@@ -171,11 +172,12 @@ return [];
     public function createLabOrder(array $data, string $userRole, ?int $staffId = null): array
     {
         try {
-            // Only doctors and optionally nurses can create lab orders
+            // Only doctors, admins, and optionally nurses can create lab orders
             // Doctors: Yes (main requester)
+            // Admins: Yes (can create lab orders)
             // Nurses: Optional (depends on policy - currently disabled, can be enabled if needed)
-            if (!in_array($userRole, ['doctor', 'nurse'], true)) {
-                return ['success' => false, 'message' => 'Permission denied. Only doctors can create lab orders.'];
+            if (!in_array($userRole, ['doctor', 'admin', 'nurse'], true)) {
+                return ['success' => false, 'message' => 'Permission denied. Only doctors and administrators can create lab orders.'];
             }
 
             if (!$this->db->tableExists('lab_orders')) {
@@ -208,7 +210,7 @@ return [];
                 'appointment_id' => !empty($data['appointment_id']) ? (int) $data['appointment_id'] : null,
                 'test_code'      => $data['test_code'],
                 'test_name'      => $data['test_name'] ?? null,
-                'status'         => 'ordered',
+                'status'         => 'in_progress', // Automatically set to in_progress for both inpatients and outpatients
                 'priority'       => $data['priority'] ?? 'routine',
                 'ordered_at'     => date('Y-m-d H:i:s'),
                 'created_at'     => date('Y-m-d H:i:s'),
@@ -228,14 +230,14 @@ return [];
                 $this->addLabOrderToBillingForOutpatient($id, $patientId, $data['test_code'], $staffId);
                 return [
                     'success' => true, 
-                    'message' => 'Lab order created successfully. For outpatients, the lab order will appear in the lab table after payment is processed.', 
+                    'message' => 'Lab order created successfully and set to in progress. For outpatients, payment should be processed before completion.', 
                     'lab_order_id' => $id,
                     'requires_payment' => true,
                     'patient_type' => 'outpatient'
                 ];
             }
 
-            return ['success' => true, 'message' => 'Lab order created successfully', 'lab_order_id' => $id];
+            return ['success' => true, 'message' => 'Lab order created successfully and set to in progress', 'lab_order_id' => $id];
         } catch (\Throwable $e) {
             log_message('error', 'LabService::createLabOrder error: ' . $e->getMessage());
             return ['success' => false, 'message' => 'Failed to create lab order'];

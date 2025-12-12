@@ -102,6 +102,11 @@
                 actions.push(`<button class="btn btn-warning" style="padding:0.3rem 0.6rem;font-size:0.75rem;" onclick="LabUI.editOrder(${labOrderId})" title="Edit Lab Order"><i class="fas fa-edit"></i> Edit</button>`);
             }
             
+            // Start Processing button - for laboratorist when status is 'ordered'
+            if (canComplete && statusLower === 'ordered') {
+                actions.push(`<button class="btn btn-info" style="padding:0.3rem 0.6rem;font-size:0.75rem;" onclick="LabUI.updateStatus(${labOrderId}, 'in_progress')" title="Start Processing"><i class="fas fa-play"></i> Start</button>`);
+            }
+            
             // Complete button - only for laboratorist (lab staff) when status is 'in_progress'
             if (canComplete && statusLower === 'in_progress') {
                 actions.push(`<button class="btn btn-success" style="padding:0.3rem 0.6rem;font-size:0.75rem;" onclick="LabUI.updateStatus(${labOrderId}, 'completed')" title="Mark as Completed"><i class="fas fa-check"></i> Complete</button>`);

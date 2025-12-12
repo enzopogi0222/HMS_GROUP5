@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Services\PrescriptionService;
 use App\Services\ResourceService;
 use App\Services\FinancialService;
+use App\Services\PatientService;
 use App\Libraries\PermissionManager;
 
 class PrescriptionManagement extends BaseController
@@ -13,14 +14,18 @@ class PrescriptionManagement extends BaseController
     protected $prescriptionService;
     protected $permissionManager;
     protected $financialService;
+    protected $patientService;
     protected $userRole;
     protected $staffId;
+    protected $db;
 
     public function __construct()
     {
         $this->prescriptionService = new PrescriptionService();
         $this->permissionManager = new PermissionManager();
         $this->financialService = new FinancialService();
+        $this->patientService = new PatientService();
+        $this->db = \Config\Database::connect();
         $session = session();
         $this->userRole = $session->get('role');
         $this->staffId = $session->get('staff_id');
@@ -340,37 +345,52 @@ class PrescriptionManagement extends BaseController
                 ]);
             }
 
-            $db = \Config\Database::connect();
-            
-            // Check if doctor table exists for specialization
-            $doctorTable = $db->tableExists('doctor');
-            
-            if ($doctorTable) {
-                // Join with doctor table to get specialization only
-                $doctors = $db->table('staff s')
-                    ->select('s.staff_id, s.first_name, s.last_name, d.specialization')
-                    ->join('doctor d', 'd.staff_id = s.staff_id', 'left')
-                    ->where('s.role', 'doctor')
-                    ->orderBy('s.first_name', 'ASC')
-                    ->get()
-                    ->getResultArray();
-            } else {
-                // Just get basic staff info if doctor table doesn't exist
-                $doctors = $db->table('staff')
-                    ->select('staff_id, first_name, last_name')
-                    ->where('role', 'doctor')
-                    ->orderBy('first_name', 'ASC')
-                    ->get()
-                    ->getResultArray();
+            // Use PatientService method which handles database structure variations
+            try {
+                $doctors = $this->patientService->getAvailableDoctors();
+            } catch (\Throwable $e) {
+                log_message('error', 'PrescriptionManagement::getAvailableDoctorsAPI - PatientService failed: ' . $e->getMessage());
+                // Fallback: try direct query
+                try {
+                    if ($this->db->tableExists('staff')) {
+                        $doctors = $this->db->table('staff')
+                            ->select('staff_id, first_name, last_name')
+                            ->where('role', 'doctor')
+                            ->orderBy('first_name', 'ASC')
+                            ->get()
+                            ->getResultArray();
+                    } else {
+                        $doctors = [];
+                    }
+                } catch (\Throwable $e2) {
+                    log_message('error', 'PrescriptionManagement::getAvailableDoctorsAPI - Fallback query failed: ' . $e2->getMessage());
+                    $doctors = [];
+                }
             }
+            
+            // Ensure we return an array even if empty
+            if (!is_array($doctors)) {
+                $doctors = [];
+            }
+            
+            // Normalize the data format to match expected frontend format
+            $formattedDoctors = array_map(function($doctor) {
+                return [
+                    'staff_id' => $doctor['staff_id'] ?? $doctor['id'] ?? null,
+                    'first_name' => $doctor['first_name'] ?? '',
+                    'last_name' => $doctor['last_name'] ?? '',
+                    'specialization' => $doctor['specialization'] ?? null
+                ];
+            }, $doctors);
             
             return $this->response->setJSON([
                 'status' => 'success',
-                'data' => $doctors
+                'data' => $formattedDoctors
             ]);
 
         } catch (\Throwable $e) {
             log_message('error', 'PrescriptionManagement::getAvailableDoctorsAPI error: ' . $e->getMessage());
+            log_message('error', 'PrescriptionManagement::getAvailableDoctorsAPI trace: ' . $e->getTraceAsString());
             return $this->response->setStatusCode(500)->setJSON([
                 'status' => 'error',
                 'message' => 'Failed to load available doctors'

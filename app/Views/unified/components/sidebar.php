@@ -93,83 +93,95 @@ $additionalModules = [
 ];
 
 // Check permissions and build navigation items
-foreach ($moduleMappings as $module => $roleMappings) {
-    // For nurses, exclude 'view_assigned' from permission checks
-    // For other roles, include all view permissions
-    // For vital_signs, check for create permission instead
-    if ($module === 'vital_signs') {
-        $permissionActions = ['create'];
-    } elseif ($userRole === 'nurse') {
-        // For nurses, only check for 'view' permission, NOT 'view_assigned'
-        $permissionActions = ['view', 'view_all', 'view_own'];
-    } else {
-        $permissionActions = ['view', 'view_all', 'view_assigned', 'view_own'];
+// Special handling for it_staff - only show Dashboard and User Management
+if ($userRole === 'it_staff') {
+    // Only add User Management for it_staff
+    if (isset($moduleMappings['users']['it_staff'])) {
+        $navigationItems[] = array_merge($moduleMappings['users']['it_staff'], ['module' => 'users']);
     }
-    
-    if (PermissionManager::hasAnyPermission($userRole, $module, $permissionActions)) {
-        if (isset($roleMappings[$userRole])) {
-            $navigationItems[] = array_merge($roleMappings[$userRole], ['module' => $module]);
+} else {
+    // For all other roles, check permissions normally
+    foreach ($moduleMappings as $module => $roleMappings) {
+        // For nurses, exclude 'view_assigned' from permission checks
+        // For other roles, include all view permissions
+        // For vital_signs, check for create permission instead
+        if ($module === 'vital_signs') {
+            $permissionActions = ['create'];
+        } elseif ($userRole === 'nurse') {
+            // For nurses, only check for 'view' permission, NOT 'view_assigned'
+            $permissionActions = ['view', 'view_all', 'view_own'];
+        } else {
+            $permissionActions = ['view', 'view_all', 'view_assigned', 'view_own'];
+        }
+        
+        if (PermissionManager::hasAnyPermission($userRole, $module, $permissionActions)) {
+            if (isset($roleMappings[$userRole])) {
+                $navigationItems[] = array_merge($roleMappings[$userRole], ['module' => $module]);
+            }
         }
     }
 }
 
 // Add additional modules (these may not have explicit permissions in PermissionManager)
-// Labs - available if user has patients or prescriptions permission (nurses excluded from prescriptions check)
-$labsPermissionActions = ($userRole === 'nurse') ? ['view', 'view_all', 'view_own'] : ['view', 'view_all', 'view_assigned', 'view_own'];
-if ($userRole === 'nurse') {
-    // Nurses can access labs if they have patients permission (no prescriptions check)
-    if (PermissionManager::hasAnyPermission($userRole, 'patients', $labsPermissionActions)) {
-        if (isset($additionalModules['labs'][$userRole])) {
-            $navigationItems[] = array_merge($additionalModules['labs'][$userRole], ['module' => 'labs']);
+// Skip for it_staff - they only see Dashboard and User Management
+if ($userRole !== 'it_staff') {
+    // Labs - available if user has patients or prescriptions permission (nurses excluded from prescriptions check)
+    $labsPermissionActions = ($userRole === 'nurse') ? ['view', 'view_all', 'view_own'] : ['view', 'view_all', 'view_assigned', 'view_own'];
+    if ($userRole === 'nurse') {
+        // Nurses can access labs if they have patients permission (no prescriptions check)
+        if (PermissionManager::hasAnyPermission($userRole, 'patients', $labsPermissionActions)) {
+            if (isset($additionalModules['labs'][$userRole])) {
+                $navigationItems[] = array_merge($additionalModules['labs'][$userRole], ['module' => 'labs']);
+            }
+        }
+    } else {
+        // Other roles can access labs if they have patients or prescriptions permission
+        if (PermissionManager::hasAnyPermission($userRole, 'patients', $labsPermissionActions) || 
+            PermissionManager::hasAnyPermission($userRole, 'prescriptions', $labsPermissionActions)) {
+            if (isset($additionalModules['labs'][$userRole])) {
+                $navigationItems[] = array_merge($additionalModules['labs'][$userRole], ['module' => 'labs']);
+            }
         }
     }
-} else {
-    // Other roles can access labs if they have patients or prescriptions permission
-    if (PermissionManager::hasAnyPermission($userRole, 'patients', $labsPermissionActions) || 
-        PermissionManager::hasAnyPermission($userRole, 'prescriptions', $labsPermissionActions)) {
-        if (isset($additionalModules['labs'][$userRole])) {
-            $navigationItems[] = array_merge($additionalModules['labs'][$userRole], ['module' => 'labs']);
+
+    // Departments - typically admin only, but check if user has staff or resources permission
+    $deptPermissionActions = ($userRole === 'nurse') ? ['view', 'view_all'] : ['view', 'view_all', 'view_assigned'];
+    if (PermissionManager::hasAnyPermission($userRole, 'staff', $deptPermissionActions) || 
+        PermissionManager::hasAnyPermission($userRole, 'resources', $deptPermissionActions)) {
+        if (isset($additionalModules['departments'][$userRole])) {
+            $navigationItems[] = array_merge($additionalModules['departments'][$userRole], ['module' => 'departments']);
         }
     }
-}
 
-// Departments - typically admin only, but check if user has staff or resources permission
-$deptPermissionActions = ($userRole === 'nurse') ? ['view', 'view_all'] : ['view', 'view_all', 'view_assigned'];
-if (PermissionManager::hasAnyPermission($userRole, 'staff', $deptPermissionActions) || 
-    PermissionManager::hasAnyPermission($userRole, 'resources', $deptPermissionActions)) {
-    if (isset($additionalModules['departments'][$userRole])) {
-        $navigationItems[] = array_merge($additionalModules['departments'][$userRole], ['module' => 'departments']);
+    // Rooms - typically admin only, but check if user has resources permission
+    $roomsPermissionActions = ($userRole === 'nurse') ? ['view', 'view_all'] : ['view', 'view_all', 'view_assigned'];
+    if (PermissionManager::hasAnyPermission($userRole, 'resources', $roomsPermissionActions)) {
+        if (isset($additionalModules['rooms'][$userRole])) {
+            $navigationItems[] = array_merge($additionalModules['rooms'][$userRole], ['module' => 'rooms']);
+        }
     }
-}
 
-// Rooms - typically admin only, but check if user has resources permission
-$roomsPermissionActions = ($userRole === 'nurse') ? ['view', 'view_all'] : ['view', 'view_all', 'view_assigned'];
-if (PermissionManager::hasAnyPermission($userRole, 'resources', $roomsPermissionActions)) {
-    if (isset($additionalModules['rooms'][$userRole])) {
-        $navigationItems[] = array_merge($additionalModules['rooms'][$userRole], ['module' => 'rooms']);
+    // Inventory - for pharmacists (they have prescriptions permission)
+    $inventoryPermissionActions = ($userRole === 'nurse') ? ['view', 'view_all', 'fulfill'] : ['view', 'view_all', 'view_assigned', 'fulfill'];
+    if (PermissionManager::hasAnyPermission($userRole, 'prescriptions', $inventoryPermissionActions)) {
+        if (isset($additionalModules['inventory'][$userRole])) {
+            $navigationItems[] = array_merge($additionalModules['inventory'][$userRole], ['module' => 'inventory']);
+        }
     }
-}
 
-// Inventory - for pharmacists (they have prescriptions permission)
-$inventoryPermissionActions = ($userRole === 'nurse') ? ['view', 'view_all', 'fulfill'] : ['view', 'view_all', 'view_assigned', 'fulfill'];
-if (PermissionManager::hasAnyPermission($userRole, 'prescriptions', $inventoryPermissionActions)) {
-    if (isset($additionalModules['inventory'][$userRole])) {
-        $navigationItems[] = array_merge($additionalModules['inventory'][$userRole], ['module' => 'inventory']);
+    // Financial reports - for accountants (they have billing permission)
+    if (PermissionManager::hasAnyPermission($userRole, 'billing', ['view', 'create', 'edit', 'process'])) {
+        if (isset($additionalModules['financial'][$userRole])) {
+            $navigationItems[] = array_merge($additionalModules['financial'][$userRole], ['module' => 'financial']);
+        }
     }
-}
 
-// Financial reports - for accountants (they have billing permission)
-if (PermissionManager::hasAnyPermission($userRole, 'billing', ['view', 'create', 'edit', 'process'])) {
-    if (isset($additionalModules['financial'][$userRole])) {
-        $navigationItems[] = array_merge($additionalModules['financial'][$userRole], ['module' => 'financial']);
-    }
-}
-
-// Patient Records - available if user has patients permission (excluding view_assigned for nurses)
-$patientRecordsPermissionActions = ($userRole === 'nurse') ? ['view', 'view_all', 'view_own'] : ['view', 'view_all', 'view_assigned', 'view_own'];
-if (PermissionManager::hasAnyPermission($userRole, 'patients', $patientRecordsPermissionActions)) {
-    if (isset($additionalModules['patient_records'][$userRole])) {
-        $navigationItems[] = array_merge($additionalModules['patient_records'][$userRole], ['module' => 'patient_records']);
+    // Patient Records - available if user has patients permission (excluding view_assigned for nurses)
+    $patientRecordsPermissionActions = ($userRole === 'nurse') ? ['view', 'view_all', 'view_own'] : ['view', 'view_all', 'view_assigned', 'view_own'];
+    if (PermissionManager::hasAnyPermission($userRole, 'patients', $patientRecordsPermissionActions)) {
+        if (isset($additionalModules['patient_records'][$userRole])) {
+            $navigationItems[] = array_merge($additionalModules['patient_records'][$userRole], ['module' => 'patient_records']);
+        }
     }
 }
 ?>

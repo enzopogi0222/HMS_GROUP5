@@ -220,7 +220,7 @@
                         <tr>
                             <td colspan="5" style="text-align: center; padding: 2rem;">
                                 <i class="fas fa-users" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;" aria-hidden="true"></i>
-                                <p>No users found.</p>
+                                <p><?= ($userRole ?? '') === 'it_staff' ? 'No inactive users found.' : 'No users found.' ?></p>
                                 <?php if (($permissions['canCreate'] ?? false)): ?>
                                     <button type="button" class="btn btn-primary" onclick="document.getElementById('addUserBtn').click()" aria-label="Add First User">
                                         <i class="fas fa-plus" aria-hidden="true"></i> Add Your First User

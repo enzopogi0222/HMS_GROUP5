@@ -244,11 +244,12 @@ class UserManager {
         const tableBody = document.getElementById('usersTableBody');
         
         if (this.filteredUsers.length === 0) {
+            const emptyMessage = (UserConfig.userRole === 'it_staff') ? 'No inactive users found.' : 'No users found.';
             tableBody.innerHTML = `
                 <tr>
                     <td colspan="5" style="text-align: center; padding: 2rem;">
                         <i class="fas fa-users" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;" aria-hidden="true"></i>
-                        <p>No users found.</p>
+                        <p>${emptyMessage}</p>
                         ${this.hasActiveFilters() ? `
                             <button onclick="clearFilters()" class="btn btn-secondary" aria-label="Clear Filters">
                                 <i class="fas fa-times" aria-hidden="true"></i> Clear Filters

@@ -71,6 +71,12 @@ class ResourceService
                 'remarks' => trim($data['remarks'] ?? '')
             ];
 
+            // Validate category based on user role
+            $allowedCategories = $this->getCategories($role);
+            if (!in_array($resourceData['category'], $allowedCategories)) {
+                return ['success' => false, 'message' => 'You do not have permission to create resources in this category. Allowed categories: ' . implode(', ', $allowedCategories)];
+            }
+
             // Validate medications require batch number and expiry date
             if ($resourceData['category'] === 'Medications') {
                 if (empty($resourceData['batch_number'])) {
@@ -131,6 +137,14 @@ class ResourceService
                     $updateData[$field] = !empty($data[$field]) ? $data[$field] : null;
                 } else {
                     $updateData[$field] = $data[$field];
+                }
+            }
+
+            // Validate category based on user role (if category is being updated)
+            if (isset($updateData['category'])) {
+                $allowedCategories = $this->getCategories($role);
+                if (!in_array($updateData['category'], $allowedCategories)) {
+                    return ['success' => false, 'message' => 'You do not have permission to update resources to this category. Allowed categories: ' . implode(', ', $allowedCategories)];
                 }
             }
 
@@ -239,8 +253,8 @@ class ResourceService
         return match($role) {
             'admin', 'it_staff' => $allCategories,
             'doctor', 'nurse' => ['Medical Equipment', 'Medical Supplies', 'Diagnostic Equipment'],
-            'pharmacist' => ['Medical Supplies', 'Pharmacy Equipment', 'Medications'],
-            'laboratorist' => ['Lab Equipment', 'Diagnostic Equipment', 'Medical Supplies'],
+            'pharmacist' => ['Medical Supplies', 'Pharmacy Equipment', 'Medications'], // Medications ONLY for pharmacists
+            'laboratorist' => ['Lab Equipment', 'Diagnostic Equipment', 'Medical Supplies'], // NO medications for laboratorists
             'receptionist' => ['Office Equipment', 'IT Equipment'],
             default => []
         };

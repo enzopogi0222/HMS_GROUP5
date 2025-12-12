@@ -114,9 +114,11 @@ class ResourceModel extends Model
                 $builder->whereIn('category', ['Medical Equipment', 'Medical Supplies', 'Diagnostic Equipment']);
                 break;
             case 'pharmacist':
+                // Pharmacists can only see medications, pharmacy equipment, and medical supplies
                 $builder->whereIn('category', ['Medical Supplies', 'Pharmacy Equipment', 'Medications']);
                 break;
             case 'laboratorist':
+                // Laboratorists can only see lab equipment, diagnostic equipment, and medical supplies (NOT medications)
                 $builder->whereIn('category', ['Lab Equipment', 'Diagnostic Equipment', 'Medical Supplies']);
                 break;
             case 'receptionist':

@@ -435,7 +435,12 @@
             <script>
                 window.HMS = {
                     baseUrl: '<?= rtrim(base_url(), '/') ?>',
-                    csrf: { token: '<?= csrf_token() ?>', hash: '<?= csrf_hash() ?>' }
+                    csrf: { token: '<?= csrf_token() ?>', hash: '<?= csrf_hash() ?>' },
+                    resourceManagementBaseUrl: '<?= match($userRole ?? '') {
+                        'pharmacist' => 'pharmacist/resource-management',
+                        'laboratorist' => 'laboratorist/resource-management',
+                        default => 'admin/resource-management'
+                    } ?>'
                 };
                 window.__RESOURCES__ = <?php echo json_encode($resources ?? []); ?>;
             </script>

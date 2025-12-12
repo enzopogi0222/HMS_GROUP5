@@ -120,7 +120,8 @@
 
         try {
             const formData = new FormData(form);
-            const res = await fetch(baseUrl + 'admin/resource-management/update', {
+            const resourceBaseUrl = window.HMS?.resourceManagementBaseUrl || 'admin/resource-management';
+            const res = await fetch(baseUrl + resourceBaseUrl + '/update', {
                 method: 'POST',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',

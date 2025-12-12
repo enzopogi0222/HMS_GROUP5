@@ -40,7 +40,7 @@ class PermissionManager
         'pharmacist' => [
             'prescriptions' => ['view', 'edit', 'fulfill', 'view_all'],
             'patients' => ['view'],
-            'resources' => ['view', 'view_assigned']
+            'resources' => ['view', 'create', 'edit', 'delete', 'view_assigned'] // Can manage pharmacy resources and medications
         ],
         'accountant' => [
             'patients' => ['view'],
@@ -50,7 +50,7 @@ class PermissionManager
         ],
         'laboratorist' => [
             'patients' => ['view'],
-            'resources' => ['view', 'view_assigned'],
+            'resources' => ['view', 'create', 'edit', 'delete', 'view_assigned'], // Can manage lab resources
             'reports' => ['view', 'generate']
         ],
         'it_staff' => [

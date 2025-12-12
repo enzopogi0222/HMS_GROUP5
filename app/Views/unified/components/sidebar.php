@@ -22,7 +22,6 @@ $moduleMappings = [
         'doctor' => ['url' => 'doctor/patient-management', 'icon' => 'fas fa-user-injured', 'label' => 'Patient Management'],
         'nurse' => ['url' => 'nurse/patients', 'icon' => 'fas fa-users', 'label' => 'Patients'],
         'receptionist' => ['url' => 'receptionist/patients', 'icon' => 'fas fa-users', 'label' => 'Patient Registration'],
-        'pharmacist' => ['url' => 'unified/patient-records', 'icon' => 'fas fa-folder-open', 'label' => 'Patient Records'],
         'laboratorist' => ['url' => 'unified/patient-records', 'icon' => 'fas fa-folder-open', 'label' => 'Patient Records'],
         'accountant' => ['url' => 'unified/patient-records', 'icon' => 'fas fa-folder-open', 'label' => 'Patient Records'],
         'it_staff' => ['url' => 'it-staff/patients', 'icon' => 'fas fa-user-injured', 'label' => 'Patient Management'],
@@ -44,8 +43,8 @@ $moduleMappings = [
     'resources' => [
         'admin' => ['url' => 'admin/resource-management', 'icon' => 'fas fa-hospital', 'label' => 'Resource Management'],
         'doctor' => ['url' => 'admin/resource-management', 'icon' => 'fas fa-hospital', 'label' => 'Resources'],
-        'pharmacist' => ['url' => 'admin/resource-management', 'icon' => 'fas fa-hospital', 'label' => 'Resources'],
-        'laboratorist' => ['url' => 'admin/resource-management', 'icon' => 'fas fa-hospital', 'label' => 'Resources'],
+        'pharmacist' => ['url' => 'pharmacist/resource-management', 'icon' => 'fas fa-pills', 'label' => 'Pharmacy Inventory'],
+        'laboratorist' => ['url' => 'laboratorist/resource-management', 'icon' => 'fas fa-flask', 'label' => 'Lab Resources'],
         'it_staff' => ['url' => 'admin/resource-management', 'icon' => 'fas fa-hospital', 'label' => 'Resource Management'],
     ],
     'shifts' => [
@@ -88,9 +87,7 @@ $additionalModules = [
     'rooms' => [
         'admin' => ['url' => 'admin/room-management', 'icon' => 'fas fa-bed', 'label' => 'Room Management'],
     ],
-    'inventory' => [
-        'pharmacist' => ['url' => 'pharmacist/inventory', 'icon' => 'fas fa-pills', 'label' => 'Pharmacy Inventory'],
-    ],
+   
     'financial' => [
         'accountant' => ['url' => 'accountant/financial', 'icon' => 'fas fa-dollar-sign', 'label' => 'Financial Reports'],
     ],

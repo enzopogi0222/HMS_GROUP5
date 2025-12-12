@@ -85,7 +85,8 @@
 
         try {
             const formData = new FormData(form);
-            const res = await fetch(baseUrl + 'admin/resource-management/create', {
+            const resourceBaseUrl = window.HMS?.resourceManagementBaseUrl || 'admin/resource-management';
+            const res = await fetch(baseUrl + resourceBaseUrl + '/create', {
                 method: 'POST',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',

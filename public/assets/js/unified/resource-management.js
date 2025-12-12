@@ -52,7 +52,8 @@
             }
         } catch (e) {}
 
-        fetch(baseUrl + 'admin/resource-management/delete', {
+        const resourceBaseUrl = HMS.resourceManagementBaseUrl || 'admin/resource-management';
+        fetch(baseUrl + resourceBaseUrl + '/delete', {
             method: 'POST',
             headers: { 'Accept': 'application/json' },
             body: p
@@ -80,7 +81,8 @@
         if (categoryFilter?.value) params.append('category', categoryFilter.value);
         if (statusFilter?.value) params.append('status', statusFilter.value);
         
-        let url = baseUrl + 'admin/resource-management/export';
+        const resourceBaseUrl = HMS.resourceManagementBaseUrl || 'admin/resource-management';
+        let url = baseUrl + resourceBaseUrl + '/export';
         if (params.toString()) url += '?' + params.toString();
         
         window.location.href = url;

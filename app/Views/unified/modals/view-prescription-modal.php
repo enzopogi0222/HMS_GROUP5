@@ -77,6 +77,9 @@
             <?php if ($permissions['canEdit'] ?? false): ?>
                 <button type="button" class="btn btn-primary" id="editFromViewBtn"><i class="fas fa-edit"></i> Edit</button>
             <?php endif; ?>
+            <?php if (($userRole ?? '') === 'pharmacist'): ?>
+                <button type="button" class="btn btn-success" id="completeFromViewBtn" style="display: none;"><i class="fas fa-check"></i> Complete</button>
+            <?php endif; ?>
         </div>
     </div>
 </div>

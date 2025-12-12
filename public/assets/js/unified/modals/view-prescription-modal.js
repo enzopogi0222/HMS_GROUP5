@@ -17,11 +17,21 @@ window.ViewPrescriptionModal = {
         if (editBtn) {
             editBtn.addEventListener('click', () => this.editFromView());
         }
+        
+        const completeBtn = document.getElementById('completeFromViewBtn');
+        if (completeBtn) {
+            completeBtn.addEventListener('click', () => this.completeFromView());
+        }
     },
     
     getConfig() {
         const baseUrl = document.querySelector('meta[name="base-url"]')?.content || '';
-        return { baseUrl: baseUrl.replace(/\/$/, ''), endpoints: { getPrescription: `${baseUrl}prescriptions` } };
+        const userRole = document.querySelector('meta[name="user-role"]')?.content || '';
+        return { 
+            baseUrl: baseUrl.replace(/\/$/, ''), 
+            userRole: userRole,
+            endpoints: { getPrescription: `${baseUrl}prescriptions` } 
+        };
     },
     
     async open(prescriptionId) {
@@ -103,6 +113,9 @@ window.ViewPrescriptionModal = {
             statusElement.className = `status-badge ${(prescription.status || 'queued').toLowerCase()}`;
         }
         
+        // Show/hide Complete button for pharmacists based on prescription status
+        this.updateCompleteButtonVisibility(prescription);
+        
         const body = document.getElementById('viewMedicinesBody');
         if (body) {
             const items = Array.isArray(prescription.items) && prescription.items.length
@@ -133,6 +146,82 @@ window.ViewPrescriptionModal = {
             window.AddPrescriptionModal.openForEdit(this.currentPrescription);
         } else {
             this.showNotification('Failed to load prescription for editing', 'error');
+        }
+    },
+    
+    updateCompleteButtonVisibility(prescription) {
+        const completeBtn = document.getElementById('completeFromViewBtn');
+        if (!completeBtn) return;
+        
+        // Get user role from config or meta tag
+        const userRole = this.config.userRole || document.querySelector('meta[name="user-role"]')?.content || '';
+        const status = (prescription.status || '').toLowerCase();
+        
+        // Show button for pharmacists when prescription can be completed
+        if (userRole === 'pharmacist') {
+            const canComplete = ['active', 'ready', 'queued', 'in_progress', 'verifying'].includes(status) && 
+                               status !== 'dispensed' && status !== 'completed';
+            completeBtn.style.display = canComplete ? 'inline-block' : 'none';
+        } else {
+            completeBtn.style.display = 'none';
+        }
+    },
+    
+    async completeFromView() {
+        if (!this.currentPrescription || !this.currentPrescription.id) {
+            this.showNotification('Prescription ID is required', 'error');
+            return;
+        }
+        
+        if (!confirm('Are you sure you want to mark this prescription as completed?')) {
+            return;
+        }
+        
+        try {
+            const baseUrl = this.config.baseUrl || '';
+            const csrfTokenName = document.querySelector('meta[name="csrf-token-name"]')?.content || 'csrf_token';
+            const csrfHash = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            
+            const response = await fetch(`${baseUrl}/prescriptions/${this.currentPrescription.id}/status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    status: 'completed',
+                    [csrfTokenName]: csrfHash
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                const message = data.message || 'Prescription marked as completed';
+                this.showNotification(message, 'success');
+                this.close();
+                
+                // Refresh prescriptions list if available
+                if (window.prescriptionManager && typeof window.prescriptionManager.loadPrescriptions === 'function') {
+                    window.prescriptionManager.loadPrescriptions();
+                } else {
+                    // Fallback: reload page after a short delay
+                    setTimeout(() => location.reload(), 1000);
+                }
+            } else {
+                this.showNotification(data.message || 'Failed to complete prescription', 'error');
+            }
+            
+            // Update CSRF hash if provided
+            if (data.csrf && data.csrf.value) {
+                const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                if (csrfMeta) {
+                    csrfMeta.setAttribute('content', data.csrf.value);
+                }
+            }
+        } catch (error) {
+            console.error('Complete prescription error:', error);
+            this.showNotification('Failed to complete prescription', 'error');
         }
     },
     

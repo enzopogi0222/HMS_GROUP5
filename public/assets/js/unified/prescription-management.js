@@ -211,6 +211,30 @@ class PrescriptionManager {
         const canEdit = this.canEditPrescription(prescription);
         const canDelete = this.canDeletePrescription(prescription);
         const canDispense = this.canDispensePrescription(prescription);
+        const canComplete = this.canUpdateStatus(prescription);
+        
+        // For pharmacists: always show Complete button for queued/active/ready prescriptions
+        const isPharmacist = this.config.userRole === 'pharmacist';
+        // Handle empty/null status - default to 'queued' if status is missing
+        const rawStatus = prescription.status || '';
+        const prescriptionStatus = rawStatus ? rawStatus.toLowerCase().trim() : 'queued';
+        const showCompleteForPharmacist = isPharmacist && 
+                                         ['queued', 'active', 'ready', 'in_progress', 'verifying'].includes(prescriptionStatus) &&
+                                         !['dispensed', 'completed', 'cancelled'].includes(prescriptionStatus);
+        
+        // Debug logging
+        if (isPharmacist && !window._pharmacistButtonDebug) {
+            console.log('Pharmacist Button Debug:', {
+                userRole: this.config.userRole,
+                rawStatus: rawStatus,
+                prescriptionStatus: prescriptionStatus,
+                canComplete: canComplete,
+                showCompleteForPharmacist: showCompleteForPharmacist,
+                prescriptionId: prescription.id,
+                fullPrescription: prescription
+            });
+            window._pharmacistButtonDebug = true;
+        }
         
         return `
             <tr class="fade-in">
@@ -242,26 +266,34 @@ class PrescriptionManager {
                         <button type="button" class="btn btn-sm btn-primary btn-view" data-prescription-id="${prescription.id}" data-action="view" title="View Details">
                             <i class="fas fa-eye"></i> View
                         </button>
-                        ${canEdit ? `
-                            <button type="button" class="btn btn-sm btn-warning btn-edit" data-prescription-id="${prescription.id}" data-action="edit" title="Edit Prescription">
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                        ` : ''}
-                        ${canDispense ? `
-                            <button type="button" class="btn btn-sm btn-success btn-dispense" data-prescription-id="${prescription.id}" data-action="dispense" title="Dispense">
-                                <i class="fas fa-pills"></i> Dispense
-                            </button>
-                        ` : ''}
-                        ${this.canUpdateStatus(prescription) ? `
-                            <button type="button" class="btn btn-sm btn-success btn-status" data-prescription-id="${prescription.id}" data-action="complete" data-status="completed" title="Mark Completed">
-                                <i class="fas fa-check"></i> Complete
-                            </button>
-                        ` : ''}
-                        ${canDelete ? `
-                            <button type="button" class="btn btn-sm btn-danger btn-delete" data-prescription-id="${prescription.id}" data-action="delete" title="Delete Prescription">
-                                <i class="fas fa-trash"></i> Delete
-                            </button>
-                        ` : ''}
+                        ${isPharmacist ? `
+                            ${showCompleteForPharmacist ? `
+                                <button type="button" class="btn btn-sm btn-success btn-status" data-prescription-id="${prescription.id}" data-action="complete" data-status="completed" title="Mark Completed">
+                                    <i class="fas fa-check"></i> Complete
+                                </button>
+                            ` : ''}
+                        ` : `
+                            ${canEdit ? `
+                                <button type="button" class="btn btn-sm btn-warning btn-edit" data-prescription-id="${prescription.id}" data-action="edit" title="Edit Prescription">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                            ` : ''}
+                            ${canDispense ? `
+                                <button type="button" class="btn btn-sm btn-success btn-dispense" data-prescription-id="${prescription.id}" data-action="dispense" title="Dispense">
+                                    <i class="fas fa-pills"></i> Dispense
+                                </button>
+                            ` : ''}
+                            ${this.canUpdateStatus(prescription) ? `
+                                <button type="button" class="btn btn-sm btn-success btn-status" data-prescription-id="${prescription.id}" data-action="complete" data-status="completed" title="Mark Completed">
+                                    <i class="fas fa-check"></i> Complete
+                                </button>
+                            ` : ''}
+                            ${canDelete ? `
+                                <button type="button" class="btn btn-sm btn-danger btn-delete" data-prescription-id="${prescription.id}" data-action="delete" title="Delete Prescription">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            ` : ''}
+                        `}
                     </div>
                 </td>
             </tr>
@@ -448,9 +480,9 @@ class PrescriptionManager {
             return prescription.doctor_id === this.getCurrentStaffId();
         }
         
+        // Pharmacists cannot edit prescriptions, only view and complete
         if (this.config.userRole === 'pharmacist') {
-            // Pharmacists can update status
-            return true;
+            return false;
         }
         
         return false;
@@ -472,7 +504,7 @@ class PrescriptionManager {
 
     canDispensePrescription(prescription) {
         return this.config.userRole === 'pharmacist' && 
-               ['active', 'ready'].includes(prescription.status);
+               ['active', 'ready', 'queued', 'in_progress'].includes(prescription.status?.toLowerCase());
     }
 
     canUpdateStatus(prescription) {
@@ -486,7 +518,35 @@ class PrescriptionManager {
         }
         
         if (this.config.userRole === 'pharmacist') {
-            return ['active', 'ready'].includes(prescription.status);
+            // Pharmacists can update status for queued, active, ready, and in_progress prescriptions
+            // Handle empty/null status - default to 'queued' if status is missing
+            const rawStatus = prescription.status || '';
+            const status = rawStatus ? rawStatus.toLowerCase().trim() : 'queued';
+            const allowedStatuses = ['active', 'ready', 'queued', 'in_progress', 'verifying'];
+            const blockedStatuses = ['dispensed', 'completed', 'cancelled'];
+            
+            // Always allow completion for queued status (most common case) or empty status (defaults to queued)
+            if (status === 'queued' || !rawStatus) {
+                return true;
+            }
+            
+            const canComplete = allowedStatuses.includes(status) && !blockedStatuses.includes(status);
+            
+            // Debug: log for first prescription only
+            if (!window._pharmacistDebugLogged) {
+                console.log('Pharmacist Complete Button Check:', {
+                    userRole: this.config.userRole,
+                    rawStatus: rawStatus,
+                    statusLower: status,
+                    canComplete: canComplete,
+                    allowedStatuses: allowedStatuses,
+                    blockedStatuses: blockedStatuses,
+                    prescriptionId: prescription.id
+                });
+                window._pharmacistDebugLogged = true;
+            }
+            
+            return canComplete;
         }
         
         return false;

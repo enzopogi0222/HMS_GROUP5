@@ -538,57 +538,113 @@
 
         let html = '';
 
+        // Group transactions by billing_id
+        const transactionsByBilling = {};
+        transactions.forEach(trans => {
+            const billingId = trans.billing_id;
+            if (billingId) {
+                if (!transactionsByBilling[billingId]) {
+                    transactionsByBilling[billingId] = [];
+                }
+                transactionsByBilling[billingId].push(trans);
+            }
+        });
+
         if (invoices.length > 0) {
-            html += '<h4 style="margin-top: 20px;">Invoices</h4>';
-            html += invoices.map(inv => `
-                <div class="record-card">
+            html += '<h4 style="margin-top: 20px; margin-bottom: 1rem; color: #1e293b; font-size: 1.1rem; font-weight: 600;">Billing Accounts</h4>';
+            html += invoices.map(inv => {
+                const billingId = inv.billing_id || inv.invoice_id || inv.id;
+                const items = transactionsByBilling[billingId] || [];
+                const status = (inv.status || 'open').toLowerCase();
+                const statusClass = status === 'paid' ? 'success' : status === 'open' ? 'info' : 'warning';
+                
+                let itemsHtml = '';
+                if (items.length > 0) {
+                    itemsHtml = '<div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;"><strong style="display: block; margin-bottom: 0.5rem; color: #4b5563;">Items:</strong><ul style="list-style: none; padding: 0; margin: 0;">';
+                    items.forEach(item => {
+                        const itemDesc = item.description || 'Billing Item';
+                        const itemQty = item.quantity || 1;
+                        const itemPrice = item.unit_price || 0;
+                        const itemTotal = item.final_amount || item.line_total || 0;
+                        itemsHtml += `<li style="padding: 0.5rem 0; border-bottom: 1px solid #f3f4f6;">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500; color: #1e293b;">${escapeHtml(itemDesc)}</div>
+                                    <div style="font-size: 0.875rem; color: #6b7280; margin-top: 0.25rem;">Qty: ${itemQty} × ${formatCurrency(itemPrice)}</div>
+                                </div>
+                                <div style="font-weight: 600; color: #059669; margin-left: 1rem;">${formatCurrency(itemTotal)}</div>
+                            </div>
+                        </li>`;
+                    });
+                    itemsHtml += '</ul></div>';
+                }
+                
+                return `
+                <div class="record-card" style="margin-bottom: 1rem;">
                     <div class="record-card-header">
-                        <div class="record-card-title">Invoice #${inv.invoice_id || inv.id || 'N/A'}</div>
+                        <div class="record-card-title">Billing Account #${billingId || 'N/A'}</div>
                         <div class="record-card-date">${formatDate(inv.created_at || inv.invoice_date)}</div>
                     </div>
                     <div class="record-card-body">
-                        <div><strong>Amount:</strong> ${formatCurrency(inv.total_amount || inv.amount || 0)}</div>
-                        <div><strong>Status:</strong> <span class="badge badge-${getStatusBadgeClass(inv.status)}">${inv.status || 'N/A'}</span></div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 0.5rem;">
+                            <div><strong>Total Amount:</strong> ${formatCurrency(inv.total_amount || inv.amount || 0)}</div>
+                            <div><strong>Status:</strong> <span class="badge badge-${statusClass}">${status.toUpperCase()}</span></div>
+                        </div>
+                        ${inv.admission_id ? `<div style="margin-top: 0.5rem; color: #6b7280; font-size: 0.875rem;"><strong>Admission ID:</strong> #${inv.admission_id}</div>` : ''}
+                        ${itemsHtml}
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
 
         if (payments.length > 0) {
-            html += '<h4 style="margin-top: 20px;">Payments</h4>';
+            html += '<h4 style="margin-top: 20px; margin-bottom: 1rem; color: #1e293b; font-size: 1.1rem; font-weight: 600;">Payments</h4>';
             html += payments.map(pay => `
-                <div class="record-card">
+                <div class="record-card" style="margin-bottom: 1rem;">
                     <div class="record-card-header">
                         <div class="record-card-title">Payment #${pay.payment_id || pay.id || 'N/A'}</div>
                         <div class="record-card-date">${formatDate(pay.payment_date || pay.created_at)}</div>
                     </div>
                     <div class="record-card-body">
-                        <div><strong>Amount:</strong> ${formatCurrency(pay.amount || 0)}</div>
-                        <div><strong>Method:</strong> ${pay.payment_method || 'N/A'}</div>
-                        <div><strong>Status:</strong> <span class="badge badge-${getStatusBadgeClass(pay.status)}">${pay.status || 'N/A'}</span></div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                            <div><strong>Amount:</strong> ${formatCurrency(pay.amount || 0)}</div>
+                            <div><strong>Method:</strong> ${pay.payment_method || 'N/A'}</div>
+                            <div><strong>Status:</strong> <span class="badge badge-${getStatusBadgeClass(pay.status)}">${pay.status || 'N/A'}</span></div>
+                        </div>
                     </div>
                 </div>
             `).join('');
         }
 
         if (claims.length > 0) {
-            html += '<h4 style="margin-top: 20px;">Insurance Claims</h4>';
+            html += '<h4 style="margin-top: 20px; margin-bottom: 1rem; color: #1e293b; font-size: 1.1rem; font-weight: 600;">Insurance Claims</h4>';
             html += claims.map(claim => `
-                <div class="record-card">
+                <div class="record-card" style="margin-bottom: 1rem;">
                     <div class="record-card-header">
                         <div class="record-card-title">Claim #${claim.ref_no || claim.id || 'N/A'}</div>
                         <div class="record-card-date">${formatDate(claim.created_at)}</div>
                     </div>
                     <div class="record-card-body">
-                        <div><strong>Amount:</strong> ${formatCurrency(claim.claim_amount || 0)}</div>
-                        <div><strong>Status:</strong> <span class="badge badge-${getStatusBadgeClass(claim.status)}">${claim.status || 'N/A'}</span></div>
-                        ${claim.notes ? `<div><strong>Notes:</strong> ${claim.notes}</div>` : ''}
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                            <div><strong>Amount:</strong> ${formatCurrency(claim.claim_amount || 0)}</div>
+                            <div><strong>Status:</strong> <span class="badge badge-${getStatusBadgeClass(claim.status)}">${claim.status || 'N/A'}</span></div>
+                        </div>
+                        ${claim.notes ? `<div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #e5e7eb;"><strong>Notes:</strong> ${escapeHtml(claim.notes)}</div>` : ''}
                     </div>
                 </div>
             `).join('');
         }
 
         container.innerHTML = html;
+    }
+    
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+        if (typeof text !== 'string') return text;
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     // Render Vital Signs

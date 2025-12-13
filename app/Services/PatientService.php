@@ -1934,11 +1934,14 @@ class PatientService
     }
 
     /**
-     * Get patient financial records
+     * Get patient financial records from billing_accounts and billing_items
      */
     private function getPatientFinancialRecords($patientId)
     {
         try {
+            // Ensure patient_id is an integer
+            $patientId = (int)$patientId;
+            
             $records = [
                 'invoices' => [],
                 'payments' => [],
@@ -1946,33 +1949,173 @@ class PatientService
                 'transactions' => [],
             ];
 
-            // Invoices
-            if ($this->db->tableExists('invoices')) {
-                $records['invoices'] = $this->db->table('invoices')
-                    ->where('patient_id', $patientId)
-                    ->orderBy('created_at', 'DESC')
-                    ->get()
-                    ->getResultArray();
+            // Fetch billing accounts (these will be treated as invoices)
+            if ($this->db->tableExists('billing_accounts')) {
+                // Check if patient_id field exists
+                if (!$this->db->fieldExists('patient_id', 'billing_accounts')) {
+                    log_message('warning', 'getPatientFinancialRecords: patient_id field does not exist in billing_accounts table');
+                    return $records;
+                }
+                
+                $builder = $this->db->table('billing_accounts')
+                    ->where('patient_id', $patientId);
+                
+                // Order by created_at if it exists, otherwise by billing_id
+                if ($this->db->fieldExists('created_at', 'billing_accounts')) {
+                    $builder->orderBy('created_at', 'DESC');
+                } else {
+                    $builder->orderBy('billing_id', 'DESC');
+                }
+                
+                $billingAccounts = $builder->get()->getResultArray();
+                
+                log_message('debug', "getPatientFinancialRecords: Found " . count($billingAccounts) . " billing accounts for patient {$patientId}");
+
+                // Convert billing accounts to invoices format
+                foreach ($billingAccounts as $account) {
+                    $billingId = (int)($account['billing_id'] ?? 0);
+                    
+                    // Get total amount from billing items
+                    $totalAmount = 0.0;
+                    $netAmount = 0.0;
+                    if ($this->db->tableExists('billing_items') && $billingId > 0) {
+                        $items = $this->db->table('billing_items')
+                            ->where('billing_id', $billingId)
+                            ->get()
+                            ->getResultArray();
+                        
+                        foreach ($items as $item) {
+                            $lineTotal = (float)($item['line_total'] ?? 0);
+                            $totalAmount += $lineTotal;
+                            
+                            // Use final_amount if available, otherwise use line_total
+                            if ($this->db->fieldExists('final_amount', 'billing_items') && isset($item['final_amount'])) {
+                                $netAmount += (float)$item['final_amount'];
+                            } else {
+                                $netAmount += $lineTotal;
+                            }
+                        }
+                    }
+                    
+                    // Map billing account to invoice format
+                    // Use created_at if it exists, otherwise use current date or null
+                    $createdDate = null;
+                    if (isset($account['created_at']) && !empty($account['created_at'])) {
+                        $createdDate = $account['created_at'];
+                    } elseif ($this->db->fieldExists('created_at', 'billing_accounts')) {
+                        $createdDate = date('Y-m-d H:i:s');
+                    }
+                    
+                    $invoice = [
+                        'invoice_id' => $billingId,
+                        'id' => $billingId,
+                        'billing_id' => $billingId,
+                        'total_amount' => $totalAmount,
+                        'amount' => $netAmount,
+                        'status' => $account['status'] ?? 'open',
+                        'created_at' => $createdDate,
+                        'invoice_date' => $createdDate,
+                        'admission_id' => $account['admission_id'] ?? null,
+                    ];
+                    
+                    $records['invoices'][] = $invoice;
+                    
+                    // If status is 'paid', also add to payments
+                    if (($account['status'] ?? '') === 'paid') {
+                        $records['payments'][] = [
+                            'payment_id' => $billingId,
+                            'id' => $billingId,
+                            'amount' => $netAmount,
+                            'payment_method' => $account['payment_method'] ?? 'Not specified',
+                            'status' => 'completed',
+                            'payment_date' => $createdDate ?? date('Y-m-d H:i:s'),
+                            'created_at' => $createdDate ?? date('Y-m-d H:i:s'),
+                        ];
+                    }
+                }
             }
 
-            // Payments
-            if ($this->db->tableExists('payments')) {
-                $records['payments'] = $this->db->table('payments')
-                    ->where('patient_id', $patientId)
-                    ->orderBy('payment_date', 'DESC')
-                    ->get()
-                    ->getResultArray();
+            // Fetch billing items as transactions
+            if ($this->db->tableExists('billing_items')) {
+                // Check if patient_id field exists
+                if (!$this->db->fieldExists('patient_id', 'billing_items')) {
+                    log_message('warning', 'getPatientFinancialRecords: patient_id field does not exist in billing_items table');
+                } else {
+                    $itemsBuilder = $this->db->table('billing_items')
+                        ->where('patient_id', $patientId);
+                    
+                    // Order by created_at if it exists, otherwise by item_id
+                    if ($this->db->fieldExists('created_at', 'billing_items')) {
+                        $itemsBuilder->orderBy('created_at', 'DESC');
+                    } else {
+                        $itemsBuilder->orderBy('item_id', 'DESC');
+                    }
+                    
+                    $billingItems = $itemsBuilder->get()->getResultArray();
+                    
+                    log_message('debug', "getPatientFinancialRecords: Found " . count($billingItems) . " billing items for patient {$patientId}");
+                    
+                    foreach ($billingItems as $item) {
+                    $transaction = [
+                        'transaction_id' => $item['item_id'] ?? null,
+                        'id' => $item['item_id'] ?? null,
+                        'billing_id' => $item['billing_id'] ?? null,
+                        'description' => $item['description'] ?? 'Billing Item',
+                        'quantity' => $item['quantity'] ?? 1,
+                        'unit_price' => $item['unit_price'] ?? 0,
+                            'line_total' => $item['line_total'] ?? 0,
+                            'final_amount' => $item['final_amount'] ?? $item['line_total'] ?? 0,
+                            'transaction_date' => isset($item['created_at']) ? $item['created_at'] : (isset($item['item_id']) ? date('Y-m-d H:i:s') : date('Y-m-d H:i:s')),
+                            'created_at' => isset($item['created_at']) ? $item['created_at'] : date('Y-m-d H:i:s'),
+                        'appointment_id' => $item['appointment_id'] ?? null,
+                        'prescription_id' => $item['prescription_id'] ?? null,
+                        'lab_order_id' => $item['lab_order_id'] ?? null,
+                    ];
+                    
+                    $records['transactions'][] = $transaction;
+                    }
+                }
             }
 
-            // Insurance Claims
+            // Legacy support: Also check old tables if they exist
+            if ($this->db->tableExists('invoices') && $this->db->fieldExists('patient_id', 'invoices')) {
+                try {
+                    $oldInvoicesBuilder = $this->db->table('invoices')
+                        ->where('patient_id', $patientId);
+                    
+                    if ($this->db->fieldExists('created_at', 'invoices')) {
+                        $oldInvoicesBuilder->orderBy('created_at', 'DESC');
+                    }
+                    
+                    $oldInvoices = $oldInvoicesBuilder->get()->getResultArray();
+                    $records['invoices'] = array_merge($records['invoices'], $oldInvoices);
+                } catch (\Exception $e) {
+                    log_message('warning', 'Error fetching legacy invoices: ' . $e->getMessage());
+                }
+            }
+
+            if ($this->db->tableExists('payments') && $this->db->fieldExists('patient_id', 'payments')) {
+                try {
+                    $oldPaymentsBuilder = $this->db->table('payments')
+                        ->where('patient_id', $patientId);
+                    
+                    if ($this->db->fieldExists('payment_date', 'payments')) {
+                        $oldPaymentsBuilder->orderBy('payment_date', 'DESC');
+                    }
+                    
+                    $oldPayments = $oldPaymentsBuilder->get()->getResultArray();
+                    $records['payments'] = array_merge($records['payments'], $oldPayments);
+                } catch (\Exception $e) {
+                    log_message('warning', 'Error fetching legacy payments: ' . $e->getMessage());
+                }
+            }
+
             if ($this->db->tableExists('insurance_claims')) {
                 $builder = $this->db->table('insurance_claims');
                 
-                // Check if patient_id field exists, otherwise match by patient name
                 if ($this->db->fieldExists('patient_id', 'insurance_claims')) {
                     $builder->where('patient_id', $patientId);
                 } else {
-                    // Fallback: get patient name and match by name
                     $patient = $this->db->table($this->patientTable)
                         ->select('first_name, last_name')
                         ->where('patient_id', $patientId)
@@ -1993,18 +2136,13 @@ class PatientService
                     ->getResultArray();
             }
 
-            // Transactions
-            if ($this->db->tableExists('transactions')) {
-                $records['transactions'] = $this->db->table('transactions')
-                    ->where('patient_id', $patientId)
-                    ->orderBy('transaction_date', 'DESC')
-                    ->get()
-                    ->getResultArray();
-            }
-
+            log_message('debug', "getPatientFinancialRecords: Returning " . count($records['invoices']) . " invoices, " . count($records['payments']) . " payments, " . count($records['transactions']) . " transactions for patient {$patientId}");
+            
             return $records;
         } catch (\Throwable $e) {
             log_message('error', 'Error fetching patient financial records: ' . $e->getMessage());
+            log_message('error', 'Stack trace: ' . $e->getTraceAsString());
+            // Return empty records instead of failing completely
             return [
                 'invoices' => [],
                 'payments' => [],

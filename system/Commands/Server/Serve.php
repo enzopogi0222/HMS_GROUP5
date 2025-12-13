@@ -103,7 +103,17 @@ class Serve extends BaseCommand
         $docroot = escapeshellarg(FCPATH);
 
         // Mimic Apache's mod_rewrite functionality with user settings.
-        $rewrite = escapeshellarg(SYSTEMPATH . 'rewrite.php');
+        $rewritePath = SYSTEMPATH . 'rewrite.php';
+
+        if (! is_file($rewritePath)) {
+            $rewritePath = rtrim(FCPATH, '\\/') . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'rewrite.php';
+        }
+
+        if (! is_file($rewritePath)) {
+            $rewritePath = rtrim(FCPATH, '\\/') . DIRECTORY_SEPARATOR . 'index.php';
+        }
+
+        $rewrite = escapeshellarg($rewritePath);
 
         // Call PHP's built-in webserver, making sure to set our
         // base path to the public folder, and to use the rewrite file

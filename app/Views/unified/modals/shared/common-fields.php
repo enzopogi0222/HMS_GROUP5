@@ -37,7 +37,7 @@ $defaultDepts = ['Administration','Emergency','Cardiology','Intensive Care Unit'
 </div>
 <div>
     <label class="form-label" for="<?= $prefix ?>contact_no">Contact Number</label>
-    <input type="text" id="<?= $prefix ?>contact_no" name="contact_no" class="form-input">
+    <input type="text" id="<?= $prefix ?>contact_no" name="contact_no" class="form-input" inputmode="numeric" maxlength="11" pattern="^09\d{9}$">
     <small id="<?= $prefix ?>err_contact_no" style="color:#dc2626"></small>
 </div>
 <div>

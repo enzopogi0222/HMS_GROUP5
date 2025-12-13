@@ -267,6 +267,35 @@ const PatientUtils = {
         return errors;
     },
 
+    sanitizeContactNo(value) {
+        return String(value ?? '').replace(/\D/g, '').slice(0, 11);
+    },
+
+    getContactNoInlineError(value) {
+        const v = String(value ?? '').trim();
+        if (v.length === 0) return '';
+        if (!/^\d+$/.test(v)) return 'Contact number must contain digits only.';
+        if (v.length === 1 && v !== '0') return 'Contact number must start with 09.';
+        if (v.length >= 2 && v.slice(0, 2) !== '09') return 'Contact number must start with 09.';
+        if (v.length < 11) return 'Contact number must be 11 digits.';
+        if (!/^09\d{9}$/.test(v)) return 'Contact number must start with 09 and be exactly 11 digits.';
+        return '';
+    },
+
+    bindLiveContactNoValidation(inputEl, errorEl) {
+        if (!inputEl || !errorEl || inputEl.__boundContactNoValidation) return;
+        inputEl.__boundContactNoValidation = true;
+
+        const run = () => {
+            const sanitized = PatientUtils.sanitizeContactNo(inputEl.value);
+            if (sanitized !== inputEl.value) inputEl.value = sanitized;
+            errorEl.textContent = PatientUtils.getContactNoInlineError(inputEl.value);
+        };
+
+        inputEl.addEventListener('input', run);
+        inputEl.addEventListener('blur', run);
+    },
+
     /**
      * Display form validation errors
      */

@@ -1030,10 +1030,19 @@ class FinancialService
     {
         $itemData['line_total'] = $itemData['quantity'] * $itemData['unit_price'];
         
-        // Apply insurance discount if applicable
-        $discountPercentage = $this->getInsuranceDiscountPercentage($itemData['patient_id'] ?? 0);
-        $discountAmount = $itemData['line_total'] * ($discountPercentage / 100);
-        $finalAmount = $itemData['line_total'] - $discountAmount;
+        // Check if this is an appointment item - do not apply discounts to appointments
+        $isAppointment = !empty($itemData['appointment_id']);
+        
+        // Apply insurance discount if applicable (but not for appointments)
+        $discountPercentage = 0.0;
+        $discountAmount = 0.0;
+        $finalAmount = $itemData['line_total'];
+        
+        if (!$isAppointment) {
+            $discountPercentage = $this->getInsuranceDiscountPercentage($itemData['patient_id'] ?? 0);
+            $discountAmount = $itemData['line_total'] * ($discountPercentage / 100);
+            $finalAmount = $itemData['line_total'] - $discountAmount;
+        }
         
         // Add discount fields if they exist in the table
         if ($this->db->fieldExists('insurance_discount_percentage', 'billing_items')) {

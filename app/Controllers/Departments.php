@@ -45,11 +45,41 @@ class Departments extends BaseController
             $status = $this->normalizeStatus($input['status'] ?? null);
             $departmentType = $this->normalizeDepartmentType($input['department_type'] ?? null);
 
+            $departmentCategory = strtolower(trim((string) ($input['department_category'] ?? '')));
+
+            if ($departmentType === null && $departmentCategory !== '' && $name !== '') {
+                $departmentType = $this->inferDepartmentTypeFromCategoryAndName($departmentCategory, $name);
+            }
+
+            $errors = [];
+            if ($departmentCategory === '' || !in_array($departmentCategory, ['medical', 'non_medical'], true)) {
+                $errors['department_category'] = 'Please select medical or non-medical department';
+            }
+
             if ($name === '') {
+                $errors['name'] = 'Department name is required';
+            }
+
+            if ($departmentType === null) {
+                $errors['department_type'] = 'Department type is required';
+            }
+
+            if ($departmentType !== null && $departmentCategory !== '' && empty($errors['department_category'])) {
+                $allowedTypesByCategory = [
+                    'medical' => ['Clinical', 'Emergency', 'Diagnostic'],
+                    'non_medical' => ['Administrative', 'Support'],
+                ];
+                $allowed = $allowedTypesByCategory[$departmentCategory] ?? [];
+                if (!in_array($departmentType, $allowed, true)) {
+                    $errors['department_type'] = 'Please select a valid department type';
+                }
+            }
+
+            if (!empty($errors)) {
                 return $this->response->setStatusCode(422)->setJSON([
                     'status' => 'error',
-                    'message' => 'Department name is required',
-                    'errors' => ['name' => 'Department name is required']
+                    'message' => 'Validation failed',
+                    'errors' => $errors,
                 ]);
             }
 
@@ -91,6 +121,36 @@ class Departments extends BaseController
                 ->where('LOWER(' . $nameColumn . ') = ' . $db->escape(strtolower($name)), null, false)
                 ->get()->getRowArray();
             if ($exists) {
+                if ($departmentCategory === 'non_medical' && $db->tableExists('non_medical_department')) {
+                    $deptId = $exists['department_id'] ?? null;
+                    if ($deptId !== null) {
+                        $nonExists = $db->table('non_medical_department')
+                            ->where('department_id', (int) $deptId)
+                            ->get()->getRowArray();
+                        if (!$nonExists) {
+                            $nonPayload = [
+                                'department_id' => (int) $deptId,
+                            ];
+                            $db->table('non_medical_department')->insert($nonPayload);
+                        }
+                    }
+                }
+
+                if ($departmentCategory === 'medical' && $db->tableExists('medical_department')) {
+                    $deptId = $exists['department_id'] ?? null;
+                    if ($deptId !== null) {
+                        $medExists = $db->table('medical_department')
+                            ->where('department_id', (int) $deptId)
+                            ->get()->getRowArray();
+                        if (!$medExists) {
+                            $medPayload = [
+                                'department_id' => (int) $deptId,
+                            ];
+                            $db->table('medical_department')->insert($medPayload);
+                        }
+                    }
+                }
+
                 return $this->response->setJSON([
                     'status' => 'success',
                     'message' => 'Department already exists',
@@ -134,24 +194,90 @@ class Departments extends BaseController
             ];
 
             $ok = false;
+            $insertedId = null;
+
+            $db->transBegin();
             foreach ($attempts as $row) {
                 $ok = $builder->insert($row);
                 if ($ok) {
-                    return $this->response->setJSON([
-                        'status' => 'success',
-                        'message' => 'Department created',
-                        'id' => $db->insertID(),
+                    $insertedId = $db->insertID();
+                    break;
+                }
+            }
+
+            if (!$ok || $insertedId === null) {
+                $db->transRollback();
+
+                // Provide DB error for diagnostics
+                $dbError = $db->error();
+                log_message('error', 'Department insert failed: ' . ($dbError['message'] ?? 'unknown'));
+                return $this->response->setStatusCode(500)->setJSON([
+                    'status' => 'error',
+                    'message' => 'Failed to create department',
+                    'db_error' => $dbError,
+                ]);
+            }
+
+            if ($departmentCategory === 'non_medical') {
+                if (!$db->tableExists('non_medical_department')) {
+                    $db->transRollback();
+                    return $this->response->setStatusCode(500)->setJSON([
+                        'status' => 'error',
+                        'message' => "Non-medical department table is missing. Please run migrations.",
+                    ]);
+                }
+
+                $nonPayload = [
+                    'department_id' => (int) $insertedId,
+                ];
+
+                $nonBuilder = $db->table('non_medical_department');
+                $nonOk = $nonBuilder->insert($nonPayload);
+                if (!$nonOk) {
+                    $dbError = $db->error();
+                    $db->transRollback();
+                    log_message('error', 'Non-medical department insert failed: ' . ($dbError['message'] ?? 'unknown'));
+                    return $this->response->setStatusCode(500)->setJSON([
+                        'status' => 'error',
+                        'message' => 'Failed to create non-medical department record',
+                        'db_error' => $dbError,
                     ]);
                 }
             }
 
-            // Provide DB error for diagnostics
-            $dbError = $db->error();
-            log_message('error', 'Department insert failed: ' . ($dbError['message'] ?? 'unknown'));
-            return $this->response->setStatusCode(500)->setJSON([
-                'status' => 'error',
-                'message' => 'Failed to create department',
-                'db_error' => $dbError,
+            if ($departmentCategory === 'medical') {
+                if (!$db->tableExists('medical_department')) {
+                    $db->transRollback();
+                    return $this->response->setStatusCode(500)->setJSON([
+                        'status' => 'error',
+                        'message' => "Medical department table is missing. Please run migrations.",
+                    ]);
+                }
+
+                $medPayload = [
+                    'department_id' => (int) $insertedId,
+                ];
+
+                $medBuilder = $db->table('medical_department');
+                $medOk = $medBuilder->insert($medPayload);
+                if (!$medOk) {
+                    $dbError = $db->error();
+                    $db->transRollback();
+                    log_message('error', 'Medical department insert failed: ' . ($dbError['message'] ?? 'unknown'));
+                    return $this->response->setStatusCode(500)->setJSON([
+                        'status' => 'error',
+                        'message' => 'Failed to create medical department record',
+                        'db_error' => $dbError,
+                    ]);
+                }
+            }
+
+            $db->transCommit();
+
+            return $this->response->setJSON([
+                'status' => 'success',
+                'message' => 'Department created',
+                'id' => $insertedId,
             ]);
         } catch (\Throwable $e) {
             log_message('error', 'Departments::create error: ' . $e->getMessage());
@@ -203,6 +329,50 @@ class Departments extends BaseController
 
         $normalized = ucfirst(strtolower(trim($value)));
         return in_array($normalized, $allowed, true) ? $normalized : null;
+    }
+
+    private function inferDepartmentTypeFromCategoryAndName(string $category, string $name): ?string
+    {
+        $category = strtolower(trim($category));
+        $n = strtolower(trim($name));
+
+        if (!in_array($category, ['medical', 'non_medical'], true) || $n === '') {
+            return null;
+        }
+
+        if ($category === 'medical') {
+            if (strpos($n, 'emergency') !== false || $n === 'er') {
+                return 'Emergency';
+            }
+
+            if (
+                strpos($n, 'radiology') !== false ||
+                strpos($n, 'laboratory') !== false ||
+                strpos($n, 'lab') !== false ||
+                strpos($n, 'imaging') !== false ||
+                strpos($n, 'x-ray') !== false ||
+                strpos($n, 'xray') !== false
+            ) {
+                return 'Diagnostic';
+            }
+
+            return 'Clinical';
+        }
+
+        // non_medical
+        if (
+            strpos($n, 'maintenance') !== false ||
+            strpos($n, 'housekeeping') !== false ||
+            strpos($n, 'security') !== false ||
+            strpos($n, 'inventory') !== false ||
+            strpos($n, 'supply') !== false ||
+            strpos($n, 'information technology') !== false ||
+            $n === 'it'
+        ) {
+            return 'Support';
+        }
+
+        return 'Administrative';
     }
 
     private function normalizeDepartmentType(?string $value): ?string

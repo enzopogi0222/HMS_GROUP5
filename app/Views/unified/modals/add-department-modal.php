@@ -4,7 +4,7 @@
             <div class="hms-modal-title" id="addDepartmentTitle"><i class="fas fa-building" style="color:#2563eb"></i> Add Department</div>
             <button type="button" class="btn btn-secondary btn-small" data-modal-close="addDepartmentModal" aria-label="Close"><i class="fas fa-times"></i></button>
         </div>
-
+ 
         <div class="hms-modal-body">
             <form id="addDepartmentForm" class="patient-form" autocomplete="off">
                 <div class="form-section">
@@ -14,9 +14,22 @@
                         </div>
                     </div>
                     <div class="form-grid">
+                        <div>
+                            <label class="form-label" for="department_category">Department Category</label>
+                            <select id="department_category" name="department_category" class="form-select" required>
+                                <option value="">Select type...</option>
+                                <option value="medical">Medical Department</option>
+                                <option value="non_medical">Non-medical Department</option>
+                            </select>
+                            <small id="err_department_category" class="form-error"></small>
+                        </div>
                         <div class="full">
                             <label class="form-label" for="department_name">Department Name*</label>
-                            <input type="text" id="department_name" name="name" class="form-input" required maxlength="150">
+                            <input type="text" id="department_name" name="name" class="form-input" required maxlength="150" disabled list="department_name_suggestions">
+                            <datalist id="department_name_suggestions"></datalist>
+                            <input type="hidden" id="department_type" name="department_type" value="">
+                            <small id="err_name" class="form-error"></small>
+                            <small id="err_department_type" class="form-error"></small>
                         </div>
                         <div>
                             <label class="form-label" for="department_code">Department Code</label>
@@ -25,17 +38,6 @@
                         <div>
                             <label class="form-label" for="department_floor">Floor</label>
                             <input type="text" id="department_floor" name="floor" class="form-input" placeholder="e.g., 3F" maxlength="100">
-                        </div>
-                        <div>
-                            <label class="form-label" for="department_type">Department Type</label>
-                            <select id="department_type" name="department_type" class="form-select" required>
-                                <option value="">Select type...</option>
-                                <option value="Clinical">Clinical</option>
-                                <option value="Administrative">Administrative</option>
-                                <option value="Emergency">Emergency</option>
-                                <option value="Diagnostic">Diagnostic</option>
-                                <option value="Support">Support</option>
-                            </select>
                         </div>
                         <div>
                             <label class="form-label" for="department_head">Head of Department</label>

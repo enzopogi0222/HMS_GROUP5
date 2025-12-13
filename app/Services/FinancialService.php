@@ -958,6 +958,23 @@ class FinancialService
     private function insertBillingItem(array $itemData, ?int $createdByStaffId): void
     {
         $itemData['line_total'] = $itemData['quantity'] * $itemData['unit_price'];
+        
+        // Apply insurance discount if applicable
+        $discountPercentage = $this->getInsuranceDiscountPercentage($itemData['patient_id'] ?? 0);
+        $discountAmount = $itemData['line_total'] * ($discountPercentage / 100);
+        $finalAmount = $itemData['line_total'] - $discountAmount;
+        
+        // Add discount fields if they exist in the table
+        if ($this->db->fieldExists('insurance_discount_percentage', 'billing_items')) {
+            $itemData['insurance_discount_percentage'] = $discountPercentage;
+        }
+        if ($this->db->fieldExists('insurance_discount_amount', 'billing_items')) {
+            $itemData['insurance_discount_amount'] = $discountAmount;
+        }
+        if ($this->db->fieldExists('final_amount', 'billing_items')) {
+            $itemData['final_amount'] = $finalAmount;
+        }
+        
         if ($this->db->fieldExists('created_by_staff_id', 'billing_items') && $createdByStaffId !== null) {
             $itemData['created_by_staff_id'] = $createdByStaffId;
         }
@@ -1175,10 +1192,42 @@ class FinancialService
             }
         }
 
-        $totalAmount = array_sum(array_map(fn($item) => (float)($item['line_total'] ?? 0), $items));
+        $grossTotal = 0.0;
+        $insuranceDiscountTotal = 0.0;
+        $netTotal = 0.0;
+
+        $hasFinalAmountField = $this->db->fieldExists('final_amount', 'billing_items');
+        $hasDiscountAmountField = $this->db->fieldExists('insurance_discount_amount', 'billing_items');
+        $hasDiscountPercentageField = $this->db->fieldExists('insurance_discount_percentage', 'billing_items');
+
+        foreach ($items as &$item) {
+            $lineTotal = (float)($item['line_total'] ?? 0);
+            $grossTotal += $lineTotal;
+
+            $discountAmount = 0.0;
+            if ($hasDiscountAmountField) {
+                $discountAmount = (float)($item['insurance_discount_amount'] ?? 0);
+            } elseif ($hasDiscountPercentageField) {
+                $discountPercentage = (float)($item['insurance_discount_percentage'] ?? 0);
+                $discountAmount = $lineTotal * ($discountPercentage / 100);
+                $item['insurance_discount_amount'] = $discountAmount;
+            }
+            $insuranceDiscountTotal += $discountAmount;
+
+            if ($hasFinalAmountField) {
+                $finalAmount = (float)($item['final_amount'] ?? ($lineTotal - $discountAmount));
+            } else {
+                $finalAmount = $lineTotal - $discountAmount;
+                $item['final_amount'] = $finalAmount;
+            }
+            $netTotal += $finalAmount;
+        }
 
         $account['items'] = $items;
-        $account['total_amount'] = $totalAmount;
+        $account['gross_total'] = $grossTotal;
+        $account['insurance_discount_total'] = $insuranceDiscountTotal;
+        $account['net_total'] = $netTotal;
+        $account['total_amount'] = $netTotal;
     }
 
     public function getBillingAccounts(array $filters, string $userRole, ?int $staffId = null): array
@@ -1257,6 +1306,117 @@ class FinancialService
         } catch (\Exception $e) {
             log_message('error', 'FinancialService::getBillingAccounts error: ' . $e->getMessage());
             return [];
+        }
+    }
+
+    /**
+     * Get insurance discount percentage for a patient based on their insurance coverage
+     */
+    private function getInsuranceDiscountPercentage(int $patientId): float
+    {
+        if (!$this->db->tableExists('insurance_discount_rates')) {
+            return 0.0;
+        }
+
+        try {
+            // Get patient's insurance details (support both legacy and current schemas)
+            $insurance = null;
+            if ($this->db->tableExists('insurance_details')) {
+                $today = date('Y-m-d');
+                $insuranceBuilder = $this->db->table('insurance_details')
+                    ->where('patient_id', $patientId);
+
+                $hasProvider = $this->db->fieldExists('provider', 'insurance_details');
+                $hasInsuranceProvider = $this->db->fieldExists('insurance_provider', 'insurance_details');
+                $hasStartDate = $this->db->fieldExists('start_date', 'insurance_details');
+                $hasEndDate = $this->db->fieldExists('end_date', 'insurance_details');
+                $hasCardStatus = $this->db->fieldExists('card_status', 'insurance_details');
+                $hasCoverageStartDate = $this->db->fieldExists('coverage_start_date', 'insurance_details');
+                $hasCoverageEndDate = $this->db->fieldExists('coverage_end_date', 'insurance_details');
+
+                if ($hasCardStatus) {
+                    $insuranceBuilder->where('card_status', 'Active');
+                }
+
+                // Current schema
+                if ($hasStartDate && $hasEndDate) {
+                    $insuranceBuilder->where('start_date <=', $today)
+                        ->where('end_date >=', $today);
+                } elseif ($hasCoverageStartDate) {
+                    // Legacy schema
+                    $insuranceBuilder->where('coverage_start_date <=', $today);
+                    if ($hasCoverageEndDate) {
+                        $insuranceBuilder->groupStart()
+                            ->where('coverage_end_date >=', $today)
+                            ->orWhere('coverage_end_date IS NULL', null, false)
+                        ->groupEnd();
+                    }
+                }
+
+                // Prefer the most recently created/updated record if those columns exist
+                if ($this->db->fieldExists('updated_at', 'insurance_details')) {
+                    $insuranceBuilder->orderBy('updated_at', 'DESC');
+                } elseif ($this->db->fieldExists('created_at', 'insurance_details')) {
+                    $insuranceBuilder->orderBy('created_at', 'DESC');
+                } else {
+                    $insuranceBuilder->orderBy('insurance_detail_id', 'DESC');
+                }
+
+                $insurance = $insuranceBuilder->get()->getRowArray();
+
+                // Normalize provider name so downstream lookup is consistent
+                if ($insurance) {
+                    if ($hasProvider && isset($insurance['provider'])) {
+                        $insurance['insurance_provider'] = $insurance['provider'];
+                    } elseif ($hasInsuranceProvider && isset($insurance['insurance_provider'])) {
+                        // already present
+                    }
+                }
+            }
+
+            if (!$insurance) {
+                return 0.0;
+            }
+
+            // Get discount rate for this insurance provider
+            $discountRate = $this->db->table('insurance_discount_rates')
+                ->where('insurance_provider', $insurance['insurance_provider'] ?? '')
+                ->where('status', 'active')
+                ->where('effective_date <=', date('Y-m-d'))
+                ->groupStart()
+                    ->where('expiry_date IS NULL', null, false)
+                    ->orWhere('expiry_date >=', date('Y-m-d'))
+                ->groupEnd()
+                ->get()
+                ->getRowArray();
+
+            if ($discountRate) {
+                return (float)($discountRate['discount_percentage'] ?? 0.0);
+            }
+
+            // Default discount rates if not configured in database
+            $defaultDiscounts = [
+                'Maxicare' => 20.0,
+                'Intellicare' => 15.0,
+                'Medicard' => 18.0,
+                'PhilCare' => 22.0,
+                'PhilHealth' => 25.0,
+                'Avega' => 17.0,
+                'Generali Philippines' => 12.0,
+                'Insular Health Care' => 16.0,
+                'EastWest Healthcare' => 14.0,
+                'ValuCare (ValueCare)' => 13.0,
+                'Caritas Health Shield' => 19.0,
+                'FortuneCare' => 15.0,
+                'Kaiser' => 20.0,
+                'Pacific Cross' => 18.0,
+                'Asalus Health Care (Healthway / FamilyDOC)' => 16.0,
+            ];
+
+            return $defaultDiscounts[$insurance['insurance_provider'] ?? ''] ?? 10.0;
+        } catch (\Exception $e) {
+            log_message('error', 'FinancialService::getInsuranceDiscountPercentage error: ' . $e->getMessage());
+            return 0.0;
         }
     }
 }

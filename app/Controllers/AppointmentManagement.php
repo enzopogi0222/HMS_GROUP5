@@ -680,17 +680,29 @@ class AppointmentManagement extends BaseController
                 return $this->jsonResponse('error', 'Invalid date');
             }
             $weekday = (int) date('N', $timestamp);
-            $doctors = $this->db->table('staff_schedule ss')
-                ->select('s.staff_id, s.first_name, s.last_name, d.specialization')
-                ->join('doctor d', 'd.staff_id = ss.staff_id', 'inner')
-                ->join('staff s', 's.staff_id = ss.staff_id', 'inner')
-                ->where('ss.status', 'active')
-                ->where('ss.weekday', $weekday)
-                ->where('d.status', 'Active')
-                ->groupBy('s.staff_id')
-                ->orderBy('s.first_name', 'ASC')
-                ->get()
-                ->getResultArray();
+
+            $doctors = [];
+
+            // Prefer doctors with an active schedule on this weekday (when schedules are configured)
+            if ($this->db->tableExists('staff_schedule')) {
+                $doctors = $this->db->table('staff_schedule ss')
+                    ->select('s.staff_id, s.first_name, s.last_name, d.specialization')
+                    ->join('doctor d', 'd.staff_id = ss.staff_id', 'inner')
+                    ->join('staff s', 's.staff_id = ss.staff_id', 'inner')
+                    ->where('ss.status', 'active')
+                    ->where('ss.weekday', $weekday)
+                    ->where('d.status', 'Active')
+                    ->groupBy('s.staff_id')
+                    ->orderBy('s.first_name', 'ASC')
+                    ->get()
+                    ->getResultArray();
+            }
+
+            // Fallback: if schedules are not configured, still show all active doctors
+            if (empty($doctors)) {
+                $doctors = $this->getDoctorsListData();
+            }
+
             return $this->response->setJSON(['status' => 'success', 'data' => $doctors]);
         } catch (\Throwable $e) {
             log_message('error', 'Get available doctors by date error: ' . $e->getMessage());

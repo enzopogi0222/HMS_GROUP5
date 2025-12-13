@@ -1,0 +1,1 @@
+Updated table row generation with discount columns

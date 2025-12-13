@@ -13,8 +13,6 @@
     const insuranceInfoEl = document.getElementById('billingAccountInsuranceInfo');
     const body = document.getElementById('billingItemsBody');
     const totalEl = document.getElementById('billingAccountTotal');
-    const grossTotalEl = document.getElementById('billingAccountGrossTotal');
-    const insuranceDiscountTotalEl = document.getElementById('billingAccountInsuranceDiscountTotal');
 
     function init() {
         if (!modal) return;
@@ -29,8 +27,6 @@
         if (patientTypeEl) patientTypeEl.innerHTML = '';
         if (admissionInfoEl) admissionInfoEl.style.display = 'none';
         if (insuranceInfoEl) insuranceInfoEl.style.display = 'none';
-        if (grossTotalEl) grossTotalEl.textContent = '₱0.00';
-        if (insuranceDiscountTotalEl) insuranceDiscountTotalEl.textContent = '₱0.00';
         body.innerHTML = `<tr><td colspan="7" class="loading-row"><i class="fas fa-spinner fa-spin"></i> Loading billing details...</td></tr>`;
 
         fetch(`${baseUrl}/billing/accounts/${billingId}`)
@@ -136,50 +132,26 @@
 
                 const items = Array.isArray(acc.items) ? acc.items : [];
 
-                let computedGrossTotal = 0;
-                let computedInsuranceDiscountTotal = 0;
-                let computedNetTotal = 0;
-
                 if (!items.length) {
                     body.innerHTML = `<tr><td colspan="7" class="loading-row"><i class="fas fa-info-circle"></i> No billing items found.</td></tr>`;
                 } else {
                     body.innerHTML = '';
                     items.forEach(item => {
                         const tr = document.createElement('tr');
-                        const qty = parseFloat(item.quantity ?? 0) || 0;
-                        const unitPrice = parseFloat(item.unit_price ?? 0) || 0;
-                        const lineTotal = parseFloat(item.line_total ?? (qty * unitPrice)) || 0;
-                        const discountPct = parseFloat(item.insurance_discount_percentage ?? 0) || 0;
-                        const discountAmt = parseFloat(item.insurance_discount_amount ?? (lineTotal * (discountPct / 100))) || 0;
-                        const finalAmt = parseFloat(item.final_amount ?? (lineTotal - discountAmt)) || 0;
-
-                        computedGrossTotal += lineTotal;
-                        computedInsuranceDiscountTotal += discountAmt;
-                        computedNetTotal += finalAmt;
-
                         tr.innerHTML = `
                             <td>${utils.escapeHtml(item.description)}</td>
-                            <td>${qty}</td>
-                            <td>₱${unitPrice.toFixed(2)}</td>
-                            <td>₱${lineTotal.toFixed(2)}</td>
-                            <td>${discountPct.toFixed(2)}%</td>
-                            <td>₱${discountAmt.toFixed(2)}</td>
-                            <td>₱${finalAmt.toFixed(2)}</td>
+                            <td>${item.quantity}</td>
+                            <td>₱${parseFloat(item.unit_price).toFixed(2)}</td>
+                            <td>₱${parseFloat(item.line_total).toFixed(2)}</td>
                         `;
                         body.appendChild(tr);
                     });
                 }
 
-                const grossTotal = parseFloat(acc.gross_total ?? computedGrossTotal) || 0;
-                const insuranceDiscountTotal = parseFloat(acc.insurance_discount_total ?? computedInsuranceDiscountTotal) || 0;
-                const netTotal = parseFloat(acc.net_total ?? acc.total_amount ?? computedNetTotal) || 0;
-
-                if (grossTotalEl) grossTotalEl.textContent = '₱' + grossTotal.toFixed(2);
-                if (insuranceDiscountTotalEl) insuranceDiscountTotalEl.textContent = '₱' + insuranceDiscountTotal.toFixed(2);
-                totalEl.textContent = '₱' + netTotal.toFixed(2);
+                totalEl.textContent = "₱" + parseFloat(acc.total_amount).toFixed(2);
             })
             .catch(() => {
-                body.innerHTML = `<tr><td colspan="7">Failed to load billing account.</td></tr>`;
+                body.innerHTML = `<tr><td colspan="4">Failed to load billing account.</td></tr>`;
             });
     }
 

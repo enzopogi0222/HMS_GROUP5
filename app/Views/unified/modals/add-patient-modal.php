@@ -635,54 +635,6 @@
                             <div class="form-section">
                                 <div class="section-header">
                                     <div>
-                                        <h4>4. Room &amp; Bed Assignment</h4>
-                                        <p class="section-subtitle">Allocate the patient to the appropriate room and bed.</p>
-                                    </div>
-                                </div>
-                                <div class="form-grid">
-                                    <div>
-                                        <label class="form-label" for="room_type">Room Type*</label>
-                                        <select id="room_type" name="room_type" class="form-select" required>
-                                            <option value="">Select...</option>
-                                            <?php if (!empty($roomTypes)): ?>
-                                                <?php foreach ($roomTypes as $type): ?>
-                                                    <option value="<?= esc($type['room_type_id']) ?>" data-rate="<?= esc($type['base_daily_rate'] ?? '') ?>">
-                                                        <?= esc($type['type_name']) ?>
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            <?php else: ?>
-                                                <option value="" disabled>(No room types defined yet)</option>
-                                            <?php endif; ?>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="form-label" for="floor_number">Floor Number*</label>
-                                        <select id="floor_number" name="floor_number" class="form-select" required disabled>
-                                            <option value="">Select a floor...</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="form-label" for="room_number">Room Number*</label>
-                                        <select id="room_number" name="room_number" class="form-select" required disabled>
-                                            <option value="">Select a room...</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="form-label" for="bed_number">Bed Number*</label>
-                                        <select id="bed_number" name="bed_number" class="form-select" required disabled>
-                                            <option value="">Select a bed...</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="form-label" for="daily_rate">Daily Room Rate</label>
-                                        <input type="text" id="daily_rate" name="daily_rate" class="form-input" value="Auto-calculated" readonly>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="form-section">
-                                <div class="section-header">
-                                    <div>
                                         <h4>5. Medical History</h4>
                                     </div>
                                 </div>

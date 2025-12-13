@@ -290,6 +290,46 @@ const EditPatientModal = {
                     if (recordsResponse.records.inpatient_admissions && recordsResponse.records.inpatient_admissions.length > 0) {
                         const latestAdmission = recordsResponse.records.inpatient_admissions[0];
                         Object.assign(patientData, latestAdmission);
+                        // Ensure admission_number is set from admission_id if not already present
+                        if (!patientData.admission_number && latestAdmission.admission_id) {
+                            patientData.admission_number = latestAdmission.admission_id;
+                        }
+                    }
+                    
+                    // Also check outpatient visits for admission_number
+                    if (recordsResponse.records.outpatient_visits && recordsResponse.records.outpatient_visits.length > 0) {
+                        const latestVisit = recordsResponse.records.outpatient_visits[0];
+                        if (!patientData.admission_number && latestVisit.visit_id) {
+                            patientData.admission_number = latestVisit.visit_id;
+                        }
+                        if (!patientData.admission_number && latestVisit.appointment_id) {
+                            patientData.admission_number = latestVisit.appointment_id;
+                        }
+                    }
+                    
+                    // Merge emergency contact data if available
+                    if (recordsResponse.records.emergency_contacts && recordsResponse.records.emergency_contacts.length > 0) {
+                        const latestContact = recordsResponse.records.emergency_contacts[0];
+                        // Map emergency contact fields to patient data
+                        if (latestContact.name) {
+                            patientData.guardian_name = latestContact.name;
+                            patientData.emergency_contact = latestContact.name;
+                            patientData.emergency_contact_name = latestContact.name;
+                        }
+                        if (latestContact.contact_number) {
+                            patientData.guardian_contact = latestContact.contact_number;
+                            patientData.emergency_phone = latestContact.contact_number;
+                            patientData.emergency_contact_phone = latestContact.contact_number;
+                        }
+                        if (latestContact.relationship) {
+                            patientData.guardian_relationship = latestContact.relationship;
+                            patientData.emergency_contact_relationship = latestContact.relationship;
+                        }
+                        if (latestContact.relationship_other) {
+                            patientData.guardian_relationship_other = latestContact.relationship_other;
+                            patientData.emergency_contact_relationship_other = latestContact.relationship_other;
+                        }
+                        console.log('✓ Merged emergency contact data:', latestContact);
                     }
                 }
             } catch (recordsError) {
@@ -297,6 +337,20 @@ const EditPatientModal = {
             }
             
             console.log('Loaded patient data:', patientData);
+            console.log('HMO/Insurance data in patient:', {
+                insurance_provider: patientData.insurance_provider,
+                membership_number: patientData.membership_number,
+                hmo_cardholder_name: patientData.hmo_cardholder_name,
+                member_type: patientData.member_type,
+                relationship: patientData.relationship,
+                plan_name: patientData.plan_name,
+                mbl: patientData.mbl,
+                pre_existing_coverage: patientData.pre_existing_coverage,
+                coverage_start_date: patientData.coverage_start_date,
+                coverage_end_date: patientData.coverage_end_date,
+                card_status: patientData.card_status,
+                plan_coverage_types: patientData.plan_coverage_types
+            });
             
             // Switch to appropriate tab based on patient type FIRST, before populating
             const patientType = (patientData.patient_type || '').toLowerCase();
@@ -337,6 +391,9 @@ const EditPatientModal = {
         console.log('=== Starting Form Population ===');
         console.log('Patient data received:', patient);
         console.log('Patient data keys:', Object.keys(patient));
+        
+        // Reset coverage types
+        this.patientCoverageTypes = [];
         
         const patientType = (patient.patient_type || '').toLowerCase();
         const isInpatient = patientType === 'inpatient';
@@ -430,18 +487,13 @@ const EditPatientModal = {
             'guardian_contact': patient.guardian_contact || patient.emergency_phone || patient.emergency_contact_phone,
             'secondary_contact': patient.secondary_contact,
             // Admission Details
-            'admission_number': patient.admission_number,
-            'admission_datetime': patient.admission_datetime || patient.appointment_datetime,
-            'admission_type': patient.admission_type,
-            'admitting_diagnosis': patient.admitting_diagnosis || patient.chief_complaint,
-            'admitting_doctor': patient.admitting_doctor_id || patient.admitting_doctor || patient.assigned_doctor_id || patient.assigned_doctor,
+            'admission_number': patient.admission_number || patient.admission_id || patient.visit_id || patient.appointment_id || '',
+            'admission_datetime': patient.admission_datetime || patient.admission_date || patient.appointment_datetime || patient.visit_datetime,
+            'admission_type': patient.admission_type || patient.visit_type,
+            'admitting_diagnosis': patient.admitting_diagnosis || patient.chief_complaint || patient.diagnosis,
+            'admitting_doctor': patient.admitting_doctor_id || patient.admitting_doctor || patient.assigned_doctor_id || patient.assigned_doctor || patient.doctor_id,
             'consent_uploaded': patient.consent_uploaded !== null && patient.consent_uploaded !== undefined ? String(patient.consent_uploaded) : '',
-            // Room & Bed
-            'room_type': patient.room_type_id || patient.room_type,
-            'floor_number': patient.floor_number,
-            'room_number': patient.room_number,
-            'bed_number': patient.bed_number,
-            'daily_rate': patient.daily_rate,
+            // Room & Bed - removed (handled in room management)
             // Medical History (check nested object first, then direct properties)
             'history_allergies': medicalHistory.allergies || medicalHistory.history_allergies || patient.history_allergies || patient.allergies,
             'past_medical_history': medicalHistory.past_medical_history || medicalHistory.existing_conditions || patient.past_medical_history || patient.existing_conditions,
@@ -467,24 +519,98 @@ const EditPatientModal = {
         
         // Add HMO/Insurance fields - these might use different prefixes in name attributes
         const hmoFields = {
-            'insurance_provider': patient.insurance_provider,
-            'membership_number': patient.membership_number,
-            'hmo_cardholder_name': patient.hmo_cardholder_name,
-            'cardholder_name': patient.hmo_cardholder_name,
-            'member_type': patient.member_type,
-            'relationship': patient.relationship,
-            'plan_name': patient.plan_name,
-            'mbl': patient.mbl,
-            'pre_existing_coverage': patient.pre_existing_coverage,
-            'preexisting': patient.pre_existing_coverage,
-            'coverage_start_date': patient.coverage_start_date,
-            'validity_start': patient.coverage_start_date,
-            'coverage_end_date': patient.coverage_end_date,
-            'validity_end': patient.coverage_end_date,
-            'card_status': patient.card_status,
+            'insurance_provider': patient.insurance_provider || patient.hmo_provider || patient.provider,
+            'membership_number': patient.membership_number || patient.hmo_membership_number || patient.hmo_member_id || patient.insurance_number,
+            'hmo_cardholder_name': patient.hmo_cardholder_name || patient.cardholder_name || patient.card_holder_name,
+            'cardholder_name': patient.hmo_cardholder_name || patient.cardholder_name || patient.card_holder_name,
+            'member_type': patient.member_type || patient.hmo_member_type,
+            'relationship': patient.relationship || patient.hmo_relationship,
+            'plan_name': patient.plan_name || patient.hmo_plan_name,
+            'mbl': patient.mbl || patient.maximum_benefit_limit || patient.max_benefit_limit,
+            'pre_existing_coverage': patient.pre_existing_coverage || patient.preexisting || patient.pre_existing,
+            'preexisting': patient.pre_existing_coverage || patient.preexisting || patient.pre_existing,
+            'coverage_start_date': patient.coverage_start_date || patient.validity_start || patient.start_date || patient.insurance_valid_from,
+            'validity_start': patient.coverage_start_date || patient.validity_start || patient.start_date || patient.insurance_valid_from,
+            'coverage_end_date': patient.coverage_end_date || patient.validity_end || patient.end_date || patient.insurance_valid_to,
+            'validity_end': patient.coverage_end_date || patient.validity_end || patient.end_date || patient.insurance_valid_to,
+            'card_status': patient.card_status || patient.hmo_card_status || patient.status,
         };
         
+        // Log HMO fields for debugging
+        const hmoFieldsWithValues = Object.entries(hmoFields).filter(([k, v]) => v !== null && v !== undefined && v !== '');
+        console.log('HMO/Insurance fields found:', hmoFieldsWithValues.map(([k, v]) => `${k}: ${v}`));
+        console.log('Relationship value:', patient.relationship, '| hmo_relationship:', patient.hmo_relationship, '| insurance_relationship:', patient.insurance_relationship);
+        console.log('MBL value:', patient.mbl, '| maximum_benefit_limit:', patient.maximum_benefit_limit, '| hmo_mbl:', patient.hmo_mbl);
+        console.log('Coverage types in patient data:', patient.plan_coverage_types, '| coverage_types:', patient.coverage_types, '| coverage_type:', patient.coverage_type);
+        
+        // Try to get relationship from alternative sources
+        if (!hmoFields.relationship && (patient.hmo_relationship || patient.insurance_relationship)) {
+            hmoFields.relationship = patient.hmo_relationship || patient.insurance_relationship;
+            console.log('Found relationship in alternative field:', hmoFields.relationship);
+        }
+        
+        // Try to get MBL from alternative sources
+        if (!hmoFields.mbl && (patient.hmo_mbl || patient.hmo_maximum_benefit_limit)) {
+            hmoFields.mbl = patient.hmo_mbl || patient.hmo_maximum_benefit_limit;
+            hmoFields.maximum_benefit_limit = hmoFields.mbl;
+            hmoFields.max_benefit_limit = hmoFields.mbl;
+            console.log('Found MBL in alternative field:', hmoFields.mbl);
+        }
+        
         Object.assign(fieldNameToPatientData, hmoFields);
+        
+        // Handle coverage types - can be stored as JSON string, comma-separated, or array
+        // Check multiple possible field names and formats
+        let coverageTypes = [];
+        const coverageFields = [
+            patient.plan_coverage_types,
+            patient.coverage_types,
+            patient.coverage_type,
+            patient.hmo_coverage_type,
+            patient.insurance_coverage_type
+        ];
+        
+        for (const coverageField of coverageFields) {
+            if (coverageField !== null && coverageField !== undefined && coverageField !== '') {
+                if (typeof coverageField === 'string') {
+                    try {
+                        // Try parsing as JSON first
+                        const parsed = JSON.parse(coverageField);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            coverageTypes = parsed;
+                            console.log('Found coverage types from JSON:', coverageTypes);
+                            break;
+                        }
+                    } catch (e) {
+                        // If not JSON, try comma-separated
+                        const parts = coverageField.split(',').map(t => t.trim()).filter(t => t);
+                        if (parts.length > 0) {
+                            coverageTypes = parts;
+                            console.log('Found coverage types from comma-separated:', coverageTypes);
+                            break;
+                        }
+                    }
+                } else if (Array.isArray(coverageField) && coverageField.length > 0) {
+                    coverageTypes = coverageField;
+                    console.log('Found coverage types from array:', coverageTypes);
+                    break;
+                }
+            }
+        }
+        
+        // Normalize coverage types - ensure they match checkbox values exactly
+        const validCoverageTypes = ['Outpatient', 'Inpatient', 'ER', 'Dental', 'Optical', 'Maternity'];
+        coverageTypes = coverageTypes.map(t => {
+            const normalized = String(t).trim();
+            // Find matching valid type (case-insensitive)
+            const match = validCoverageTypes.find(vt => vt.toLowerCase() === normalized.toLowerCase());
+            return match || normalized;
+        }).filter(t => t);
+        
+        console.log('Parsed coverage types:', coverageTypes);
+        
+        // Store coverage types for later checkbox population
+        this.patientCoverageTypes = coverageTypes;
 
         // First, populate fields by ID (for fields without name attributes or special cases)
         const idMappings = {
@@ -492,6 +618,7 @@ const EditPatientModal = {
             'edit_inpatient_patient_id': patient.patient_id,
             'edit_patient_identifier': patient.patient_identifier || patient.patient_id || '',
             'edit_inpatient_patient_identifier': patient.patient_identifier || patient.patient_id || '',
+            'edit_admission_number': patient.admission_number || patient.admission_id || '',
             [dobFieldId]: patient.date_of_birth || '',
         };
         
@@ -514,7 +641,8 @@ const EditPatientModal = {
                             }
                         }
                     }
-                } else if (!field.readOnly) {
+                } else {
+                    // Allow readonly fields to be populated (like admission_number)
                     field.value = String(value);
                 }
             }
@@ -556,6 +684,21 @@ const EditPatientModal = {
                     value = patient.emergency_contact || patient.emergency_contact_name;
                 } else if (fieldName === 'guardian_contact' && (patient.emergency_phone || patient.emergency_contact_phone)) {
                     value = patient.emergency_phone || patient.emergency_contact_phone;
+                } else if (fieldName === 'relationship') {
+                    // Try multiple variations for relationship - check all possible sources
+                    value = patient.relationship || patient.hmo_relationship || patient.insurance_relationship || 
+                            patient.hmo_contact_relationship || null;
+                    if (value === '') value = null; // Empty string should be treated as null
+                } else if (fieldName === 'mbl') {
+                    // Try multiple variations for MBL - check all possible sources
+                    value = patient.mbl || patient.maximum_benefit_limit || patient.max_benefit_limit || 
+                            patient.hmo_mbl || patient.hmo_maximum_benefit_limit || null;
+                    // Convert to number if it's a valid numeric string
+                    if (value !== null && value !== '' && !isNaN(value) && value !== '0' && value !== '0.00') {
+                        value = parseFloat(value);
+                    } else if (value === '0' || value === '0.00' || value === 0) {
+                        value = null; // Treat zero as null/empty
+                    }
                 } else {
                     // Try direct patient object lookup
                     value = patient[fieldName];
@@ -577,20 +720,61 @@ const EditPatientModal = {
                 }
             }
 
-            if (value === null || value === undefined || value === '') {
+            // For certain fields, allow null/empty values to be set (to clear the field)
+            const allowEmptyFields = ['relationship', 'mbl', 'pre_existing_coverage', 'consent_uploaded', 
+                                     'secondary_contact', 'subdivision', 'zip_code', 'email',
+                                     'insurance_provider', 'membership_number', 'hmo_cardholder_name', 
+                                     'member_type', 'plan_name', 'pre_existing_coverage', 
+                                     'coverage_start_date', 'coverage_end_date', 'card_status'];
+            const shouldSkip = value === null || value === undefined || value === '';
+            
+            // Special handling for consent_uploaded - always set it, even if null
+            if (fieldName === 'consent_uploaded') {
+                if (value === null || value === undefined || value === '') {
+                    // Set to empty string to show "Select..." placeholder
+                    value = '';
+                } else {
+                    // Convert boolean/string to '1' or '0'
+                    if (value === true || value === '1' || value === 1 || String(value).toLowerCase() === 'yes') {
+                        value = '1';
+                    } else if (value === false || value === '0' || value === 0 || String(value).toLowerCase() === 'no') {
+                        value = '0';
+                    } else {
+                        value = '';
+                    }
+                }
+            }
+            
+            if (shouldSkip && !allowEmptyFields.includes(fieldName)) {
                 skippedCount++;
-                return; // Skip if no value
+                return; // Skip if no value (except for fields that can be empty)
+            }
+            
+            // For fields that can be empty, set to empty string if null/undefined
+            if (shouldSkip && allowEmptyFields.includes(fieldName)) {
+                value = '';
             }
 
             try {
                 if (input.type === 'checkbox') {
-                    if (Array.isArray(value)) {
+                    // Special handling for coverage types checkboxes
+                    if (input.name === 'plan_coverage_types[]' && this.patientCoverageTypes && this.patientCoverageTypes.length > 0) {
+                        input.checked = this.patientCoverageTypes.includes(input.value);
+                    } else if (Array.isArray(value)) {
                         input.checked = value.includes(input.value);
                     } else {
                         input.checked = String(value) === input.value;
                     }
                     if (input.checked) populatedCount++;
                 } else if (input.tagName === 'SELECT') {
+                    // Allow empty values for relationship field (it can be null)
+                    if (fieldName === 'relationship' && (value === null || value === undefined || value === '')) {
+                        input.value = '';
+                        populatedCount++;
+                        console.log(`✓ Set ${fieldName} (${input.id}) to empty (null value)`);
+                        return;
+                    }
+                    
                     const stringValue = String(value).trim();
                     if (!stringValue) {
                         skippedCount++;
@@ -646,7 +830,16 @@ const EditPatientModal = {
                         );
                     }
                     
-                    // Strategy 7: For ID-based selects (like doctor_id, room_type_id), try matching by ID
+                    // Strategy 7: Special handling for relationship field (handle case variations)
+                    if (!option && fieldName === 'relationship') {
+                        const normalizedValue = stringValue.toLowerCase();
+                        option = Array.from(input.options).find(opt => 
+                            opt.value.toLowerCase() === normalizedValue ||
+                            opt.textContent.trim().toLowerCase() === normalizedValue
+                        );
+                    }
+                    
+                    // Strategy 8: For ID-based selects (like doctor_id, room_type_id), try matching by ID
                     if (!option && (stringValue && !isNaN(stringValue))) {
                         // Try to find option where value is the ID
                         option = Array.from(input.options).find(opt => opt.value === stringValue);
@@ -659,8 +852,28 @@ const EditPatientModal = {
                         populatedCount++;
                         console.log(`✓ Populated ${fieldName} (${input.id}) with value: ${option.value}`);
                     } else {
-                        console.warn(`✗ Could not find option for ${fieldName} (${input.id}) with value: "${stringValue}". Available options:`, 
-                            Array.from(input.options).map(opt => `${opt.value}="${opt.textContent}"`));
+                        // For relationship field, try one more time with more flexible matching
+                        if (fieldName === 'relationship' && stringValue) {
+                            const normalized = stringValue.toLowerCase().trim();
+                            option = Array.from(input.options).find(opt => {
+                                const optText = opt.textContent.trim().toLowerCase();
+                                const optValue = opt.value.toLowerCase();
+                                return optText === normalized || optValue === normalized ||
+                                       normalized.includes(optText) || optText.includes(normalized);
+                            });
+                            if (option && option.value) {
+                                input.value = option.value;
+                                input.dispatchEvent(new Event('change', { bubbles: true }));
+                                populatedCount++;
+                                console.log(`✓ Populated ${fieldName} (${input.id}) with value: ${option.value} (flexible match)`);
+                            } else {
+                                console.warn(`✗ Could not find option for ${fieldName} (${input.id}) with value: "${stringValue}". Available options:`, 
+                                    Array.from(input.options).map(opt => `${opt.value}="${opt.textContent}"`));
+                            }
+                        } else {
+                            console.warn(`✗ Could not find option for ${fieldName} (${input.id}) with value: "${stringValue}". Available options:`, 
+                                Array.from(input.options).map(opt => `${opt.value}="${opt.textContent}"`));
+                        }
                     }
                 } else if (input.type === 'date' || input.type === 'datetime-local') {
                     // Skip invalid date values
@@ -692,15 +905,67 @@ const EditPatientModal = {
                     }
                 } else {
                     // Regular input/textarea
-                    input.value = String(value);
-                    populatedCount++;
-                    console.log(`✓ Populated ${fieldName} (${input.id}) with value: ${input.value.substring(0, 50)}`);
+                    // Special handling for number inputs (like MBL)
+                    if (input.type === 'number') {
+                        if (value !== null && value !== undefined && value !== '') {
+                            const numValue = parseFloat(value);
+                            if (!isNaN(numValue)) {
+                                input.value = numValue;
+                                populatedCount++;
+                                console.log(`✓ Populated ${fieldName} (${input.id}) with number value: ${input.value}`);
+                            } else {
+                                skippedCount++;
+                                console.warn(`⊘ Skipped ${fieldName} (${input.id}) - invalid number: ${value}`);
+                            }
+                        } else {
+                            // Allow empty number fields (MBL can be null)
+                            input.value = '';
+                            populatedCount++;
+                            console.log(`✓ Set ${fieldName} (${input.id}) to empty (null value)`);
+                        }
+                    } else {
+                        input.value = String(value);
+                        populatedCount++;
+                        console.log(`✓ Populated ${fieldName} (${input.id}) with value: ${input.value.substring(0, 50)}`);
+                    }
                 }
             } catch (error) {
                 errorCount++;
                 console.error(`✗ Error populating field ${fieldName} (${input.id}):`, error, value);
             }
         });
+        
+        // Explicitly populate coverage type checkboxes if we have coverage types
+        // Do this BEFORE the summary log so it's included in the count
+        if (this.patientCoverageTypes && this.patientCoverageTypes.length > 0) {
+            const coverageCheckboxes = formToUse.querySelectorAll('input[name="plan_coverage_types[]"]');
+            console.log(`Found ${coverageCheckboxes.length} coverage type checkboxes, setting ${this.patientCoverageTypes.length} types:`, this.patientCoverageTypes);
+            let checkedCount = 0;
+            coverageCheckboxes.forEach(checkbox => {
+                // Normalize both the stored type and checkbox value for comparison
+                const checkboxValue = String(checkbox.value).trim();
+                const isChecked = this.patientCoverageTypes.some(type => {
+                    const normalizedType = String(type).trim();
+                    return normalizedType.toLowerCase() === checkboxValue.toLowerCase() ||
+                           checkboxValue.toLowerCase() === normalizedType.toLowerCase() ||
+                           normalizedType.toLowerCase().includes(checkboxValue.toLowerCase()) ||
+                           checkboxValue.toLowerCase().includes(normalizedType.toLowerCase());
+                });
+                if (checkbox.checked !== isChecked) {
+                    checkbox.checked = isChecked;
+                    if (isChecked) {
+                        checkedCount++;
+                        populatedCount++;
+                        console.log(`✓ Checked coverage type: ${checkbox.value} (matched from: ${this.patientCoverageTypes.join(', ')})`);
+                    }
+                }
+            });
+            console.log(`✓ Populated ${checkedCount} coverage type checkbox(es) from ${this.patientCoverageTypes.length} type(s): ${this.patientCoverageTypes.join(', ')}`);
+        } else {
+            console.log('No coverage types found in patient data. Available keys:', Object.keys(patient).filter(k => k.toLowerCase().includes('coverage')));
+            console.log('Full patient data keys for debugging:', Object.keys(patient));
+            console.log('Insurance details raw:', patient);
+        }
         
         console.log(`\n=== Population Summary ===`);
         console.log(`✓ Successfully populated: ${populatedCount} fields`);
@@ -734,6 +999,8 @@ const EditPatientModal = {
                 const provinceValue = String(patient.province).trim();
                 const provinceOption = Array.from(provinceSelect.options).find(opt => 
                     opt.value === provinceValue || 
+                    opt.value.toLowerCase() === provinceValue.toLowerCase() ||
+                    opt.textContent.trim() === provinceValue ||
                     opt.textContent.trim().toLowerCase() === provinceValue.toLowerCase()
                 );
                 if (provinceOption) {
@@ -743,6 +1010,8 @@ const EditPatientModal = {
                     setTimeout(() => {
                         this.populateAddressSelects(addressPrefix, patient);
                     }, 500);
+                } else {
+                    console.warn('Could not find province option:', provinceValue);
                 }
             }
         }, 300);
@@ -758,96 +1027,35 @@ const EditPatientModal = {
             }, 100);
         }
 
-        // Handle room assignment for both forms (since both have room assignment now)
-        // This needs to happen after room type is set and floors/rooms are loaded
-        if (patient.room_type_id || patient.room_type || patient.room_type) {
-            setTimeout(() => {
-                const roomTypeSelect = formToUse.querySelector('#edit_room_type') || document.getElementById('edit_room_type');
-                if (roomTypeSelect && roomTypeSelect.closest('form') === formToUse) {
-                    // Set room type first
-                    const roomTypeValue = String(patient.room_type_id || patient.room_type || '');
-                    if (roomTypeValue) {
-                        // Try to find matching option
-                        let roomTypeOption = Array.from(roomTypeSelect.options).find(
-                            opt => opt.value === roomTypeValue
-                        );
-                        if (!roomTypeOption) {
-                            // Try text match
-                            roomTypeOption = Array.from(roomTypeSelect.options).find(
-                                opt => opt.textContent.trim().toLowerCase().includes(roomTypeValue.toLowerCase()) ||
-                                       roomTypeValue.toLowerCase().includes(opt.textContent.trim().toLowerCase())
-                            );
-                        }
-                        if (roomTypeOption && roomTypeOption.value) {
-                            roomTypeSelect.value = roomTypeOption.value;
-                            roomTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                            console.log('✓ Set room type to:', roomTypeOption.value);
-                            
-                            // Wait for room type change to process and load floors
-                            setTimeout(() => {
-                                const floorInput = formToUse.querySelector('#edit_floor_number') || document.getElementById('edit_floor_number');
-                                const roomSelect = formToUse.querySelector('#edit_room_number') || document.getElementById('edit_room_number');
-                                const bedSelect = formToUse.querySelector('#edit_bed_number') || document.getElementById('edit_bed_number');
-                                
-                                if (patient.floor_number && floorInput && !floorInput.disabled && floorInput.options.length > 1) {
-                                    const floorValue = String(patient.floor_number);
-                                    const floorOption = Array.from(floorInput.options).find(
-                                        opt => opt.value === floorValue
-                                    );
-                                    if (floorOption) {
-                                        floorInput.value = floorValue;
-                                        floorInput.dispatchEvent(new Event('change', { bubbles: true }));
-                                        console.log('✓ Set floor to:', floorValue);
-                                        
-                                        // Wait for floor change to process and load rooms
-                                        setTimeout(() => {
-                                            if (patient.room_number && roomSelect && !roomSelect.disabled && roomSelect.options.length > 1) {
-                                                const roomValue = String(patient.room_number);
-                                                const roomOption = Array.from(roomSelect.options).find(
-                                                    opt => opt.value === roomValue || 
-                                                           opt.textContent.includes(roomValue)
-                                                );
-                                                if (roomOption) {
-                                                    roomSelect.value = roomOption.value;
-                                                    roomSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                                                    console.log('✓ Set room to:', roomOption.value);
-                                                    
-                                                    // Wait for room change to process and load beds
-                                                    setTimeout(() => {
-                                                        if (patient.bed_number && bedSelect && !bedSelect.disabled && bedSelect.options.length > 1) {
-                                                            const bedValue = String(patient.bed_number);
-                                                            const bedOption = Array.from(bedSelect.options).find(
-                                                                opt => opt.value === bedValue || 
-                                                                       opt.textContent.includes(bedValue)
-                                                            );
-                                                            if (bedOption) {
-                                                                bedSelect.value = bedOption.value;
-                                                                console.log('✓ Set bed to:', bedOption.value);
-                                                            } else {
-                                                                console.warn('✗ Could not find bed option:', bedValue);
-                                                            }
-                                                        }
-                                                    }, 300);
-                                                } else {
-                                                    console.warn('✗ Could not find room option:', roomValue);
-                                                }
-                                            }
-                                        }, 500);
-                                    } else {
-                                        console.warn('✗ Could not find floor option:', floorValue);
-                                    }
-                                }
-                            }, 500);
-                        } else {
-                            console.warn('✗ Could not find room type option:', roomTypeValue);
-                        }
-                    }
-                }
-            }, 600);
-        }
+        // Room assignment removed - now handled in room management module
 
-        // Handle coverage type checkboxes
-        if (patient.plan_coverage_types) {
+        // Handle coverage type checkboxes - use the parsed coverage types from earlier
+        if (this.patientCoverageTypes && this.patientCoverageTypes.length > 0) {
+            const coverageLabel = formToUse.querySelector(`#${addressPrefix}_coverage_type_label`);
+            if (coverageLabel) {
+                const coverageCheckboxes = coverageLabel.parentElement?.querySelectorAll('.coverage-checkbox-group input[type="checkbox"]') || 
+                                          formToUse.querySelectorAll(`#${addressPrefix}_coverage_type_label ~ .coverage-checkbox-group input[type="checkbox"]`);
+                if (coverageCheckboxes.length > 0) {
+                    let checkedCount = 0;
+                    coverageCheckboxes.forEach(checkbox => {
+                        const checkboxValue = String(checkbox.value).trim();
+                        const isChecked = this.patientCoverageTypes.some(type => {
+                            const normalizedType = String(type).trim();
+                            return normalizedType.toLowerCase() === checkboxValue.toLowerCase();
+                        });
+                        if (checkbox.checked !== isChecked) {
+                            checkbox.checked = isChecked;
+                            if (isChecked) {
+                                checkedCount++;
+                                console.log(`✓ Checked coverage type checkbox: ${checkbox.value}`);
+                            }
+                        }
+                    });
+                    console.log(`✓ Populated ${checkedCount} coverage type checkbox(es) from parsed types: ${this.patientCoverageTypes.join(', ')}`);
+                }
+            }
+        } else if (patient.plan_coverage_types) {
+            // Fallback: try to use patient.plan_coverage_types directly
             const coverageLabel = formToUse.querySelector(`#${addressPrefix}_coverage_type_label`);
             if (coverageLabel) {
                 const coverageCheckboxes = coverageLabel.parentElement?.querySelectorAll('.coverage-checkbox-group input[type="checkbox"]') || 
@@ -855,14 +1063,17 @@ const EditPatientModal = {
                 if (coverageCheckboxes.length > 0) {
                     if (Array.isArray(patient.plan_coverage_types)) {
                         coverageCheckboxes.forEach(checkbox => {
-                            checkbox.checked = patient.plan_coverage_types.includes(checkbox.value);
+                            const isChecked = patient.plan_coverage_types.some(type => 
+                                String(type).trim().toLowerCase() === String(checkbox.value).trim().toLowerCase()
+                            );
+                            checkbox.checked = isChecked;
                         });
                     } else {
                         coverageCheckboxes.forEach(checkbox => {
-                            checkbox.checked = String(patient.plan_coverage_types) === checkbox.value;
+                            checkbox.checked = String(patient.plan_coverage_types).toLowerCase() === String(checkbox.value).toLowerCase();
                         });
                     }
-                    console.log(`Populated ${coverageCheckboxes.length} coverage type checkboxes`);
+                    console.log(`✓ Populated coverage type checkboxes from patient.plan_coverage_types`);
                 }
             }
         }
@@ -910,11 +1121,14 @@ const EditPatientModal = {
                                 );
                                 if (option) {
                                     input.value = option.value;
+                                    input.dispatchEvent(new Event('change', { bubbles: true }));
                                     finalPassCount++;
+                                    console.log(`✓ Final pass populated ${fieldName} (${input.id})`);
                                 }
                             } else {
                                 input.value = String(value);
                                 finalPassCount++;
+                                console.log(`✓ Final pass populated ${fieldName} (${input.id})`);
                             }
                         } catch (error) {
                             console.error(`Error in final pass for ${input.id}:`, error);
@@ -923,10 +1137,58 @@ const EditPatientModal = {
                 }
             });
             
+            // Ensure consent_uploaded is set even if null
+            const consentField = formToUse.querySelector('#edit_consent_uploaded');
+            if (consentField && !consentField.value) {
+                const consentValue = patient.consent_uploaded;
+                if (consentValue !== null && consentValue !== undefined) {
+                    if (consentValue === true || consentValue === '1' || consentValue === 1 || String(consentValue).toLowerCase() === 'yes') {
+                        consentField.value = '1';
+                    } else if (consentValue === false || consentValue === '0' || consentValue === 0 || String(consentValue).toLowerCase() === 'no') {
+                        consentField.value = '0';
+                    }
+                }
+            }
+            
+            // Ensure admission_number is populated if available
+            const admissionNumberField = formToUse.querySelector('#edit_admission_number');
+            if (admissionNumberField && !admissionNumberField.value) {
+                const admissionNumber = patient.admission_number || patient.admission_id || '';
+                if (admissionNumber) {
+                    admissionNumberField.value = String(admissionNumber);
+                    finalPassCount++;
+                    console.log(`✓ Final pass populated admission_number`);
+                }
+            }
+            
+            // Final address population attempt - ensure barangay is set if province and city are set
+            const provinceSelect = formToUse.querySelector(`#${addressPrefix}_province`);
+            const citySelect = formToUse.querySelector(`#${addressPrefix}_city`);
+            const barangaySelect = formToUse.querySelector(`#${addressPrefix}_barangay`);
+            if (provinceSelect && citySelect && barangaySelect && 
+                provinceSelect.value && citySelect.value && patient.barangay && !barangaySelect.value) {
+                // Try to populate barangay one more time
+                setTimeout(() => {
+                    const barangayValue = String(patient.barangay).trim();
+                    if (barangayValue && !barangaySelect.disabled && barangaySelect.options.length > 1) {
+                        const barangayOption = Array.from(barangaySelect.options).find(opt => 
+                            opt.value === barangayValue ||
+                            opt.value.toLowerCase() === barangayValue.toLowerCase() ||
+                            opt.textContent.trim() === barangayValue ||
+                            opt.textContent.trim().toLowerCase() === barangayValue.toLowerCase()
+                        );
+                        if (barangayOption) {
+                            barangaySelect.value = barangayOption.value;
+                            console.log(`✓ Final pass populated barangay: ${barangayOption.value}`);
+                        }
+                    }
+                }, 300);
+            }
+            
             if (finalPassCount > 0) {
                 console.log(`Final pass populated ${finalPassCount} additional fields`);
             }
-        }, 600);
+        }, 800);
     },
 
     /**
@@ -1120,10 +1382,6 @@ const EditPatientModal = {
                 admission_type: { required: true, label: 'Admission Type' },
                 admitting_diagnosis: { required: true, label: 'Admitting Diagnosis' },
                 admitting_doctor: { required: true, label: 'Admitting Doctor' },
-                room_type: { required: true, label: 'Room Type' },
-                floor_number: { required: true, label: 'Floor Number' },
-                room_number: { required: true, label: 'Room Number' },
-                bed_number: { required: true, label: 'Bed Number' },
                 level_of_consciousness: { required: true, label: 'Level of Consciousness' }
             };
         }

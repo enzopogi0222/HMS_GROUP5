@@ -211,30 +211,23 @@ class PrescriptionManager {
         const canEdit = this.canEditPrescription(prescription);
         const canDelete = this.canDeletePrescription(prescription);
         const canDispense = this.canDispensePrescription(prescription);
-        const canComplete = this.canUpdateStatus(prescription);
         
         // For pharmacists: always show Complete button for queued/active/ready prescriptions
         const isPharmacist = this.config.userRole === 'pharmacist';
         // Handle empty/null status - default to 'queued' if status is missing
         const rawStatus = prescription.status || '';
         const prescriptionStatus = rawStatus ? rawStatus.toLowerCase().trim() : 'queued';
+        
+        // Check if prescription is already completed or dispensed - don't show Complete button
+        const isCompleted = ['completed', 'dispensed'].includes(prescriptionStatus);
+        
         const showCompleteForPharmacist = isPharmacist && 
                                          ['queued', 'active', 'ready', 'in_progress', 'verifying'].includes(prescriptionStatus) &&
-                                         !['dispensed', 'completed', 'cancelled'].includes(prescriptionStatus);
+                                         !isCompleted &&
+                                         !['cancelled'].includes(prescriptionStatus);
         
-        // Debug logging
-        if (isPharmacist && !window._pharmacistButtonDebug) {
-            console.log('Pharmacist Button Debug:', {
-                userRole: this.config.userRole,
-                rawStatus: rawStatus,
-                prescriptionStatus: prescriptionStatus,
-                canComplete: canComplete,
-                showCompleteForPharmacist: showCompleteForPharmacist,
-                prescriptionId: prescription.id,
-                fullPrescription: prescription
-            });
-            window._pharmacistButtonDebug = true;
-        }
+        // For non-pharmacists, check permissions AND ensure status is not already completed
+        const canComplete = !isCompleted && this.canUpdateStatus(prescription);
         
         return `
             <tr class="fade-in">
@@ -283,7 +276,7 @@ class PrescriptionManager {
                                     <i class="fas fa-pills"></i> Dispense
                                 </button>
                             ` : ''}
-                            ${this.canUpdateStatus(prescription) ? `
+                            ${canComplete ? `
                                 <button type="button" class="btn btn-sm btn-success btn-status" data-prescription-id="${prescription.id}" data-action="complete" data-status="completed" title="Mark Completed">
                                     <i class="fas fa-check"></i> Complete
                                 </button>
@@ -508,6 +501,13 @@ class PrescriptionManager {
     }
 
     canUpdateStatus(prescription) {
+        // First check if prescription is already completed or dispensed - cannot update status
+        const rawStatus = prescription.status || '';
+        const status = rawStatus ? rawStatus.toLowerCase().trim() : 'queued';
+        if (['completed', 'dispensed'].includes(status)) {
+            return false;
+        }
+        
         if (this.config.userRole === 'admin' || this.config.userRole === 'it_staff') {
             return true;
         }
@@ -520,10 +520,8 @@ class PrescriptionManager {
         if (this.config.userRole === 'pharmacist') {
             // Pharmacists can update status for queued, active, ready, and in_progress prescriptions
             // Handle empty/null status - default to 'queued' if status is missing
-            const rawStatus = prescription.status || '';
-            const status = rawStatus ? rawStatus.toLowerCase().trim() : 'queued';
             const allowedStatuses = ['active', 'ready', 'queued', 'in_progress', 'verifying'];
-            const blockedStatuses = ['dispensed', 'completed', 'cancelled'];
+            const blockedStatuses = ['cancelled'];
             
             // Always allow completion for queued status (most common case) or empty status (defaults to queued)
             if (status === 'queued' || !rawStatus) {
@@ -531,20 +529,6 @@ class PrescriptionManager {
             }
             
             const canComplete = allowedStatuses.includes(status) && !blockedStatuses.includes(status);
-            
-            // Debug: log for first prescription only
-            if (!window._pharmacistDebugLogged) {
-                console.log('Pharmacist Complete Button Check:', {
-                    userRole: this.config.userRole,
-                    rawStatus: rawStatus,
-                    statusLower: status,
-                    canComplete: canComplete,
-                    allowedStatuses: allowedStatuses,
-                    blockedStatuses: blockedStatuses,
-                    prescriptionId: prescription.id
-                });
-                window._pharmacistDebugLogged = true;
-            }
             
             return canComplete;
         }

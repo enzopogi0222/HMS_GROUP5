@@ -155,12 +155,18 @@ window.ViewPrescriptionModal = {
         
         // Get user role from config or meta tag
         const userRole = this.config.userRole || document.querySelector('meta[name="user-role"]')?.content || '';
-        const status = (prescription.status || '').toLowerCase();
+        const status = (prescription.status || '').toLowerCase().trim();
+        
+        // Never show Complete button if prescription is already completed or dispensed
+        if (['completed', 'dispensed'].includes(status)) {
+            completeBtn.style.display = 'none';
+            return;
+        }
         
         // Show button for pharmacists when prescription can be completed
         if (userRole === 'pharmacist') {
             const canComplete = ['active', 'ready', 'queued', 'in_progress', 'verifying'].includes(status) && 
-                               status !== 'dispensed' && status !== 'completed';
+                               !['cancelled'].includes(status);
             completeBtn.style.display = canComplete ? 'inline-block' : 'none';
         } else {
             completeBtn.style.display = 'none';

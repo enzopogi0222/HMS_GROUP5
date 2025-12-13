@@ -128,24 +128,91 @@
     function markBillingAccountPaid(billingId) {
         if (!billingId || !confirm('Mark this billing account as PAID?')) return;
 
+        // Get CSRF token if available
+        const csrfTokenName = document.querySelector('meta[name="csrf-token-name"]')?.content || 'csrf_token';
+        const csrfHash = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        
+        const requestBody = { billing_id: billingId };
+        if (csrfHash) {
+            requestBody[csrfTokenName] = csrfHash;
+        }
+
         fetch(`${baseUrl}/financial/billing-accounts/${billingId}/paid`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
             credentials: 'same-origin',
-            body: JSON.stringify({ billing_id: billingId })
+            body: JSON.stringify(requestBody)
         })
-            .then(resp => resp.json())
-            .then(result => {
+            .then(async resp => {
+                // Try to parse JSON response regardless of status code
+                let result;
+                try {
+                    const text = await resp.text();
+                    result = text ? JSON.parse(text) : {};
+                } catch (e) {
+                    console.error('Failed to parse response:', e);
+                    result = { success: false, message: `Server error: ${resp.status} ${resp.statusText}` };
+                }
+                
+                // Check if the operation was actually successful (even if status code is 400)
+                // Sometimes the backend returns 400 but the operation succeeds
                 const ok = result && (result.success === true || result.status === 'success');
+                
+                // If we got a 400 but the operation succeeded, treat it as success
+                if (!resp.ok && !ok) {
+                    // Check if the message indicates it's already paid (which is actually a success case)
+                    const message = (result.message || '').toLowerCase();
+                    if (message.includes('already') || message.includes('already set')) {
+                        // This is actually a success - the account is already paid
+                        utils.showNotification(
+                            'Billing account is already marked as paid.',
+                            'success'
+                        );
+                        // Update CSRF token if provided
+                        if (result.csrf && result.csrf.value) {
+                            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                            if (csrfMeta) {
+                                csrfMeta.setAttribute('content', result.csrf.value);
+                            }
+                        }
+                        window.location.reload();
+                        return;
+                    }
+                    
+                    // Real error - show error message
+                    utils.showNotification(
+                        result.message || `Server error: ${resp.status} ${resp.statusText}`,
+                        'error'
+                    );
+                    return;
+                }
+                
+                // Success case
                 utils.showNotification(
-                    result.message || (ok ? 'Billing account marked as paid.' : 'Failed to mark billing account as paid.'),
-                    ok ? 'success' : 'error'
+                    result.message || 'Billing account marked as paid.',
+                    'success'
                 );
-                if (ok) window.location.reload();
+                
+                // Update CSRF token if provided
+                if (result.csrf && result.csrf.value) {
+                    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                    if (csrfMeta) {
+                        csrfMeta.setAttribute('content', result.csrf.value);
+                    }
+                }
+                
+                // Reload to show updated status
+                window.location.reload();
             })
             .catch(err => {
                 console.error('Failed to mark billing account paid', err);
-                utils.showNotification('Failed to mark billing account as paid.', 'error');
+                utils.showNotification(
+                    err.message || 'Failed to mark billing account as paid. Please try again.',
+                    'error'
+                );
             });
     }
 

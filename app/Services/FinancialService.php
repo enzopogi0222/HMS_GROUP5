@@ -554,19 +554,63 @@ class FinancialService
         }
 
         try {
-            $this->db->table('billing_accounts')->where('billing_id', $billingId)->update(['status' => $status]);
+            // First check if the billing account exists
+            $account = $this->db->table('billing_accounts')
+                ->where('billing_id', $billingId)
+                ->get()
+                ->getRowArray();
+            
+            if (!$account) {
+                log_message('error', "updateBillingAccountStatus: Billing account {$billingId} not found");
+                return ['success' => false, 'message' => 'Billing account not found'];
+            }
+            
+            // Normalize status values for comparison (case-insensitive)
+            $currentStatus = strtolower(trim($account['status'] ?? ''));
+            $targetStatus = strtolower(trim($status));
+            
+            // Check if status is already set to the desired value
+            if ($currentStatus === $targetStatus) {
+                log_message('debug', "updateBillingAccountStatus: Billing account {$billingId} already has status '{$status}'");
+                // If status is already set to 'paid', still run the lab order update logic
+                if ($targetStatus === 'paid') {
+                    $this->updateLabOrderStatusAfterPayment($billingId);
+                }
+                return ['success' => true, 'message' => 'Billing account status is already set to ' . $status];
+            }
+            
+            // Perform the update (use the original status value, not normalized)
+            $updateResult = $this->db->table('billing_accounts')
+                ->where('billing_id', $billingId)
+                ->update(['status' => $status]);
+            
+            // Check if update was successful
+            $affectedRows = $this->db->affectedRows();
             
             // If status is being set to 'paid', automatically update lab order status from 'ordered' to 'in_progress'
-            if (strtolower($status) === 'paid') {
+            if ($targetStatus === 'paid') {
                 $this->updateLabOrderStatusAfterPayment($billingId);
             }
             
-            return $this->db->affectedRows() > 0
-                ? ['success' => true, 'message' => 'Billing account status updated']
-                : ['success' => false, 'message' => 'Billing account not found or status unchanged'];
+            // Verify the update by checking the current status
+            $updatedAccount = $this->db->table('billing_accounts')
+                ->where('billing_id', $billingId)
+                ->get()
+                ->getRowArray();
+            
+            $updatedStatus = strtolower(trim($updatedAccount['status'] ?? ''));
+            
+            if ($updatedStatus === $targetStatus || $affectedRows > 0) {
+                log_message('debug', "updateBillingAccountStatus: Successfully updated billing account {$billingId} status to '{$status}'");
+                return ['success' => true, 'message' => 'Billing account status updated successfully'];
+            }
+            
+            log_message('warning', "updateBillingAccountStatus: Update may have failed for billing account {$billingId}. Affected rows: {$affectedRows}, Current status: {$currentStatus}, Target status: {$targetStatus}, Updated status: {$updatedStatus}");
+            return ['success' => false, 'message' => 'Failed to update billing account status'];
         } catch (\Exception $e) {
             log_message('error', 'FinancialService::updateBillingAccountStatus error: ' . $e->getMessage());
-            return ['success' => false, 'message' => 'Error updating billing account status'];
+            log_message('error', 'Stack trace: ' . $e->getTraceAsString());
+            return ['success' => false, 'message' => 'Error updating billing account status: ' . $e->getMessage()];
         }
     }
     

@@ -129,13 +129,42 @@ class FinancialController extends BaseController
             ]);
         }
 
-        $result = $this->financialService->markBillingAccountPaid((int)$billingId);
-        $status = !empty($result['success']) ? 200 : 400;
+        // Validate billing ID
+        $billingId = (int)$billingId;
+        if ($billingId <= 0) {
+            log_message('error', "markBillingAccountPaid: Invalid billing ID: {$billingId}");
+            return $this->response->setStatusCode(400)->setJSON([
+                'success' => false,
+                'message' => 'Invalid billing account ID.',
+            ]);
+        }
 
-        return $this->response->setStatusCode($status)->setJSON([
-            'success' => !empty($result['success']),
-            'message' => $result['message'] ?? 'Unable to update billing account status.',
-        ]);
+        try {
+            $result = $this->financialService->markBillingAccountPaid($billingId);
+            
+            // Check if operation was successful
+            $isSuccess = isset($result['success']) && $result['success'] === true;
+            $statusCode = $isSuccess ? 200 : 400;
+
+            // Log the result for debugging
+            if (!$isSuccess) {
+                log_message('error', "markBillingAccountPaid: Failed for billing ID {$billingId}. Message: " . ($result['message'] ?? 'Unknown error'));
+            } else {
+                log_message('debug', "markBillingAccountPaid: Success for billing ID {$billingId}. Message: " . ($result['message'] ?? 'Success'));
+            }
+
+            return $this->response->setStatusCode($statusCode)->setJSON([
+                'success' => $isSuccess,
+                'message' => $result['message'] ?? ($isSuccess ? 'Billing account status updated successfully' : 'Unable to update billing account status.'),
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', "markBillingAccountPaid: Exception for billing ID {$billingId}. Error: " . $e->getMessage());
+            log_message('error', "Stack trace: " . $e->getTraceAsString());
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => 'An error occurred while updating the billing account: ' . $e->getMessage(),
+            ]);
+        }
     }
 
     /**

@@ -264,6 +264,7 @@ $routes->get('financial-management', 'FinancialController::index');
 $routes->get('financial-management/add', 'FinancialController::addTransaction');
 $routes->post('financial-management/add', 'FinancialController::addTransaction');
 $routes->get('financial-management/categories', 'FinancialController::getCategoriesByType');
+$routes->get('financial-management/transactions', 'FinancialController::getTransactionsAPI', ['filter' => 'roleauth:admin,accountant,it_staff']);
 $routes->get('billing/accounts/(:num)', 'FinancialController::getBillingAccount/$1', ['filter' => 'roleauth:admin,accountant']);
 $routes->post('financial/billing-accounts/(:num)/paid', 'FinancialController::markBillingAccountPaid/$1', ['filter' => 'roleauth:admin,accountant']);
 $routes->post('financial/billing-accounts/(:num)/delete', 'FinancialController::deleteBillingAccount/$1', ['filter' => 'roleauth:admin,accountant']);

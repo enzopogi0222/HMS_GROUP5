@@ -190,6 +190,200 @@
         }
     }
 
+    // Transaction filtering functionality
+    let transactionFilters = {
+        type: '',
+        payment_status: '',
+        date_from: '',
+        date_to: '',
+        search: ''
+    };
+
+    function loadTransactions(filters = {}) {
+        const transactionsTableBody = document.getElementById('transactionsTableBody');
+        if (!transactionsTableBody) return;
+
+        // Build query string
+        const params = new URLSearchParams();
+        Object.keys(filters).forEach(key => {
+            if (filters[key]) {
+                params.append(key, filters[key]);
+            }
+        });
+
+        fetch(`${baseUrl}/financial-management/transactions?${params.toString()}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin'
+        })
+            .then(resp => resp.json())
+            .then(result => {
+                if (result.success && result.data) {
+                    renderTransactions(result.data);
+                } else {
+                    transactionsTableBody.innerHTML = `
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 3rem; color: #6b7280;">
+                                <i class="fas fa-exchange-alt" style="font-size: 3rem; color: #d1d5db; margin-bottom: 1rem; display: block;"></i>
+                                <p style="margin: 0.5rem 0; font-size: 1rem; font-weight: 500;">No transactions found</p>
+                                <p style="margin: 0; font-size: 0.875rem;">${result.message || 'No transactions match your filters.'}</p>
+                            </td>
+                        </tr>
+                    `;
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load transactions', err);
+                showFinancialNotification('Failed to load transactions.', 'error');
+            });
+    }
+
+    function renderTransactions(transactions) {
+        const transactionsTableBody = document.getElementById('transactionsTableBody');
+        if (!transactionsTableBody) return;
+
+        if (!transactions || transactions.length === 0) {
+            transactionsTableBody.innerHTML = `
+                <tr>
+                    <td colspan="8" style="text-align: center; padding: 3rem; color: #6b7280;">
+                        <i class="fas fa-exchange-alt" style="font-size: 3rem; color: #d1d5db; margin-bottom: 1rem; display: block;"></i>
+                        <p style="margin: 0.5rem 0; font-size: 1rem; font-weight: 500;">No transactions found</p>
+                        <p style="margin: 0; font-size: 0.875rem;">No transactions match your filters.</p>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        transactionsTableBody.innerHTML = transactions.map(transaction => {
+            const isStockTransaction = ['stock_in', 'stock_out'].includes(transaction.type || '');
+            
+            // Determine what to show in Patient/Resource column
+            let displayEntity = 'N/A';
+            if (isStockTransaction && transaction.resource_name) {
+                displayEntity = `<strong>${escapeHtml(transaction.resource_name)}</strong>`;
+            } else {
+                const patientName = (transaction.patient_first_name || '') + ' ' + (transaction.patient_last_name || '');
+                displayEntity = patientName.trim() || (transaction.patient_id ? `Patient #${transaction.patient_id}` : 'N/A');
+            }
+            
+            // Determine what to show in Amount/Quantity column
+            let amountQuantityDisplay = '';
+            if (isStockTransaction) {
+                const quantityColor = transaction.type === 'stock_out' ? '#ef4444' : '#10b981';
+                const quantitySign = transaction.type === 'stock_out' ? '-' : '+';
+                amountQuantityDisplay = `<strong style="color: ${quantityColor};">
+                    ${quantitySign}${escapeHtml(transaction.quantity || 0)} unit(s)
+                </strong>`;
+            } else {
+                const amountColor = transaction.type === 'expense' ? '#ef4444' : '#10b981';
+                const amountSign = transaction.type === 'expense' ? '-' : '+';
+                amountQuantityDisplay = `<strong style="color: ${amountColor};">
+                    ${amountSign}₱${parseFloat(transaction.amount || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                </strong>`;
+            }
+            
+            const paymentMethod = isStockTransaction ? 'N/A' : ((transaction.payment_method || 'N/A').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
+
+            return `
+                <tr>
+                    <td>${escapeHtml(transaction.transaction_id || 'N/A')}</td>
+                    <td>
+                        ${escapeHtml(transaction.transaction_date || 'N/A')}<br>
+                        <small style="color: #6b7280;">${escapeHtml(transaction.transaction_time || '')}</small>
+                    </td>
+                    <td>
+                        <span class="status-badge ${(transaction.type || '').toLowerCase()}">
+                            ${escapeHtml((transaction.type || 'N/A').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))}
+                        </span>
+                    </td>
+                    <td>${displayEntity}</td>
+                    <td>${amountQuantityDisplay}</td>
+                    <td>${escapeHtml(paymentMethod)}</td>
+                    <td>
+                        <span class="status-badge ${(transaction.payment_status || 'pending').toLowerCase()}">
+                            ${escapeHtml((transaction.payment_status || 'Pending').charAt(0).toUpperCase() + (transaction.payment_status || 'Pending').slice(1))}
+                        </span>
+                    </td>
+                    <td>${escapeHtml(transaction.description || 'N/A')}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function applyTransactionFilters() {
+        transactionFilters = {
+            type: document.getElementById('transactionTypeFilter')?.value || '',
+            payment_status: document.getElementById('transactionStatusFilter')?.value || '',
+            date_from: document.getElementById('transactionDateFrom')?.value || '',
+            date_to: document.getElementById('transactionDateTo')?.value || '',
+            search: document.getElementById('transactionSearch')?.value || ''
+        };
+        loadTransactions(transactionFilters);
+    }
+
+    function clearTransactionFilters() {
+        const typeFilter = document.getElementById('transactionTypeFilter');
+        const statusFilter = document.getElementById('transactionStatusFilter');
+        const dateFromFilter = document.getElementById('transactionDateFrom');
+        const dateToFilter = document.getElementById('transactionDateTo');
+        const searchFilter = document.getElementById('transactionSearch');
+
+        if (typeFilter) typeFilter.value = '';
+        if (statusFilter) statusFilter.value = '';
+        if (dateFromFilter) dateFromFilter.value = '';
+        if (dateToFilter) dateToFilter.value = '';
+        if (searchFilter) searchFilter.value = '';
+
+        transactionFilters = {
+            type: '',
+            payment_status: '',
+            date_from: '',
+            date_to: '',
+            search: ''
+        };
+        loadTransactions({});
+    }
+
+    // Initialize transaction filters
+    document.addEventListener('DOMContentLoaded', function() {
+        const transactionTypeFilter = document.getElementById('transactionTypeFilter');
+        const transactionStatusFilter = document.getElementById('transactionStatusFilter');
+        const transactionDateFrom = document.getElementById('transactionDateFrom');
+        const transactionDateTo = document.getElementById('transactionDateTo');
+        const transactionSearch = document.getElementById('transactionSearch');
+        const clearTransactionFiltersBtn = document.getElementById('clearTransactionFilters');
+
+        if (transactionTypeFilter) {
+            transactionTypeFilter.addEventListener('change', applyTransactionFilters);
+        }
+        if (transactionStatusFilter) {
+            transactionStatusFilter.addEventListener('change', applyTransactionFilters);
+        }
+        if (transactionDateFrom) {
+            transactionDateFrom.addEventListener('change', applyTransactionFilters);
+        }
+        if (transactionDateTo) {
+            transactionDateTo.addEventListener('change', applyTransactionFilters);
+        }
+        if (transactionSearch) {
+            let searchTimeout;
+            transactionSearch.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(applyTransactionFilters, 500);
+            });
+        }
+        if (clearTransactionFiltersBtn) {
+            clearTransactionFiltersBtn.addEventListener('click', clearTransactionFilters);
+        }
+    });
+
     // Initialize
     if (tableBody) {
         tableBody.addEventListener('click', handleTableClick);

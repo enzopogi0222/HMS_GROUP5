@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\FinancialTransactionModel;
 use App\Models\CategoryModel;
+use App\Models\TransactionModel;
 use App\Services\FinancialService;
 use App\Libraries\PermissionManager;
 
@@ -12,12 +13,14 @@ class FinancialController extends BaseController
     protected $transactionModel;
     protected $categoryModel;
     protected $financialService;
+    protected $transactionsModel;
 
     public function __construct()
     {
         $this->transactionModel = new FinancialTransactionModel();
         $this->categoryModel = new CategoryModel();
         $this->financialService = new FinancialService();
+        $this->transactionsModel = new TransactionModel();
     }
 
     public function demo()
@@ -40,6 +43,13 @@ class FinancialController extends BaseController
             // Use FinancialService for high-level stats and billing accounts
             $stats    = $this->financialService->getFinancialStats($userRole, $staffId);
             $accounts = $this->financialService->getBillingAccounts([], $userRole, $staffId);
+            
+            // Get transactions from transactions table
+            $transactions = [];
+            $db = \Config\Database::connect();
+            if ($db->tableExists('transactions')) {
+                $transactions = $this->transactionsModel->getTransactions([]);
+            }
 
             // Simple permission flags for existing view structure using PermissionManager
             $permissions = [];
@@ -61,6 +71,7 @@ class FinancialController extends BaseController
                 'userRole'    => $userRole,
                 'stats'       => $stats,
                 'accounts'    => $accounts,
+                'transactions' => $transactions,
                 'permissions' => $permissions,
             ];
 
@@ -401,5 +412,49 @@ class FinancialController extends BaseController
         log_message('debug', 'Accountant data: ' . json_encode($result));
         
         return $result;
+    }
+
+    /**
+     * API: Get transactions with filters
+     */
+    public function getTransactionsAPI()
+    {
+        $session = session();
+        $userRole = $session->get('role') ?? 'accountant';
+        
+        if (!in_array($userRole, ['admin', 'accountant', 'it_staff'], true)) {
+            return $this->response->setStatusCode(403)->setJSON([
+                'success' => false,
+                'message' => 'Insufficient permissions',
+            ]);
+        }
+
+        $filters = [
+            'type' => $this->request->getGet('type'),
+            'payment_status' => $this->request->getGet('payment_status'),
+            'date_from' => $this->request->getGet('date_from'),
+            'date_to' => $this->request->getGet('date_to'),
+            'search' => $this->request->getGet('search'),
+        ];
+
+        // Remove empty filters
+        $filters = array_filter($filters, function($value) {
+            return $value !== null && $value !== '';
+        });
+
+        try {
+            $transactions = $this->transactionsModel->getTransactions($filters);
+            
+            return $this->response->setJSON([
+                'success' => true,
+                'data' => $transactions,
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', 'FinancialController::getTransactionsAPI - ' . $e->getMessage());
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => 'Failed to fetch transactions',
+            ]);
+        }
     }
 }

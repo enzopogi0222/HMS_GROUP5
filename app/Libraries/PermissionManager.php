@@ -14,6 +14,7 @@ class PermissionManager
             'shifts' => ['view', 'create', 'edit', 'delete'],
             'prescriptions' => ['view', 'create', 'edit', 'delete', 'view_all'], // Admin can create prescriptions
             'lab_orders' => ['view', 'create', 'edit', 'delete', 'view_all'], // Admin can create lab orders
+            'billing' => ['view', 'create', 'edit', 'process', 'delete'], // Admin can manage billing
             'reports' => ['view', 'generate', 'export'],
             'system' => ['settings', 'backup', 'maintenance']
         ],

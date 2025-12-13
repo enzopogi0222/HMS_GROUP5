@@ -294,6 +294,143 @@
                 </table>
             </div>
 
+            <!-- Transactions Section -->
+            <div class="transactions-section" style="margin-top: 2rem;">
+                <h2 class="section-title" style="margin-bottom: 1rem; font-size: 1.5rem; font-weight: 600; color: #1f2937;">
+                    <i class="fas fa-exchange-alt"></i> Transactions
+                </h2>
+
+                <!-- Transaction Filters -->
+                <div class="controls-section" style="margin-bottom: 1rem;">
+                    <div class="filters-section">
+                        <div class="filter-group">
+                            <label>Transaction Type:</label>
+                            <select id="transactionTypeFilter" class="form-select">
+                                <option value="">All Types</option>
+                                <option value="payment">Payment</option>
+                                <option value="expense">Expense</option>
+                                <option value="refund">Refund</option>
+                                <option value="adjustment">Adjustment</option>
+                                <option value="stock_in">Stock In</option>
+                                <option value="stock_out">Stock Out</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Payment Status:</label>
+                            <select id="transactionStatusFilter" class="form-select">
+                                <option value="">All Statuses</option>
+                                <option value="pending">Pending</option>
+                                <option value="completed">Completed</option>
+                                <option value="failed">Failed</option>
+                                <option value="refunded">Refunded</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Date From:</label>
+                            <input type="date" id="transactionDateFrom" class="form-input">
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Date To:</label>
+                            <input type="date" id="transactionDateTo" class="form-input">
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Search:</label>
+                            <input type="text" id="transactionSearch" class="form-input" placeholder="Search transactions...">
+                        </div>
+
+                        <button type="button" id="clearTransactionFilters" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Transactions Table -->
+                <div class="financial-table-container">
+                    <table class="financial-table">
+                        <thead>
+                            <tr>
+                                <th>Transaction ID</th>
+                                <th>Date & Time</th>
+                                <th>Type</th>
+                                <th>Patient/Resource</th>
+                                <th>Amount/Quantity</th>
+                                <th>Payment Method</th>
+                                <th>Status</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionsTableBody">
+                            <?php if (!empty($transactions) && is_array($transactions)): ?>
+                                <?php foreach ($transactions as $transaction): ?>
+                                    <tr>
+                                        <td><?= esc($transaction['transaction_id'] ?? 'N/A') ?></td>
+                                        <td>
+                                            <?= esc($transaction['transaction_date'] ?? 'N/A') ?><br>
+                                            <small style="color: #6b7280;"><?= esc($transaction['transaction_time'] ?? '') ?></small>
+                                        </td>
+                                        <td>
+                                            <span class="status-badge <?= strtolower($transaction['type'] ?? '') ?>">
+                                                <?= esc(ucfirst($transaction['type'] ?? 'N/A')) ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <?php 
+                                            $isStockTransaction = in_array($transaction['type'] ?? '', ['stock_in', 'stock_out']);
+                                            if ($isStockTransaction && !empty($transaction['resource_name'])): ?>
+                                                <strong><?= esc($transaction['resource_name']) ?></strong>
+                                            <?php elseif (!empty($transaction['patient_first_name']) || !empty($transaction['patient_last_name'])): ?>
+                                                <?= esc(($transaction['patient_first_name'] ?? '') . ' ' . ($transaction['patient_last_name'] ?? '')) ?>
+                                            <?php elseif (!empty($transaction['patient_id'])): ?>
+                                                Patient #<?= esc($transaction['patient_id']) ?>
+                                            <?php else: ?>
+                                                N/A
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($isStockTransaction): ?>
+                                                <strong style="color: <?= ($transaction['type'] ?? '') === 'stock_out' ? '#ef4444' : '#10b981' ?>;">
+                                                    <?= ($transaction['type'] ?? '') === 'stock_out' ? '-' : '+' ?><?= esc($transaction['quantity'] ?? 0) ?> unit(s)
+                                                </strong>
+                                            <?php else: ?>
+                                                <strong style="color: <?= ($transaction['type'] ?? '') === 'expense' ? '#ef4444' : '#10b981' ?>;">
+                                                    <?= ($transaction['type'] ?? '') === 'expense' ? '-' : '+' ?>₱<?= number_format($transaction['amount'] ?? 0, 2) ?>
+                                                </strong>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($isStockTransaction): ?>
+                                                N/A
+                                            <?php else: ?>
+                                                <?= esc(ucfirst(str_replace('_', ' ', $transaction['payment_method'] ?? 'N/A'))) ?>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <span class="status-badge <?= strtolower($transaction['payment_status'] ?? 'pending') ?>">
+                                                <?= esc(ucfirst($transaction['payment_status'] ?? 'Pending')) ?>
+                                            </span>
+                                        </td>
+                                        <td><?= esc($transaction['description'] ?? 'N/A') ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="8" style="text-align: center; padding: 3rem; color: #6b7280;">
+                                        <i class="fas fa-exchange-alt" style="font-size: 3rem; color: #d1d5db; margin-bottom: 1rem; display: block;"></i>
+                                        <p style="margin: 0.5rem 0; font-size: 1rem; font-weight: 500;">No transactions found</p>
+                                        <p style="margin: 0; font-size: 0.875rem;">Transactions will appear here when payments, expenses, adjustments, or stock movements are recorded.</p>
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </main>
     </div>
 

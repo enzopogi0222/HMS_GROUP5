@@ -17,6 +17,7 @@ class TransactionModel extends Model
         'type',
         'category',
         'amount',
+        'quantity',
         'description',
         'patient_id',
         'appointment_id',
@@ -39,8 +40,9 @@ class TransactionModel extends Model
     // Validation
     protected $validationRules      = [
         'transaction_id'    => 'required|max_length[50]|is_unique[transactions.transaction_id,id,{id}]',
-        'type'              => 'required|in_list[payment,expense,refund,adjustment]',
-        'amount'            => 'required|numeric|greater_than[0]',
+        'type'              => 'required|in_list[payment,expense,refund,adjustment,stock_in,stock_out]',
+        'amount'            => 'permit_empty|numeric|greater_than_equal_to[0]',
+        'quantity'           => 'permit_empty|integer|greater_than_equal_to[0]',
         'payment_method'    => 'in_list[cash,credit_card,debit_card,bank_transfer,insurance,other]',
         'payment_status'    => 'in_list[pending,completed,failed,refunded,cancelled]',
         'transaction_date'  => 'required|valid_date[Y-m-d]',
@@ -56,9 +58,12 @@ class TransactionModel extends Model
             'in_list' => 'Invalid transaction type',
         ],
         'amount' => [
-            'required' => 'Amount is required',
             'numeric' => 'Amount must be a valid number',
-            'greater_than' => 'Amount must be greater than 0',
+            'greater_than_equal_to' => 'Amount must be 0 or greater',
+        ],
+        'quantity' => [
+            'integer' => 'Quantity must be a valid integer',
+            'greater_than_equal_to' => 'Quantity must be 0 or greater',
         ],
     ];
     protected $skipValidation       = false;
@@ -96,10 +101,10 @@ class TransactionModel extends Model
                                  a.appointment_date,
                                  r.equipment_name as resource_name,
                                  u.username as created_by_username')
-                         ->join('patients p', 'p.id = transactions.patient_id', 'left')
+                         ->join('patients p', 'p.patient_id = transactions.patient_id', 'left')
                          ->join('appointments a', 'a.id = transactions.appointment_id', 'left')
                          ->join('resources r', 'r.id = transactions.resource_id', 'left')
-                         ->join('users u', 'u.id = transactions.created_by', 'left');
+                         ->join('users u', 'u.user_id = transactions.created_by', 'left');
 
         // Apply filters
         if (!empty($filters['type'])) {
@@ -125,6 +130,7 @@ class TransactionModel extends Model
                     ->orLike('transactions.reference_number', $filters['search'])
                     ->orLike('p.first_name', $filters['search'])
                     ->orLike('p.last_name', $filters['search'])
+                    ->orLike('r.equipment_name', $filters['search'])
                     ->groupEnd();
         }
 

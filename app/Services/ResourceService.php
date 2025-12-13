@@ -5,18 +5,21 @@ namespace App\Services;
 use CodeIgniter\Database\ConnectionInterface;
 use App\Libraries\PermissionManager;
 use App\Models\ResourceModel;
+use App\Models\TransactionModel;
 
 class ResourceService
 {
     protected $db;
     protected $permissionManager;
     protected $resourceModel;
+    protected $transactionModel;
 
     public function __construct(ConnectionInterface $db = null)
     {
         $this->db = $db ?? \Config\Database::connect();
         $this->permissionManager = new PermissionManager();
         $this->resourceModel = new ResourceModel();
+        $this->transactionModel = new TransactionModel();
     }
 
     public function getResources($role, $staffId = null, $filters = [])
@@ -90,7 +93,11 @@ class ResourceService
                 }
             }
 
+            // Start transaction for atomic stock operation
+            $this->db->transStart();
+
             if (!$this->resourceModel->insert($resourceData)) {
+                $this->db->transRollback();
                 return [
                     'success' => false,
                     'message' => 'Validation failed',
@@ -98,13 +105,31 @@ class ResourceService
                 ];
             }
 
+            $resourceId = $this->resourceModel->getInsertID();
+
+            // Create stock_in transaction record
+            $this->createStockTransaction($resourceId, 'stock_in', $quantity, $resourceData['equipment_name'], $staffId);
+
+            // Complete transaction
+            $this->db->transComplete();
+
+            // Check transaction status
+            if ($this->db->transStatus() === false) {
+                log_message('error', 'ResourceService::createResource - Transaction failed');
+                return ['success' => false, 'message' => 'Failed to create resource. Transaction rolled back.'];
+            }
+
             return [
                 'success' => true,
                 'message' => 'Resource created successfully',
-                'resource_id' => $this->resourceModel->getInsertID()
+                'resource_id' => $resourceId
             ];
 
         } catch (\Exception $e) {
+            // Rollback on exception
+            if ($this->db->transStatus() !== false) {
+                $this->db->transRollback();
+            }
             log_message('error', 'ResourceService::createResource - ' . $e->getMessage());
             return ['success' => false, 'message' => 'An error occurred: ' . $e->getMessage()];
         }
@@ -167,16 +192,25 @@ class ResourceService
             $newQuantity = isset($updateData['quantity']) ? (int)$updateData['quantity'] : $currentQuantity;
             $assignedToStaff = !empty($resource['assigned_to_staff_id']);
             
+            // Start transaction for atomic stock operation
+            $this->db->transStart();
+            
             // Check if quantity is being set to 0 and resource is not assigned to staff
             if (isset($updateData['quantity']) && $newQuantity === 0 && !$assignedToStaff) {
                 // Automatically delete the resource when stock runs out
                 if ($this->resourceModel->delete($resourceId)) {
+                    $this->db->transComplete();
+                    if ($this->db->transStatus() === false) {
+                        $this->db->transRollback();
+                        return ['success' => false, 'message' => 'Failed to remove resource. Transaction rolled back.'];
+                    }
                     return [
                         'success' => true, 
                         'message' => 'Resource automatically removed - stock is out',
                         'deleted' => true
                     ];
                 } else {
+                    $this->db->transRollback();
                     return [
                         'success' => false,
                         'message' => 'Failed to remove resource'
@@ -196,10 +230,18 @@ class ResourceService
             }
 
             if (empty($updateData)) {
+                $this->db->transRollback();
                 return ['success' => false, 'message' => 'No changes provided'];
             }
 
+            // Track quantity change for stock transaction
+            $quantityChange = 0;
+            if (isset($updateData['quantity'])) {
+                $quantityChange = $newQuantity - $currentQuantity;
+            }
+
             if (!$this->resourceModel->update($resourceId, $updateData)) {
+                $this->db->transRollback();
                 return [
                     'success' => false,
                     'message' => 'Validation failed',
@@ -207,9 +249,34 @@ class ResourceService
                 ];
             }
 
+            // Create stock transaction if quantity changed
+            if ($quantityChange != 0) {
+                $transactionType = $quantityChange > 0 ? 'stock_in' : 'stock_out';
+                $this->createStockTransaction(
+                    $resourceId, 
+                    $transactionType, 
+                    abs($quantityChange), 
+                    $resource['equipment_name'] ?? 'Resource', 
+                    $staffId
+                );
+            }
+
+            // Complete transaction
+            $this->db->transComplete();
+
+            // Check transaction status
+            if ($this->db->transStatus() === false) {
+                log_message('error', 'ResourceService::updateResource - Transaction failed');
+                return ['success' => false, 'message' => 'Failed to update resource. Transaction rolled back.'];
+            }
+
             return ['success' => true, 'message' => 'Resource updated successfully'];
 
         } catch (\Exception $e) {
+            // Rollback on exception
+            if ($this->db->transStatus() !== false) {
+                $this->db->transRollback();
+            }
             log_message('error', 'ResourceService::updateResource - ' . $e->getMessage());
             return ['success' => false, 'message' => 'An error occurred: ' . $e->getMessage()];
         }
@@ -231,11 +298,32 @@ class ResourceService
             // for resources that are assigned to staff or have quantity > 0
             // Allow deletion of any resource (automatic deletion only happens when quantity reaches 0)
 
-            return $this->resourceModel->delete($resourceId)
-                ? ['success' => true, 'message' => 'Resource deleted successfully']
-                : ['success' => false, 'message' => 'Failed to delete resource'];
+            // Start transaction for atomic deletion
+            $this->db->transStart();
+
+            $deleted = $this->resourceModel->delete($resourceId);
+
+            if (!$deleted) {
+                $this->db->transRollback();
+                return ['success' => false, 'message' => 'Failed to delete resource'];
+            }
+
+            // Complete transaction
+            $this->db->transComplete();
+
+            // Check transaction status
+            if ($this->db->transStatus() === false) {
+                log_message('error', 'ResourceService::deleteResource - Transaction failed');
+                return ['success' => false, 'message' => 'Failed to delete resource. Transaction rolled back.'];
+            }
+
+            return ['success' => true, 'message' => 'Resource deleted successfully'];
 
         } catch (\Exception $e) {
+            // Rollback on exception
+            if ($this->db->transStatus() !== false) {
+                $this->db->transRollback();
+            }
             log_message('error', 'ResourceService::deleteResource - ' . $e->getMessage());
             return ['success' => false, 'message' => 'An error occurred: ' . $e->getMessage()];
         }
@@ -321,6 +409,46 @@ class ResourceService
         } catch (\Exception $e) {
             log_message('error', 'ResourceService::getMedications - ' . $e->getMessage());
             return [];
+        }
+    }
+
+    /**
+     * Create a stock transaction record
+     */
+    private function createStockTransaction($resourceId, $type, $quantity, $resourceName, $createdBy)
+    {
+        try {
+            // Check if transactions table exists and supports stock transactions
+            if (!$this->db->tableExists('transactions')) {
+                return;
+            }
+
+            $transactionModel = new TransactionModel();
+            $transactionId = $transactionModel->generateTransactionId();
+
+            $transactionData = [
+                'transaction_id' => $transactionId,
+                'type' => $type,
+                'category' => 'Stock Management',
+                'amount' => null, // Stock transactions don't have monetary value
+                'quantity' => $quantity,
+                'description' => ucfirst(str_replace('_', ' ', $type)) . ': ' . $quantity . ' unit(s) of ' . $resourceName,
+                'resource_id' => $resourceId,
+                'payment_status' => 'completed', // Stock transactions are always completed
+                'transaction_date' => date('Y-m-d'),
+                'transaction_time' => date('H:i:s'),
+                'created_by' => $createdBy,
+                'notes' => 'Automatic stock transaction from resource management'
+            ];
+
+            // Skip validation for stock transactions (amount is optional)
+            $transactionModel->skipValidation(true);
+            $transactionModel->insert($transactionData);
+            $transactionModel->skipValidation(false);
+
+        } catch (\Exception $e) {
+            // Log error but don't fail the resource operation
+            log_message('error', 'ResourceService::createStockTransaction - ' . $e->getMessage());
         }
     }
 

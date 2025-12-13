@@ -87,9 +87,15 @@
                                         <small id="err_edit_civil_status" class="form-error"></small>
                                     </div>
                                     <div>
+<<<<<<< HEAD
                                         <label class="form-label" for="edit_phone">Contact Number*</label>
                                         <input type="text" id="edit_phone" name="phone" class="form-input" required>
                                         <small id="err_edit_phone" class="form-error"></small>
+=======
+                            <label class="form-label" for="edit_phone">Contact Number*</label>
+                            <input type="text" id="edit_phone" name="phone" class="form-input" required inputmode="numeric" maxlength="11" pattern="^09\d{9}$">
+                            <small id="err_edit_phone" class="form-error"></small>
+>>>>>>> 4083aca29ad024810e89cc84868565c55bbef4db
                                     </div>
                                     <div>
                                         <label class="form-label" for="edit_email">Email Address</label>
@@ -163,12 +169,18 @@
                                         <input type="text" id="edit_guardian_relationship_other" name="guardian_relationship_other" class="form-input" placeholder="Specify relationship" hidden>
                                     </div>
                                     <div>
+<<<<<<< HEAD
                                         <label class="form-label" for="edit_guardian_contact">Contact Number*</label>
                                         <input type="text" id="edit_guardian_contact" name="guardian_contact" class="form-input" required>
                                     </div>
                                     <div>
                                         <label class="form-label" for="edit_secondary_contact">Secondary Contact</label>
                                         <input type="text" id="edit_secondary_contact" name="secondary_contact" class="form-input" placeholder="Optional">
+=======
+                            <label class="form-label" for="edit_emergency_contact_phone">Contact Number*</label>
+                            <input type="text" id="edit_emergency_contact_phone" name="emergency_contact_phone" class="form-input" required inputmode="numeric" maxlength="11" pattern="^09\d{9}$">
+                            <small id="err_edit_emergency_contact_phone" class="form-error"></small>
+>>>>>>> 4083aca29ad024810e89cc84868565c55bbef4db
                                     </div>
                                 </div>
                             </div>

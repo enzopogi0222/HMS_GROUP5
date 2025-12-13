@@ -1084,6 +1084,7 @@ const EditPatientModal = {
     /**
      * Validate form data
      */
+<<<<<<< HEAD
     validateFormData(data, formType = 'outpatient') {
         const typeValue = (formType || data.patient_type || 'outpatient').toLowerCase();
         let rules = {};
@@ -1128,6 +1129,26 @@ const EditPatientModal = {
             };
         }
 
+=======
+    validateFormData(data) {
+        const rules = {
+            first_name: { required: true, label: 'First Name' },
+            last_name: { required: true, label: 'Last Name' },
+            gender: { required: true, label: 'Gender' },
+            date_of_birth: { required: true, label: 'Date of Birth' },
+            civil_status: { required: true, label: 'Civil Status' },
+            phone: { required: true, label: 'Phone Number', pattern: /^09\d{9}$/, message: 'Contact number must start with 09 and be exactly 11 digits.' },
+            address: { required: true, label: 'Address' },
+            province: { required: true, label: 'Province' },
+            city: { required: true, label: 'City' },
+            barangay: { required: true, label: 'Barangay' },
+            zip_code: { required: true, label: 'ZIP Code' },
+            emergency_contact_name: { required: true, label: 'Emergency Contact Name' },
+            emergency_contact_phone: { required: true, label: 'Emergency Contact Phone', pattern: /^09\d{9}$/, message: 'Emergency contact number must start with 09 and be exactly 11 digits.' },
+            email: { email: true, label: 'Email' }
+        };
+        
+>>>>>>> 4083aca29ad024810e89cc84868565c55bbef4db
         return PatientUtils.validateForm(data, rules);
     },
 

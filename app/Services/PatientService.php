@@ -250,6 +250,215 @@ class PatientService
                 }
             }
 
+            // Always initialize insurance fields to null so they're always present in the response
+            // This ensures frontend always receives these fields (even if null) instead of undefined
+            $patient['insurance_provider'] = $patient['insurance_provider'] ?? null;
+            $patient['membership_number'] = $patient['membership_number'] ?? null;
+            $patient['hmo_cardholder_name'] = $patient['hmo_cardholder_name'] ?? null;
+            $patient['cardholder_name'] = $patient['cardholder_name'] ?? null;
+            $patient['member_type'] = $patient['member_type'] ?? null;
+            $patient['relationship'] = $patient['relationship'] ?? null;
+            $patient['plan_name'] = $patient['plan_name'] ?? null;
+            $patient['mbl'] = $patient['mbl'] ?? null;
+            $patient['maximum_benefit_limit'] = $patient['maximum_benefit_limit'] ?? null;
+            $patient['max_benefit_limit'] = $patient['max_benefit_limit'] ?? null;
+            $patient['pre_existing_coverage'] = $patient['pre_existing_coverage'] ?? null;
+            $patient['coverage_start_date'] = $patient['coverage_start_date'] ?? null;
+            $patient['coverage_end_date'] = $patient['coverage_end_date'] ?? null;
+            $patient['card_status'] = $patient['card_status'] ?? null;
+            $patient['plan_coverage_types'] = $patient['plan_coverage_types'] ?? [];
+            $patient['coverage_types'] = $patient['coverage_types'] ?? [];
+
+            // Load insurance/HMO details from insurance_details table if it exists
+            if ($this->db->tableExists('insurance_details')) {
+                try {
+                    // Build column list dynamically based on what columns actually exist
+                    $availableColumns = [];
+                    $expectedColumns = [
+                        'insurance_detail_id', 'patient_id', 'provider', 'membership_number', 
+                        'card_holder_name', 'cardholder_name', 'member_type', 'relationship', 
+                        'plan_name', 'coverage_type', 'mbl', 'maximum_benefit_limit', 
+                        'pre_existing_coverage', 'start_date', 'end_date', 'coverage_start_date', 
+                        'coverage_end_date', 'card_status', 'created_at', 'updated_at'
+                    ];
+                    
+                    foreach ($expectedColumns as $col) {
+                        if ($this->db->fieldExists($col, 'insurance_details')) {
+                            $availableColumns[] = $col;
+                        }
+                    }
+                    
+                    // If no columns found, try a simple SELECT * approach
+                    if (empty($availableColumns)) {
+                        $insuranceDetails = $this->db->table('insurance_details')
+                            ->where('patient_id', (int)$id)
+                            ->orderBy('created_at', 'DESC')
+                            ->limit(1)
+                            ->get()
+                            ->getRowArray();
+                    } else {
+                        // Use raw query with only existing columns
+                        $columnsStr = implode(', ', $availableColumns);
+                        $query = $this->db->query(
+                            "SELECT {$columnsStr} FROM insurance_details WHERE patient_id = ? ORDER BY created_at DESC LIMIT 1",
+                            [(int)$id]
+                        );
+                        $insuranceDetails = $query->getRowArray();
+                    }
+                    
+                    log_message('debug', 'Insurance details query for patient ' . $id . ' returned: ' . ($insuranceDetails ? 'FOUND' : 'NOT FOUND'));
+                    
+                    if ($insuranceDetails) {
+                        log_message('debug', 'Loaded insurance_details for patient ' . $id . ': ' . json_encode($insuranceDetails));
+                        log_message('debug', 'Raw relationship value: ' . var_export($insuranceDetails['relationship'] ?? 'NOT SET', true));
+                        log_message('debug', 'Raw mbl value: ' . var_export($insuranceDetails['mbl'] ?? 'NOT SET', true));
+                        log_message('debug', 'Raw coverage_type value: ' . var_export($insuranceDetails['coverage_type'] ?? 'NOT SET', true));
+                        log_message('debug', 'coverage_type type: ' . gettype($insuranceDetails['coverage_type'] ?? null));
+                        
+                        // Map insurance_details fields to patient data fields
+                        // Handle both old schema (provider) and new schema (insurance_provider)
+                        $patient['insurance_provider'] = $insuranceDetails['provider'] ?? $insuranceDetails['insurance_provider'] ?? $patient['insurance_provider'] ?? null;
+                        $patient['membership_number'] = $insuranceDetails['membership_number'] ?? $insuranceDetails['hmo_member_id'] ?? $insuranceDetails['policy_number'] ?? $patient['membership_number'] ?? null;
+                        $patient['hmo_cardholder_name'] = $insuranceDetails['card_holder_name'] ?? $insuranceDetails['cardholder_name'] ?? $insuranceDetails['member_name'] ?? $insuranceDetails['hmo_cardholder_name'] ?? $patient['hmo_cardholder_name'] ?? null;
+                        $patient['cardholder_name'] = $insuranceDetails['card_holder_name'] ?? $insuranceDetails['cardholder_name'] ?? $insuranceDetails['member_name'] ?? $insuranceDetails['hmo_cardholder_name'] ?? $patient['cardholder_name'] ?? null;
+                        $patient['member_type'] = $insuranceDetails['member_type'] ?? $patient['member_type'] ?? null;
+                        
+                        // Relationship - load directly, check for empty string too
+                        $relationshipValue = $insuranceDetails['relationship'] ?? null;
+                        if ($relationshipValue === '' || $relationshipValue === null) {
+                            $patient['relationship'] = null;
+                        } else {
+                            $patient['relationship'] = trim($relationshipValue);
+                        }
+                        // Also check patient table directly in case it's stored there
+                        if (($patient['relationship'] === null || $patient['relationship'] === '') && isset($patient['hmo_relationship']) && $patient['hmo_relationship'] !== null && $patient['hmo_relationship'] !== '') {
+                            $patient['relationship'] = trim($patient['hmo_relationship']);
+                        }
+                        
+                        $patient['plan_name'] = $insuranceDetails['plan_name'] ?? $patient['plan_name'] ?? null;
+                        
+                        // MBL - handle DECIMAL type properly (might be returned as string)
+                        // Check both 'mbl' and 'maximum_benefit_limit' columns
+                        $mblValue = $insuranceDetails['mbl'] ?? $insuranceDetails['maximum_benefit_limit'] ?? null;
+                        if ($mblValue !== null && $mblValue !== '' && $mblValue !== '0.00' && $mblValue !== '0') {
+                            // Convert to number if it's a string
+                            $mblValue = is_numeric($mblValue) ? (float)$mblValue : $mblValue;
+                            $patient['mbl'] = $mblValue;
+                            $patient['maximum_benefit_limit'] = $mblValue;
+                            $patient['max_benefit_limit'] = $mblValue;
+                        } else {
+                            $patient['mbl'] = null;
+                            $patient['maximum_benefit_limit'] = null;
+                            $patient['max_benefit_limit'] = null;
+                        }
+                        
+                        $patient['pre_existing_coverage'] = $insuranceDetails['pre_existing_coverage'] ?? $patient['pre_existing_coverage'] ?? null;
+                        // Handle both old schema (start_date/end_date) and new schema (coverage_start_date/coverage_end_date)
+                        $patient['coverage_start_date'] = $insuranceDetails['start_date'] ?? $insuranceDetails['coverage_start_date'] ?? $patient['coverage_start_date'] ?? null;
+                        $patient['coverage_end_date'] = $insuranceDetails['end_date'] ?? $insuranceDetails['coverage_end_date'] ?? $patient['coverage_end_date'] ?? null;
+                        $patient['card_status'] = $insuranceDetails['card_status'] ?? $patient['card_status'] ?? null;
+                        
+                        // Handle coverage types - CodeIgniter might auto-decode JSON, or it might be a string
+                        // For JSON fields, MySQL returns them as strings that need to be decoded
+                        $coverageType = $insuranceDetails['coverage_type'] ?? null;
+                        if ($coverageType !== null && $coverageType !== '' && $coverageType !== 'null') {
+                            if (is_string($coverageType)) {
+                                // Remove any whitespace and check if it's JSON
+                                $trimmed = trim($coverageType);
+                                if (strlen($trimmed) > 0 && (($trimmed[0] === '[' || $trimmed[0] === '{'))) {
+                                    // Looks like JSON, try to decode
+                                    $decoded = json_decode($coverageType, true);
+                                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && !empty($decoded)) {
+                                        $patient['plan_coverage_types'] = array_filter(array_map('trim', $decoded));
+                                    } else {
+                                        // If not valid JSON, try comma-separated
+                                        $patient['plan_coverage_types'] = array_filter(array_map('trim', explode(',', $coverageType)));
+                                    }
+                                } else {
+                                    // Not JSON, treat as comma-separated
+                                    $patient['plan_coverage_types'] = array_filter(array_map('trim', explode(',', $coverageType)));
+                                }
+                            } else if (is_array($coverageType) && !empty($coverageType)) {
+                                // Already decoded (CodeIgniter might auto-decode JSON)
+                                $patient['plan_coverage_types'] = array_filter(array_map('trim', $coverageType));
+                            } else {
+                                $patient['plan_coverage_types'] = [];
+                            }
+                        } else {
+                            // Also check patient table directly for coverage types
+                            $patientCoverage = $patient['plan_coverage_types'] ?? $patient['coverage_types'] ?? $patient['hmo_coverage_type'] ?? null;
+                            if ($patientCoverage !== null && $patientCoverage !== '' && $patientCoverage !== 'null') {
+                                if (is_string($patientCoverage)) {
+                                    try {
+                                        $decoded = json_decode($patientCoverage, true);
+                                        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                                            $patient['plan_coverage_types'] = array_filter(array_map('trim', $decoded));
+                                        } else {
+                                            $patient['plan_coverage_types'] = array_filter(array_map('trim', explode(',', $patientCoverage)));
+                                        }
+                                    } catch (\Exception $e) {
+                                        $patient['plan_coverage_types'] = array_filter(array_map('trim', explode(',', $patientCoverage)));
+                                    }
+                                } else if (is_array($patientCoverage)) {
+                                    $patient['plan_coverage_types'] = array_filter(array_map('trim', $patientCoverage));
+                                }
+                            } else {
+                                $patient['plan_coverage_types'] = [];
+                            }
+                        }
+                        
+                        // Also set it as a direct field for easier access
+                        if (isset($patient['plan_coverage_types']) && !empty($patient['plan_coverage_types'])) {
+                            $patient['coverage_types'] = $patient['plan_coverage_types'];
+                        }
+                        
+                        log_message('debug', 'Mapped insurance fields - relationship: ' . var_export($patient['relationship'], true) . ', mbl: ' . var_export($patient['mbl'], true) . ', coverage_types: ' . json_encode($patient['plan_coverage_types'] ?? []));
+                        log_message('debug', 'Final patient data includes insurance_provider: ' . var_export($patient['insurance_provider'] ?? 'NOT SET', true));
+                    } else {
+                        log_message('debug', 'No insurance_details record found for patient ' . $id);
+                        // Set all insurance fields to null explicitly so frontend knows they exist
+                        $patient['insurance_provider'] = null;
+                        $patient['membership_number'] = null;
+                        $patient['hmo_cardholder_name'] = null;
+                        $patient['cardholder_name'] = null;
+                        $patient['member_type'] = null;
+                        $patient['relationship'] = null;
+                        $patient['plan_name'] = null;
+                        $patient['mbl'] = null;
+                        $patient['maximum_benefit_limit'] = null;
+                        $patient['max_benefit_limit'] = null;
+                        $patient['pre_existing_coverage'] = null;
+                        $patient['coverage_start_date'] = null;
+                        $patient['coverage_end_date'] = null;
+                        $patient['card_status'] = null;
+                        $patient['plan_coverage_types'] = [];
+                        $patient['coverage_types'] = [];
+                    }
+                } catch (\Throwable $e) {
+                    log_message('error', 'Failed to load insurance details for patient ' . $id . ': ' . $e->getMessage());
+                    log_message('error', 'Stack trace: ' . $e->getTraceAsString());
+                    // Set all insurance fields to null on error
+                    $patient['insurance_provider'] = null;
+                    $patient['membership_number'] = null;
+                    $patient['hmo_cardholder_name'] = null;
+                    $patient['cardholder_name'] = null;
+                    $patient['member_type'] = null;
+                    $patient['relationship'] = null;
+                    $patient['plan_name'] = null;
+                    $patient['mbl'] = null;
+                    $patient['maximum_benefit_limit'] = null;
+                    $patient['max_benefit_limit'] = null;
+                    $patient['pre_existing_coverage'] = null;
+                    $patient['coverage_start_date'] = null;
+                    $patient['coverage_end_date'] = null;
+                    $patient['card_status'] = null;
+                    $patient['plan_coverage_types'] = [];
+                    $patient['coverage_types'] = [];
+                }
+            } else {
+                log_message('debug', 'insurance_details table does not exist');
+            }
+
             // Get current room assignment if patient is an inpatient
             if ($this->db->tableExists('inpatient_room_assignments') && $this->db->tableExists('inpatient_admissions')) {
                 $assignmentBuilder = $this->db->table('inpatient_room_assignments ira')
@@ -282,6 +491,56 @@ class PatientService
                     $patient['bed_number'] = $currentAssignment['bed_number'] ?? null;
                     $patient['daily_rate'] = $currentAssignment['daily_rate'] ?? null;
                 }
+            }
+
+            // Load emergency contact data from emergency_contacts table
+            if ($this->db->tableExists('emergency_contacts')) {
+                try {
+                    $emergencyContact = $this->db->table('emergency_contacts')
+                        ->where('patient_id', (int)$id)
+                        ->orderBy('contact_id', 'DESC')
+                        ->limit(1)
+                        ->get()
+                        ->getRowArray();
+
+                    if ($emergencyContact) {
+                        // Map emergency contact fields to patient data
+                        $patient['guardian_name'] = $emergencyContact['name'] ?? $patient['guardian_name'] ?? $patient['emergency_contact'] ?? null;
+                        $patient['emergency_contact'] = $emergencyContact['name'] ?? $patient['emergency_contact'] ?? null;
+                        $patient['emergency_contact_name'] = $emergencyContact['name'] ?? $patient['emergency_contact_name'] ?? null;
+                        
+                        $patient['guardian_contact'] = $emergencyContact['contact_number'] ?? $patient['guardian_contact'] ?? $patient['emergency_phone'] ?? null;
+                        $patient['emergency_phone'] = $emergencyContact['contact_number'] ?? $patient['emergency_phone'] ?? null;
+                        $patient['emergency_contact_phone'] = $emergencyContact['contact_number'] ?? $patient['emergency_contact_phone'] ?? null;
+                        
+                        $patient['guardian_relationship'] = $emergencyContact['relationship'] ?? $patient['guardian_relationship'] ?? $patient['emergency_contact_relationship'] ?? null;
+                        $patient['emergency_contact_relationship'] = $emergencyContact['relationship'] ?? $patient['emergency_contact_relationship'] ?? null;
+                        
+                        // Handle "Other" relationship
+                        if (isset($emergencyContact['relationship_other']) && $emergencyContact['relationship_other']) {
+                            $patient['guardian_relationship_other'] = $emergencyContact['relationship_other'];
+                            $patient['emergency_contact_relationship_other'] = $emergencyContact['relationship_other'];
+                        }
+                        
+                        log_message('debug', 'Loaded emergency contact for patient ' . $id . ': name=' . ($emergencyContact['name'] ?? 'N/A') . ', phone=' . ($emergencyContact['contact_number'] ?? 'N/A'));
+                    } else {
+                        // Initialize emergency contact fields to null if no record exists
+                        $patient['guardian_name'] = $patient['guardian_name'] ?? $patient['emergency_contact'] ?? null;
+                        $patient['guardian_contact'] = $patient['guardian_contact'] ?? $patient['emergency_phone'] ?? null;
+                        $patient['guardian_relationship'] = $patient['guardian_relationship'] ?? $patient['emergency_contact_relationship'] ?? null;
+                    }
+                } catch (\Throwable $e) {
+                    log_message('error', 'Failed to load emergency contact for patient ' . $id . ': ' . $e->getMessage());
+                    // Initialize fields to null on error
+                    $patient['guardian_name'] = $patient['guardian_name'] ?? $patient['emergency_contact'] ?? null;
+                    $patient['guardian_contact'] = $patient['guardian_contact'] ?? $patient['emergency_phone'] ?? null;
+                    $patient['guardian_relationship'] = $patient['guardian_relationship'] ?? $patient['emergency_contact_relationship'] ?? null;
+                }
+            } else {
+                // If table doesn't exist, use patient table fields
+                $patient['guardian_name'] = $patient['guardian_name'] ?? $patient['emergency_contact'] ?? null;
+                $patient['guardian_contact'] = $patient['guardian_contact'] ?? $patient['emergency_phone'] ?? null;
+                $patient['guardian_relationship'] = $patient['guardian_relationship'] ?? $patient['emergency_contact_relationship'] ?? null;
             }
 
             return [
@@ -329,9 +588,9 @@ class PatientService
             'zip_code' => $input['zip_code'],
             'insurance_provider' => $input['insurance_provider'] ?? null,
             'insurance_number' => $input['insurance_number'] ?? null,
-            'emergency_contact' => $input['emergency_contact_name'],
-            'emergency_phone' => $input['emergency_contact_phone'],
-            'emergency_contact_relationship' => $input['emergency_contact_relationship'] ?? null,
+            'emergency_contact' => $input['emergency_contact_name'] ?? $input['guardian_name'] ?? null,
+            'emergency_phone' => $input['emergency_contact_phone'] ?? $input['guardian_contact'] ?? null,
+            'emergency_contact_relationship' => $input['emergency_contact_relationship'] ?? $input['guardian_relationship'] ?? null,
             'patient_type' => ucfirst(strtolower($input['patient_type'] ?? 'Outpatient')),
             'blood_group' => $input['blood_group'] ?? null,
             'medical_notes' => $input['medical_notes'] ?? null,
@@ -342,6 +601,13 @@ class PatientService
 
         try {
             $this->db->table($this->patientTable)->where('patient_id', $id)->update($data);
+            
+            // Update emergency contact record if provided
+            $this->updateEmergencyContactRecord($id, $input);
+            
+            // Also update insurance details if provided
+            $this->persistInsuranceDetails($id, $input);
+            
             return [
                 'status' => 'success',
                 'message' => 'Patient updated successfully',
@@ -781,9 +1047,9 @@ class PatientService
             return;
         }
 
-        $contactName = $input['emergency_contact_name'] ?? $input['emergency_contact'] ?? null;
-        $contactPhone = $input['emergency_contact_phone'] ?? $input['emergency_phone'] ?? null;
-        $relationship = $input['emergency_contact_relationship'] ?? null;
+        $contactName = $input['emergency_contact_name'] ?? $input['emergency_contact'] ?? $input['guardian_name'] ?? null;
+        $contactPhone = $input['emergency_contact_phone'] ?? $input['emergency_phone'] ?? $input['guardian_contact'] ?? null;
+        $relationship = $input['emergency_contact_relationship'] ?? $input['guardian_relationship'] ?? null;
 
         if (!$contactName || !$contactPhone) {
             return;
@@ -800,6 +1066,51 @@ class PatientService
             $this->db->table('emergency_contacts')->insert($contactData);
         } catch (\Throwable $e) {
             log_message('error', 'Failed to insert emergency contact for patient ' . $patientId . ': ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update emergency contact record for a patient
+     */
+    private function updateEmergencyContactRecord(int $patientId, array $input): void
+    {
+        if (!$this->db->tableExists('emergency_contacts')) {
+            return;
+        }
+
+        $contactName = $input['emergency_contact_name'] ?? $input['emergency_contact'] ?? $input['guardian_name'] ?? null;
+        $contactPhone = $input['emergency_contact_phone'] ?? $input['emergency_phone'] ?? $input['guardian_contact'] ?? null;
+        $relationship = $input['emergency_contact_relationship'] ?? $input['guardian_relationship'] ?? null;
+
+        if (!$contactName || !$contactPhone) {
+            return;
+        }
+
+        $contactData = [
+            'name' => $contactName,
+            'relationship' => $relationship ?? 'Other',
+            'contact_number' => $contactPhone,
+        ];
+
+        try {
+            // Check if emergency contact record exists
+            $existing = $this->db->table('emergency_contacts')
+                ->where('patient_id', $patientId)
+                ->get()
+                ->getRowArray();
+
+            if ($existing) {
+                // Update existing record
+                $this->db->table('emergency_contacts')
+                    ->where('patient_id', $patientId)
+                    ->update($contactData);
+            } else {
+                // Create new record
+                $contactData['patient_id'] = $patientId;
+                $this->db->table('emergency_contacts')->insert($contactData);
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Failed to update emergency contact for patient ' . $patientId . ': ' . $e->getMessage());
         }
     }
 
@@ -864,13 +1175,28 @@ class PatientService
                    $input['insurance_plan'] ?? 
                    'Standard Plan';
 
-        // Determine coverage type (JSON array)
+        // Determine coverage type (JSON array) from form input
         $coverageType = null;
-        $patientType = strtolower($input['patient_type'] ?? 'outpatient');
-        if ($patientType === 'inpatient') {
-            $coverageType = json_encode(['inpatient']);
+        if (!empty($input['plan_coverage_types']) && is_array($input['plan_coverage_types'])) {
+            // Use the actual coverage types from the form checkboxes
+            $coverageType = json_encode(array_filter(array_map('trim', $input['plan_coverage_types'])));
+        } else if (!empty($input['plan_coverage_types']) && is_string($input['plan_coverage_types'])) {
+            // If it's a string, try to parse it
+            $decoded = json_decode($input['plan_coverage_types'], true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $coverageType = json_encode($decoded);
+            } else {
+                // Treat as comma-separated
+                $coverageType = json_encode(array_filter(array_map('trim', explode(',', $input['plan_coverage_types']))));
+            }
         } else {
-            $coverageType = json_encode(['outpatient']);
+            // Fallback: infer from patient type
+            $patientType = strtolower($input['patient_type'] ?? 'outpatient');
+            if ($patientType === 'inpatient') {
+                $coverageType = json_encode(['Inpatient']);
+            } else {
+                $coverageType = json_encode(['Outpatient']);
+            }
         }
 
         // Determine dates
@@ -905,11 +1231,11 @@ class PatientService
             'provider' => $provider,
             'membership_number' => $membershipNumber ?: 'N/A',
             'card_holder_name' => $cardHolderName ?: 'Unknown',
-            'member_type' => $input['hmo_member_type'] ?? 'Principal',
-            'relationship' => $input['hmo_relationship'] ?? null,
+            'member_type' => $input['member_type'] ?? $input['hmo_member_type'] ?? 'Principal',
+            'relationship' => $input['relationship'] ?? $input['hmo_relationship'] ?? null,
             'plan_name' => $planName,
             'coverage_type' => $coverageType,
-            'mbl' => $input['hmo_mbl'] ?? $input['mbl'] ?? null,
+            'mbl' => $input['mbl'] ?? $input['hmo_mbl'] ?? $input['maximum_benefit_limit'] ?? null,
             'pre_existing_coverage' => $input['pre_existing_coverage'] ?? null,
             'start_date' => $startDate,
             'end_date' => $endDate,
@@ -928,9 +1254,23 @@ class PatientService
         }
 
         try {
-            $this->db->table('insurance_details')->insert($insuranceData);
+            // Check if insurance details already exist for this patient
+            $existing = $this->db->table('insurance_details')
+                ->where('patient_id', $patientId)
+                ->get()
+                ->getRowArray();
+            
+            if ($existing) {
+                // Update existing record
+                $this->db->table('insurance_details')
+                    ->where('patient_id', $patientId)
+                    ->update($insuranceData);
+            } else {
+                // Insert new record
+                $this->db->table('insurance_details')->insert($insuranceData);
+            }
         } catch (\Throwable $e) {
-            log_message('error', 'Failed to insert insurance details for patient ' . $patientId . ': ' . $e->getMessage());
+            log_message('error', 'Failed to save insurance details for patient ' . $patientId . ': ' . $e->getMessage());
             log_message('error', 'Insurance data attempted: ' . json_encode($insuranceData));
             // Don't throw - insurance details are optional, so we continue even if this fails
         }

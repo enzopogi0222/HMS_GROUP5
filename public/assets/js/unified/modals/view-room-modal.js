@@ -167,6 +167,53 @@
                 </div>
             </div>
 
+            ${room.assignment ? `
+            <div class="form-section">
+                <div class="section-header">
+                    <div>
+                        <h4>Current Assignment</h4>
+                        <p class="section-subtitle">Patient currently assigned to this room.</p>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    ${room.assignment.patient ? `
+                    <div class="full">
+                        <label class="form-label">Patient Name</label>
+                        <div class="detail-value" style="font-weight: 600; color: #1e293b;">
+                            ${utils.escapeHtml(room.assignment.patient.full_name || 
+                                `${room.assignment.patient.first_name || ''} ${room.assignment.patient.last_name || ''}`.trim() || 
+                                `Patient #${room.assignment.patient.patient_id}`)}
+                        </div>
+                    </div>
+                    ` : ''}
+                    ${room.assignment.bed_number ? `
+                    <div>
+                        <label class="form-label">Bed Number</label>
+                        <div class="detail-value">${utils.escapeHtml(room.assignment.bed_number)}</div>
+                    </div>
+                    ` : ''}
+                    ${room.assignment.daily_rate ? `
+                    <div>
+                        <label class="form-label">Daily Rate</label>
+                        <div class="detail-value">₱${parseFloat(room.assignment.daily_rate || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    </div>
+                    ` : ''}
+                    ${room.assignment.assigned_at || room.assignment.admission_datetime ? `
+                    <div>
+                        <label class="form-label">Assigned At</label>
+                        <div class="detail-value">${utils.escapeHtml(new Date(room.assignment.assigned_at || room.assignment.admission_datetime).toLocaleString())}</div>
+                    </div>
+                    ` : ''}
+                    ${room.assignment.admission_id ? `
+                    <div>
+                        <label class="form-label">Admission ID</label>
+                        <div class="detail-value">#${room.assignment.admission_id}</div>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            ` : ''}
+
             ${room.created_at || room.updated_at ? `
             <div class="form-section">
                 <div class="section-header">

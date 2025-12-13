@@ -307,6 +307,7 @@ const PatientUtils = {
         });
         formElement.querySelectorAll('.invalid-feedback, .form-error').forEach(el => {
             el.textContent = '';
+            el.style.display = 'none';
         });
         
         // Display new errors
@@ -315,8 +316,18 @@ const PatientUtils = {
             let feedback = null;
 
             if (input) {
-                // First, try to find error element by ID (err_${field})
-                const errorById = document.getElementById(`err_${field}`);
+                // Try multiple error element ID patterns
+                // Pattern 1: err_edit_${field} (for edit patient modal)
+                let errorById = document.getElementById(`err_edit_${field}`);
+                if (!errorById) {
+                    // Pattern 2: err_edit_inpatient_${field} (for inpatient form)
+                    errorById = document.getElementById(`err_edit_inpatient_${field}`);
+                }
+                if (!errorById) {
+                    // Pattern 3: err_${field} (standard pattern)
+                    errorById = document.getElementById(`err_${field}`);
+                }
+                
                 if (errorById) {
                     feedback = errorById;
                 } else {
@@ -331,12 +342,22 @@ const PatientUtils = {
                     }
                 }
 
+                // Add error classes to highlight the field
                 input.classList.add('is-invalid');
-                // Also add error class for styling
                 input.classList.add('error');
+                
+                // Also add visual highlight with border
+                input.style.borderColor = '#ef4444';
+                input.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.1)';
             } else {
                 // If input not found, still try to find error element by ID
-                const errorById = document.getElementById(`err_${field}`);
+                let errorById = document.getElementById(`err_edit_${field}`);
+                if (!errorById) {
+                    errorById = document.getElementById(`err_edit_inpatient_${field}`);
+                }
+                if (!errorById) {
+                    errorById = document.getElementById(`err_${field}`);
+                }
                 if (errorById) {
                     feedback = errorById;
                 }
@@ -346,7 +367,25 @@ const PatientUtils = {
                 const errorMessage = Array.isArray(message) ? message[0] : message;
                 feedback.textContent = errorMessage;
                 feedback.style.display = 'block';
+                feedback.style.color = '#ef4444';
+                feedback.style.fontSize = '0.875rem';
+                feedback.style.marginTop = '0.25rem';
+                feedback.style.fontWeight = '500';
             }
+            
+            // Log for debugging
+            if (!input && !feedback) {
+                console.warn(`Could not find input or error element for field: ${field}`);
+            }
+        }
+        
+        // Scroll to first error field for better UX
+        const firstErrorInput = formElement.querySelector('.is-invalid, .error');
+        if (firstErrorInput) {
+            setTimeout(() => {
+                firstErrorInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                firstErrorInput.focus();
+            }, 100);
         }
     },
 

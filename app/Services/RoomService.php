@@ -49,7 +49,21 @@ class RoomService
             $builder->select('d.name as department_name')->join('department d', 'd.department_id = r.department_id', 'left');
         }
 
-        return $builder->get()->getResultArray();
+        $rooms = $builder->get()->getResultArray();
+
+        // Load assignment details for occupied rooms
+        foreach ($rooms as &$room) {
+            if (strtolower($room['status'] ?? '') === 'occupied') {
+                $assignment = $this->getActiveRoomAssignment((int) $room['room_id']);
+                if ($assignment && isset($assignment['patient'])) {
+                    $room['assigned_patient'] = $assignment['patient']['full_name'] ?? 
+                        trim(($assignment['patient']['first_name'] ?? '') . ' ' . ($assignment['patient']['last_name'] ?? ''));
+                    $room['assigned_bed'] = $assignment['bed_number'] ?? null;
+                }
+            }
+        }
+
+        return $rooms;
     }
 
     public function getRoomById(int $roomId): ?array
@@ -86,7 +100,118 @@ class RoomService
             }
         }
 
+        // Load assignment details if room is occupied
+        if ($room && strtolower($room['status'] ?? '') === 'occupied') {
+            $assignment = $this->getActiveRoomAssignment($roomId);
+            if ($assignment) {
+                $room['assignment'] = $assignment;
+            }
+        }
+
         return $room ?: null;
+    }
+
+    /**
+     * Get active room assignment details for a room
+     */
+    private function getActiveRoomAssignment(int $roomId): ?array
+    {
+        $assignment = null;
+
+        // Check inpatient_room_assignments table first
+        if ($this->db->tableExists('inpatient_room_assignments')) {
+            $builder = $this->db->table('inpatient_room_assignments ira')
+                ->select([
+                    'ira.room_assignment_id',
+                    'ira.admission_id',
+                    'ira.room_type',
+                    'ira.floor_number',
+                    'ira.room_number',
+                    'ira.bed_number',
+                    'ira.daily_rate',
+                    'ira.assigned_at',
+                ])
+                ->join('inpatient_admissions ia', 'ia.admission_id = ira.admission_id', 'inner')
+                ->where('ira.room_id', $roomId);
+
+            // Only get active assignments
+            if ($this->db->fieldExists('discharge_datetime', 'inpatient_admissions')) {
+                $builder->where('ia.discharge_datetime IS NULL', null, false);
+            } elseif ($this->db->fieldExists('status', 'inpatient_admissions')) {
+                $builder->where('ia.status', 'active');
+            }
+
+            $assignment = $builder->orderBy('ira.room_assignment_id', 'DESC')->get()->getRowArray();
+
+            if ($assignment && $this->db->tableExists('patient') || $this->db->tableExists('patients')) {
+                $patientTable = $this->db->tableExists('patients') ? 'patients' : 'patient';
+                $admissionId = (int) ($assignment['admission_id'] ?? 0);
+                
+                if ($admissionId > 0) {
+                    $admission = $this->db->table('inpatient_admissions')
+                        ->where('admission_id', $admissionId)
+                        ->get()
+                        ->getRowArray();
+                    
+                    if ($admission) {
+                        $patientId = (int) ($admission['patient_id'] ?? 0);
+                        if ($patientId > 0) {
+                            $patient = $this->db->table($patientTable)
+                                ->select('patient_id, first_name, last_name, middle_name')
+                                ->where('patient_id', $patientId)
+                                ->get()
+                                ->getRowArray();
+                            
+                            if ($patient) {
+                                $assignment['patient'] = [
+                                    'patient_id' => (int) $patient['patient_id'],
+                                    'first_name' => $patient['first_name'] ?? '',
+                                    'last_name' => $patient['last_name'] ?? '',
+                                    'middle_name' => $patient['middle_name'] ?? '',
+                                    'full_name' => trim(($patient['first_name'] ?? '') . ' ' . ($patient['middle_name'] ?? '') . ' ' . ($patient['last_name'] ?? '')),
+                                ];
+                                $assignment['admission_datetime'] = $admission['admission_datetime'] ?? null;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback to room_assignment table if not found
+        if (!$assignment && $this->db->tableExists('room_assignment')) {
+            $builder = $this->db->table('room_assignment')
+                ->where('room_id', $roomId)
+                ->where('status', 'active')
+                ->orderBy('assignment_id', 'DESC');
+            
+            $assignment = $builder->get()->getRowArray();
+
+            if ($assignment) {
+                $patientId = (int) ($assignment['patient_id'] ?? 0);
+                if ($patientId > 0) {
+                    $patientTable = $this->db->tableExists('patients') ? 'patients' : 'patient';
+                    $patient = $this->db->table($patientTable)
+                        ->select('patient_id, first_name, last_name, middle_name')
+                        ->where('patient_id', $patientId)
+                        ->get()
+                        ->getRowArray();
+                    
+                    if ($patient) {
+                        $assignment['patient'] = [
+                            'patient_id' => (int) $patient['patient_id'],
+                            'first_name' => $patient['first_name'] ?? '',
+                            'last_name' => $patient['last_name'] ?? '',
+                            'middle_name' => $patient['middle_name'] ?? '',
+                            'full_name' => trim(($patient['first_name'] ?? '') . ' ' . ($patient['middle_name'] ?? '') . ' ' . ($patient['last_name'] ?? '')),
+                        ];
+                    }
+                    $assignment['assigned_at'] = $assignment['date_in'] ?? null;
+                }
+            }
+        }
+
+        return $assignment ?: null;
     }
 
     public function createRoom(array $input): array
@@ -263,6 +388,7 @@ class RoomService
                     'assignment_id' => (int) $assignment['assignment_id'],
                     'patient_id' => (int) ($assignment['patient_id'] ?? 0),
                     'admission_id' => isset($assignment['admission_id']) ? (int) $assignment['admission_id'] : null,
+                    'assignment_type' => 'room_assignment',
                 ];
             } catch (\Throwable $e) {
                 $this->db->transRollback();
@@ -285,6 +411,7 @@ class RoomService
                     'assignment_id' => (int) ($assignment['room_assignment_id'] ?? 0),
                     'patient_id' => (int) ($assignment['patient_id'] ?? 0),
                     'admission_id' => isset($assignment['admission_id']) ? (int) $assignment['admission_id'] : null,
+                    'assignment_type' => 'inpatient_room_assignments',
                 ];
             } catch (\Throwable $e) {
                 log_message('error', 'RoomService::dischargeRoom (inpatient) failed: ' . $e->getMessage());

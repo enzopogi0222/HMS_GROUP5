@@ -88,7 +88,9 @@
                     room.room_number || '',
                     room.type_name || '',
                     room.department_name || '',
-                    room.room_type || ''
+                    room.room_type || '',
+                    room.assigned_patient || '', // Include assigned patient name in search
+                    room.assigned_bed || '' // Include bed number in search
                 ].join(' ').toLowerCase();
 
                 if (!searchableText.includes(searchTerm)) {
@@ -138,6 +140,12 @@
                 <td>
                     ${escapeHtml(room.room_number)}
                     ${room.room_type ? `<small style="display:block; color:#6b7280;">${escapeHtml(room.room_type)}</small>` : ''}
+                    ${isOccupied && room.assigned_patient ? `
+                    <small style="display:block; color:#3b82f6; margin-top: 0.25rem; font-weight: 500;">
+                        <i class="fas fa-user" style="margin-right: 0.25rem;"></i>${escapeHtml(room.assigned_patient)}
+                        ${room.assigned_bed ? ` - Bed ${escapeHtml(room.assigned_bed)}` : ''}
+                    </small>
+                    ` : ''}
                 </td>
                 <td>${escapeHtml(room.type_name || '—')}</td>
                 <td>${escapeHtml(room.department_name || '—')}</td>
@@ -151,6 +159,9 @@
                         <button class="btn btn-sm btn-outline" data-action="edit" data-room-id="${room.room_id}" aria-label="Edit room ${escapeHtml(room.room_number)}">
                             <i class="fas fa-pen"></i>
                         </button>
+                        ${!isOccupied ? `<button class="btn btn-sm btn-primary" data-action="assign" data-room-id="${room.room_id}" aria-label="Assign room ${escapeHtml(room.room_number)}">
+                            <i class="fas fa-user-plus"></i> Assign
+                        </button>` : ''}
                         ${isOccupied ? `<button class="btn btn-sm btn-outline" data-action="discharge" data-room-id="${room.room_id}" aria-label="Discharge room ${escapeHtml(room.room_number)}">
                             <i class="fas fa-door-open"></i>
                         </button>` : ''}
@@ -181,6 +192,10 @@
         } else if (action === 'edit') {
             if (window.AddRoomModal && window.AddRoomModal.open) {
                 window.AddRoomModal.open(room);
+            }
+        } else if (action === 'assign') {
+            if (window.AssignRoomModal && window.AssignRoomModal.open) {
+                window.AssignRoomModal.open(room.room_id);
             }
         } else if (action === 'discharge') {
             confirmDischargeRoom(room);
@@ -295,6 +310,15 @@
         addRoomBtn.addEventListener('click', () => {
             if (window.AddRoomModal && window.AddRoomModal.open) {
                 window.AddRoomModal.open();
+            }
+        });
+    }
+
+    const assignRoomBtn = document.getElementById('assignRoomBtn');
+    if (assignRoomBtn) {
+        assignRoomBtn.addEventListener('click', () => {
+            if (window.AssignRoomModal && window.AssignRoomModal.open) {
+                window.AssignRoomModal.open();
             }
         });
     }

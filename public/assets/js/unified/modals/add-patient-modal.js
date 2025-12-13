@@ -1249,10 +1249,6 @@ const AddPatientModal = {
                 admission_type: { required: true, label: 'Admission Type' },
                 admitting_diagnosis: { required: true, label: 'Admitting Diagnosis' },
                 admitting_doctor: { required: true, label: 'Admitting Doctor' },
-                room_type: { required: true, label: 'Room Type' },
-                floor_number: { required: true, label: 'Floor Number' },
-                room_number: { required: true, label: 'Room Number' },
-                bed_number: { required: true, label: 'Bed Number' },
                 level_of_consciousness: { required: true, label: 'Level of Consciousness' }
             };
         }

@@ -22,12 +22,45 @@ class RoomManagement extends BaseController
 
     public function index()
     {
+        $rooms = [];
+        $roomInventory = [];
+        if ($this->db->tableExists('room')) {
+            $rooms = $this->roomService->getRooms();
+        }
+
+        // Build room inventory by room type (similar to patient management)
+        foreach ($rooms as $room) {
+            $typeId = (int) ($room['room_type_id'] ?? 0);
+            if (!$typeId) {
+                continue;
+            }
+
+            $bedNames = [];
+            if (!empty($room['bed_names'])) {
+                $decoded = json_decode((string) $room['bed_names'], true);
+                if (is_array($decoded)) {
+                    $bedNames = array_values($decoded);
+                }
+            }
+
+            $roomInventory[$typeId][] = [
+                'room_id'       => (int) ($room['room_id'] ?? 0),
+                'room_number'   => (string) ($room['room_number'] ?? ''),
+                'room_name'     => (string) ($room['type_name'] ?? ''),
+                'floor_number'  => (string) ($room['floor_number'] ?? ''),
+                'status'        => (string) ($room['status'] ?? ''),
+                'bed_capacity'  => (int) ($room['bed_capacity'] ?? 0),
+                'bed_names'     => $bedNames,
+            ];
+        }
+
         return view('unified/room-management', [
             'title' => 'Room Management',
             'roomStats' => $this->roomService->getRoomStats(),
             'roomTypes' => $this->getRoomTypes(),
             'departments' => $this->getDepartments(),
             'roomTypeMetadata' => [],
+            'roomInventory' => $roomInventory,
         ]);
     }
 
@@ -36,9 +69,14 @@ class RoomManagement extends BaseController
         if (!$this->db->tableExists('room_type')) {
             return [];
         }
-        return $this->db->table('room_type')
-            ->select('room_type_id, type_name, accommodation_type')
-            ->orderBy('type_name', 'ASC')
+        $builder = $this->db->table('room_type')
+            ->select('room_type_id, type_name, accommodation_type');
+        
+        if ($this->db->fieldExists('base_daily_rate', 'room_type')) {
+            $builder->select('base_daily_rate');
+        }
+        
+        return $builder->orderBy('type_name', 'ASC')
             ->get()
             ->getResultArray();
     }
@@ -110,6 +148,7 @@ class RoomManagement extends BaseController
         $assignmentId = (int) ($dischargeResult['assignment_id'] ?? 0);
         $patientId    = (int) ($dischargeResult['patient_id'] ?? 0);
         $admissionId  = $dischargeResult['admission_id'] ?? null;
+        $assignmentType = $dischargeResult['assignment_type'] ?? 'room_assignment';
 
         $billingMessage = null;
         if ($assignmentId > 0 && $patientId > 0) {
@@ -117,7 +156,16 @@ class RoomManagement extends BaseController
 
             if ($account && ! empty($account['billing_id'])) {
                 $billingId = (int) $account['billing_id'];
-                $billingResult = $this->financialService->addItemFromRoomAssignment($billingId, $assignmentId, null, $staffId);
+                
+                // Use the appropriate billing method based on assignment type
+                if ($assignmentType === 'inpatient_room_assignments') {
+                    // Calculate days stayed for inpatient assignment
+                    $daysStayed = 1; // Default to 1 day, can be calculated from assigned_at if needed
+                    $billingResult = $this->financialService->addItemFromInpatientRoomAssignment($billingId, $assignmentId, null, $staffId, $daysStayed);
+                } else {
+                    // Use regular room_assignment table
+                    $billingResult = $this->financialService->addItemFromRoomAssignment($billingId, $assignmentId, null, $staffId);
+                }
 
                 if (! empty($billingResult['success'])) {
                     $billingMessage = 'Room stay added to billing account.';
@@ -187,5 +235,309 @@ class RoomManagement extends BaseController
     {
         $payload['csrf_hash'] = csrf_hash();
         return $payload;
+    }
+
+    /**
+     * Get available patients for room assignment
+     */
+    public function getPatientsForAssignment()
+    {
+        try {
+            $patientService = new \App\Services\PatientService();
+            $patients = $patientService->getPatientsByRole('admin', null); // Get all patients for admin
+            
+            // Filter to prefer inpatients, but include all
+            $filteredPatients = array_filter($patients, function($p) {
+                // Prefer inpatients, but include all patients
+                return true;
+            });
+
+            // Format for dropdown
+            $formattedPatients = array_map(function($p) {
+                return [
+                    'patient_id' => (int) ($p['patient_id'] ?? $p['id'] ?? 0),
+                    'first_name' => $p['first_name'] ?? '',
+                    'last_name' => $p['last_name'] ?? '',
+                    'full_name' => trim(($p['first_name'] ?? '') . ' ' . ($p['last_name'] ?? '')),
+                    'patient_type' => $p['patient_type'] ?? 'Outpatient',
+                ];
+            }, array_values($filteredPatients));
+
+            return $this->jsonResponse($this->appendCsrfHash([
+                'status' => 'success',
+                'data' => $formattedPatients
+            ]));
+        } catch (\Throwable $e) {
+            log_message('error', 'Failed to get patients for assignment: ' . $e->getMessage());
+            return $this->jsonResponse($this->appendCsrfHash([
+                'status' => 'error',
+                'message' => 'Failed to load patients',
+                'data' => []
+            ]), 500);
+        }
+    }
+
+    /**
+     * Assign patient to room
+     */
+    public function assignRoom()
+    {
+        if (!$this->request->is('post')) {
+            return $this->jsonResponse($this->appendCsrfHash(['success' => false, 'message' => 'Method not allowed']), 405);
+        }
+
+        $input = $this->getRequestData();
+        if (!$this->validateCsrf($input)) {
+            return $this->jsonResponse($this->appendCsrfHash(['success' => false, 'message' => 'Invalid CSRF token']), 403);
+        }
+
+        $patientId = (int) ($input['patient_id'] ?? 0);
+        $roomType = $input['room_type'] ?? null;
+        $floorNumber = $input['floor_number'] ?? null;
+        $roomNumber = $input['room_number'] ?? null;
+        $bedNumber = $input['bed_number'] ?? null;
+        $assignedAt = $input['assigned_at'] ?? date('Y-m-d H:i:s');
+        $dailyRate = $input['daily_rate'] ?? null;
+
+        if (!$patientId) {
+            return $this->jsonResponse($this->appendCsrfHash(['success' => false, 'message' => 'Patient ID is required']), 400);
+        }
+
+        if (!$roomType || !$floorNumber || !$roomNumber || !$bedNumber) {
+            return $this->jsonResponse($this->appendCsrfHash(['success' => false, 'message' => 'Room type, floor, room number, and bed number are required']), 400);
+        }
+
+        try {
+            // Start transaction for data consistency
+            $this->db->transStart();
+            
+            // Get room_id from room_number
+            $room = $this->db->table('room')
+                ->where('room_number', $roomNumber)
+                ->where('floor_number', $floorNumber)
+                ->get()
+                ->getRowArray();
+
+            if (!$room) {
+                $this->db->transRollback();
+                return $this->jsonResponse($this->appendCsrfHash(['success' => false, 'message' => 'Room not found']), 404);
+            }
+
+            $roomId = (int) $room['room_id'];
+            
+            // Check if the new room is available
+            if (strtolower($room['status'] ?? '') === 'occupied') {
+                // Check if it's the same patient trying to assign to the same room
+                $currentAssignment = null;
+                if ($this->db->tableExists('inpatient_room_assignments')) {
+                    $currentAssignment = $this->db->table('inpatient_room_assignments ira')
+                        ->select('ira.*, ia.patient_id')
+                        ->join('inpatient_admissions ia', 'ia.admission_id = ira.admission_id', 'inner')
+                        ->where('ira.room_id', $roomId)
+                        ->where('ia.patient_id', $patientId)
+                        ->get()
+                        ->getRowArray();
+                }
+                
+                if (!$currentAssignment) {
+                    $this->db->transRollback();
+                    return $this->jsonResponse($this->appendCsrfHash([
+                        'success' => false, 
+                        'message' => 'Room is already occupied by another patient'
+                    ]), 400);
+                }
+            }
+
+            // Check if patient already has an active room assignment and transfer them
+            $oldRoomId = null;
+            $oldBedNumber = null;
+            if ($this->db->tableExists('inpatient_room_assignments')) {
+                $existingAssignment = $this->db->table('inpatient_room_assignments ira')
+                    ->select('ira.*, ia.patient_id, ia.admission_id')
+                    ->join('inpatient_admissions ia', 'ia.admission_id = ira.admission_id', 'inner')
+                    ->where('ia.patient_id', $patientId);
+                
+                if ($this->db->fieldExists('discharge_datetime', 'inpatient_admissions')) {
+                    $existingAssignment->where('ia.discharge_datetime IS NULL', null, false);
+                } elseif ($this->db->fieldExists('status', 'inpatient_admissions')) {
+                    $existingAssignment->where('ia.status', 'active');
+                }
+                
+                $existing = $existingAssignment->orderBy('ira.room_assignment_id', 'DESC')->get()->getRowArray();
+                if ($existing) {
+                    // Patient has an existing assignment - transfer them
+                    $oldRoomId = (int) ($existing['room_id'] ?? 0);
+                    $oldBedNumber = $existing['bed_number'] ?? null;
+                    
+                    // Only transfer if it's a different room
+                    if ($oldRoomId > 0 && $oldRoomId !== $roomId) {
+                        // Free the old room
+                        $this->db->table('room')
+                            ->where('room_id', $oldRoomId)
+                            ->update(['status' => 'available']);
+                        
+                        // Free the old bed if bed table exists
+                        if ($this->db->tableExists('bed') && $oldBedNumber) {
+                            $this->db->table('bed')
+                                ->where('room_id', $oldRoomId)
+                                ->where('bed_number', $oldBedNumber)
+                                ->update([
+                                    'status' => 'available',
+                                    'assigned_patient_id' => null
+                                ]);
+                        }
+                    }
+                }
+            }
+            
+            // Also check room_assignment table for legacy assignments
+            if ($this->db->tableExists('room_assignment')) {
+                $legacyAssignment = $this->db->table('room_assignment')
+                    ->where('patient_id', $patientId)
+                    ->where('status', 'active')
+                    ->orderBy('assignment_id', 'DESC')
+                    ->get()
+                    ->getRowArray();
+                
+                if ($legacyAssignment) {
+                    $oldRoomId = (int) ($legacyAssignment['room_id'] ?? 0);
+                    $oldBedId = (int) ($legacyAssignment['bed_id'] ?? 0);
+                    
+                    // Only transfer if it's a different room
+                    if ($oldRoomId > 0 && $oldRoomId !== $roomId) {
+                        // Free the old room
+                        $this->db->table('room')
+                            ->where('room_id', $oldRoomId)
+                            ->update(['status' => 'available']);
+                        
+                        // Free the old bed if bed table exists
+                        if ($this->db->tableExists('bed') && $oldBedId > 0) {
+                            $this->db->table('bed')
+                                ->where('bed_id', $oldBedId)
+                                ->update([
+                                    'status' => 'available',
+                                    'assigned_patient_id' => null
+                                ]);
+                        }
+                    }
+                }
+            }
+
+            // Get or create admission record for this patient
+            $admissionId = null;
+            if ($this->db->tableExists('inpatient_admissions')) {
+                $admission = $this->db->table('inpatient_admissions')
+                    ->where('patient_id', $patientId);
+                
+                if ($this->db->fieldExists('discharge_datetime', 'inpatient_admissions')) {
+                    $admission->where('discharge_datetime IS NULL', null, false);
+                } elseif ($this->db->fieldExists('status', 'inpatient_admissions')) {
+                    $admission->where('status', 'active');
+                }
+                
+                $admission = $admission->orderBy('admission_id', 'DESC')->get()->getRowArray();
+                
+                if ($admission) {
+                    $admissionId = (int) $admission['admission_id'];
+                } else {
+                    // Create a new admission record if none exists
+                    $admissionData = [
+                        'patient_id' => $patientId,
+                        'admission_datetime' => $assignedAt,
+                        'admission_type' => 'Scheduled',
+                        'admitting_diagnosis' => 'Room assignment',
+                        'status' => 'active',
+                    ];
+                    $this->db->table('inpatient_admissions')->insert($admissionData);
+                    $admissionId = (int) $this->db->insertID();
+                }
+            }
+
+            // Calculate daily rate if not provided
+            if (!$dailyRate || $dailyRate === 'Auto-calculated') {
+                if ($this->db->tableExists('room_type') && $roomType) {
+                    $roomTypeData = $this->db->table('room_type')
+                        ->where('room_type_id', $roomType)
+                        ->get()
+                        ->getRowArray();
+                    $dailyRate = $roomTypeData['base_daily_rate'] ?? 0;
+                } else {
+                    $dailyRate = 0;
+                }
+            }
+
+            // Create room assignment
+            if ($this->db->tableExists('inpatient_room_assignments')) {
+                $assignmentData = [
+                    'admission_id' => $admissionId,
+                    'room_id' => $roomId,
+                    'room_type' => $this->getRoomTypeName($roomType),
+                    'floor_number' => $floorNumber,
+                    'room_number' => $roomNumber,
+                    'bed_number' => $bedNumber,
+                    'daily_rate' => $dailyRate,
+                    'assigned_at' => $assignedAt,
+                ];
+
+                $this->db->table('inpatient_room_assignments')->insert($assignmentData);
+            }
+
+            // Update room status to occupied
+            $this->db->table('room')
+                ->where('room_id', $roomId)
+                ->update(['status' => 'occupied']);
+
+            // Update bed status if bed table exists
+            if ($this->db->tableExists('bed')) {
+                $this->db->table('bed')
+                    ->where('room_id', $roomId)
+                    ->where('bed_number', $bedNumber)
+                    ->update([
+                        'status' => 'occupied',
+                        'assigned_patient_id' => $patientId
+                    ]);
+            }
+
+            // Complete transaction
+            $this->db->transComplete();
+            
+            if ($this->db->transStatus() === false) {
+                throw new \RuntimeException('Transaction failed during room assignment');
+            }
+            
+            $message = 'Room assigned successfully';
+            if ($oldRoomId && $oldRoomId !== $roomId) {
+                $message = 'Patient transferred to new room successfully';
+            }
+            
+            return $this->jsonResponse($this->appendCsrfHash([
+                'success' => true,
+                'message' => $message,
+                'admission_id' => $admissionId,
+                'room_id' => $roomId,
+                'transferred_from_room_id' => $oldRoomId && $oldRoomId !== $roomId ? $oldRoomId : null
+            ]));
+        } catch (\Throwable $e) {
+            if ($this->db->transStatus() !== false) {
+                $this->db->transRollback();
+            }
+            log_message('error', 'Failed to assign room: ' . $e->getMessage());
+            return $this->jsonResponse($this->appendCsrfHash([
+                'success' => false,
+                'message' => 'Failed to assign room: ' . $e->getMessage()
+            ]), 500);
+        }
+    }
+
+    private function getRoomTypeName($roomTypeId): ?string
+    {
+        if (!$roomTypeId || !$this->db->tableExists('room_type')) {
+            return null;
+        }
+        $type = $this->db->table('room_type')
+            ->where('room_type_id', $roomTypeId)
+            ->get()
+            ->getRowArray();
+        return $type['type_name'] ?? null;
     }
 }

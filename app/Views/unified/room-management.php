@@ -39,6 +39,7 @@
 
         <div class="page-actions">
             <button type="button" class="btn btn-primary" id="addRoomBtn" aria-label="Add New Room"><i class="fas fa-plus" aria-hidden="true"></i> Add New Room</button>
+            <button type="button" class="btn btn-success" id="assignRoomBtn" aria-label="Assign Room to Patient"><i class="fas fa-user-plus" aria-hidden="true"></i> Assign Room</button>
         </div>
 
         <br />
@@ -119,7 +120,7 @@
                     <label for="searchRoom" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
                         <i class="fas fa-search"></i> Search
                     </label>
-                    <input type="text" id="searchRoom" class="form-control" placeholder="Search rooms..." autocomplete="off">
+                    <input type="text" id="searchRoom" class="form-control" placeholder="Search rooms, patient names..." autocomplete="off">
                 </div>
                 <div class="filter-group" style="margin: 0;">
                     <label for="statusFilterRoom" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
@@ -176,15 +177,18 @@
 
 <?= $this->include('unified/modals/add-room-modal', ['roomTypes' => $roomTypes ?? [], 'departments' => $departments ?? []]) ?>
 <?= $this->include('unified/modals/view-room-modal') ?>
+<?= $this->include('unified/modals/assign-room-modal', ['roomTypes' => $roomTypes ?? []]) ?>
 
 
 <script>
 window.roomTypeMetadata = <?= json_encode($roomTypeMetadata ?? [], JSON_HEX_TAG) ?>;
+window.RoomInventory = <?= json_encode($roomInventory ?? [], JSON_HEX_TAG) ?>;
 </script>
 
 <script src="<?= base_url('assets/js/unified/modals/shared/room-modal-utils.js') ?>"></script>
 <script src="<?= base_url('assets/js/unified/modals/add-room-modal.js') ?>"></script>
 <script src="<?= base_url('assets/js/unified/modals/view-room-modal.js') ?>"></script>
+<script src="<?= base_url('assets/js/unified/modals/assign-room-modal.js') ?>"></script>
 <script src="<?= base_url('assets/js/unified/room-management.js') ?>"></script>
 
 <?php if (session()->getFlashdata('success') || session()->getFlashdata('error')): ?>

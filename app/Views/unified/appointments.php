@@ -168,9 +168,6 @@
                                             <?php if ($userRole === 'admin'): ?>
                                                 <button class="btn btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="deleteAppointment(<?= $apptId ?>)"><i class="fas fa-trash"></i> Delete</button>
                                             <?php endif; ?>
-                                            <?php if (in_array($userRole, ['admin', 'accountant'])): ?>
-                                                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="openBillingModal(<?= $apptId ?>)"><i class="fas fa-file-invoice-dollar"></i> Add to Bill</button>
-                                            <?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>

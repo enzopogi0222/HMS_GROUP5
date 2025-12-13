@@ -863,17 +863,6 @@
                 actionsDiv.appendChild(delBtn);
             }
 
-            // Add to Bill (admin/accountant)
-            if (userRole === 'admin' || userRole === 'accountant') {
-                const billBtn = document.createElement('button');
-                billBtn.className = 'btn btn-secondary';
-                billBtn.style.padding = '0.3rem 0.6rem';
-                billBtn.style.fontSize = '0.75rem';
-                billBtn.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Add to Bill';
-                billBtn.onclick = function() { openBillingModal(apptId); };
-                actionsDiv.appendChild(billBtn);
-            }
-
             actionsTd.appendChild(actionsDiv);
             tr.appendChild(actionsTd);
 

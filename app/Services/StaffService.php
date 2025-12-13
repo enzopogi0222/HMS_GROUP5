@@ -205,12 +205,20 @@ class StaffService
         return ['success' => false, 'message' => 'Validation failed', 'errors' => $validation->getErrors()];
     }
 
+    $deptCategoryCheck = $this->validateDepartmentCategorySelection($input, true);
+    if (!$deptCategoryCheck['valid']) {
+        return ['success' => false, 'message' => 'Validation failed', 'errors' => $deptCategoryCheck['errors']];
+    }
+
     if ($this->db->table('staff')->where('employee_id', $input['employee_id'])->get()->getRowArray()) {
         return ['success' => false, 'message' => 'Employee ID already exists'];
     }
 
     try {
-        if (!empty($input['department'])) {
+        if (!empty($input['department_id'])) {
+            $deptRow = $this->db->table('department')->where('department_id', (int) $input['department_id'])->get()->getRowArray();
+            $input['department'] = $deptRow['name'] ?? ($input['department'] ?? null);
+        } elseif (!empty($input['department'])) {
             $this->ensureDepartmentExists($input['department']);
             $deptRow = $this->db->table('department')->where('name', $input['department'])->get()->getRowArray();
             $input['department_id'] = $deptRow['department_id'] ?? null;
@@ -260,7 +268,10 @@ class StaffService
         $input['employee_id'] = $input['employee_id'] ?? ($existing['employee_id'] ?? null);
 
         // Handle department and department_id
-        if (!empty($input['department'])) {
+        if (!empty($input['department_id'])) {
+            $deptRow = $this->db->table('department')->where('department_id', (int) $input['department_id'])->get()->getRowArray();
+            $input['department'] = $deptRow['name'] ?? ($input['department'] ?? null);
+        } elseif (!empty($input['department'])) {
             $this->ensureDepartmentExists($input['department']);
             $deptRow = $this->db->table('department')->where('name', $input['department'])->get()->getRowArray();
             $input['department_id'] = $deptRow['department_id'] ?? ($existing['department_id'] ?? null);
@@ -275,6 +286,11 @@ class StaffService
         );
         if (!$validation->run($input)) {
             return ['success' => false, 'message' => 'Validation failed', 'errors' => $validation->getErrors()];
+        }
+
+        $deptCategoryCheck = $this->validateDepartmentCategorySelection($input, false);
+        if (!$deptCategoryCheck['valid']) {
+            return ['success' => false, 'message' => 'Validation failed', 'errors' => $deptCategoryCheck['errors']];
         }
 
         try {
@@ -444,7 +460,7 @@ class StaffService
         }
 
         // Trim common string fields
-        foreach (['employee_id','first_name','last_name','email','department','address'] as $k) {
+        foreach (['employee_id','first_name','last_name','email','department','address','department_category'] as $k) {
             if (isset($input[$k]) && is_string($input[$k])) {
                 $input[$k] = trim($input[$k]);
             }
@@ -460,6 +476,39 @@ class StaffService
         }
 
         return $input;
+    }
+
+    private function validateDepartmentCategorySelection(array $input, bool $requireCategory): array
+    {
+        $category = strtolower(trim((string) ($input['department_category'] ?? '')));
+        $deptId = (int) ($input['department_id'] ?? 0);
+
+        if ($category === '') {
+            if ($requireCategory && ($deptId > 0 || !empty($input['department']))) {
+                return ['valid' => false, 'errors' => ['department_category' => 'Department category is required.']];
+            }
+            return ['valid' => true, 'errors' => []];
+        }
+
+        if (!in_array($category, ['medical', 'non_medical'], true)) {
+            return ['valid' => false, 'errors' => ['department_category' => 'Invalid department category.']];
+        }
+
+        if ($deptId <= 0) {
+            return ['valid' => false, 'errors' => ['department' => 'Department is required.']];
+        }
+
+        $linkTable = $category === 'medical' ? 'medical_department' : 'non_medical_department';
+        if (!$this->db->tableExists($linkTable)) {
+            return ['valid' => false, 'errors' => ['department' => 'Department category table is missing. Please run migrations.']];
+        }
+
+        $exists = $this->db->table($linkTable)->where('department_id', $deptId)->get()->getRowArray();
+        if (!$exists) {
+            return ['valid' => false, 'errors' => ['department' => 'Selected department does not belong to the chosen category.']];
+        }
+
+        return ['valid' => true, 'errors' => []];
     }
 
     private function getValidationRules($role, $isUpdate = false, $excludeId = null)

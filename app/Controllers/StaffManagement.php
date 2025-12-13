@@ -210,6 +210,59 @@ class StaffManagement extends BaseController
         }
     }
 
+    public function getDepartmentsByCategory()
+    {
+        $category = strtolower(trim((string) $this->request->getGet('category')));
+        if (!in_array($category, ['medical', 'non_medical'], true)) {
+            return $this->jsonResponse(['status' => 'error', 'message' => 'Invalid category'], 400);
+        }
+
+        try {
+            if (!$this->db->tableExists('department')) {
+                return $this->jsonResponse(['status' => 'success', 'data' => []]);
+            }
+
+            $departments = [];
+
+            if ($category === 'medical' && $this->db->tableExists('medical_department')) {
+                $departments = $this->db->table('medical_department md')
+                    ->select('d.department_id, d.name')
+                    ->join('department d', 'd.department_id = md.department_id', 'inner')
+                    ->orderBy('d.name', 'ASC')
+                    ->get()->getResultArray();
+            } elseif ($category === 'non_medical' && $this->db->tableExists('non_medical_department')) {
+                $departments = $this->db->table('non_medical_department nmd')
+                    ->select('d.department_id, d.name')
+                    ->join('department d', 'd.department_id = nmd.department_id', 'inner')
+                    ->orderBy('d.name', 'ASC')
+                    ->get()->getResultArray();
+            } else {
+                // Fallback: infer category from department.type
+                $typeList = $category === 'medical'
+                    ? ['Clinical', 'Emergency', 'Diagnostic']
+                    : ['Administrative', 'Support'];
+
+                if ($this->db->fieldExists('type', 'department')) {
+                    $departments = $this->db->table('department')
+                        ->select('department_id, name')
+                        ->whereIn('type', $typeList)
+                        ->orderBy('name', 'ASC')
+                        ->get()->getResultArray();
+                } else {
+                    $departments = $this->db->table('department')
+                        ->select('department_id, name')
+                        ->orderBy('name', 'ASC')
+                        ->get()->getResultArray();
+                }
+            }
+
+            return $this->jsonResponse(['status' => 'success', 'data' => $departments]);
+        } catch (\Throwable $e) {
+            log_message('error', 'Failed to load departments by category: ' . $e->getMessage());
+            return $this->jsonResponse(['status' => 'error', 'message' => 'Failed to load departments'], 500);
+        }
+    }
+
     // ===================================================================
     // UNIFIED STAFF MANAGEMENT HELPER METHODS
     // ===================================================================

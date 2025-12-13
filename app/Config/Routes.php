@@ -80,6 +80,7 @@ $routes->get('receptionist/staff', 'StaffManagement::index', ['filter' => 'rolea
 $routes->get('staff/api', 'StaffManagement::getStaffAPI', ['filter' => 'roleauth:admin,doctor,nurse,receptionist,it_staff']);
 $routes->get('staff/(:num)', 'StaffManagement::getStaff/$1', ['filter' => 'roleauth:admin,doctor,nurse,receptionist,it_staff']);
 $routes->get('staff/next-employee-id', 'StaffManagement::getNextEmployeeId', ['filter' => 'roleauth:admin,it_staff']);
+$routes->get('staff/departments-by-category', 'StaffManagement::getDepartmentsByCategory', ['filter' => 'roleauth:admin,it_staff']);
 $routes->post('staff/create', 'StaffManagement::create', ['filter' => 'roleauth:admin,it_staff']);
 $routes->post('staff/update', 'StaffManagement::update', ['filter' => 'roleauth:admin,it_staff']);
 $routes->delete('staff/delete/(:num)', 'StaffManagement::delete/$1', ['filter' => 'roleauth:admin,it_staff']);

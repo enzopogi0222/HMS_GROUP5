@@ -17,11 +17,14 @@
                             <th>Qty</th>
                             <th>Unit Price</th>
                             <th>Line Total</th>
+                            <th>Discount %</th>
+                            <th>Discount Amount</th>
+                            <th>Final Amount</th>
                         </tr>
                     </thead>
                     <tbody id="billingItemsBody">
                         <tr>
-                            <td colspan="4" class="loading-row">No items loaded.</td>
+                            <td colspan="7" class="loading-row">No items loaded.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -29,8 +32,9 @@
         </div>
         <div class="hms-modal-actions">
             <div class="billing-total">
-                <strong>Total:</strong>
-                <span id="billingAccountTotal">₱0.00</span>
+                <div><strong>Gross Total:</strong> <span id="billingAccountGrossTotal">₱0.00</span></div>
+                <div><strong>Insurance Discount:</strong> <span id="billingAccountInsuranceDiscountTotal">₱0.00</span></div>
+                <div><strong>Net Total:</strong> <span id="billingAccountTotal">₱0.00</span></div>
             </div>
             <button type="button" class="btn btn-secondary" data-modal-close="billingAccountModal">Close</button>
         </div>

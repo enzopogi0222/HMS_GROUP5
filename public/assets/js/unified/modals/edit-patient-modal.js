@@ -70,7 +70,7 @@ const EditPatientModal = {
         });
 
         // Date of birth change - update age display
-        const outpatientDobInput = document.getElementById('edit_inpatient_date_of_birth');
+        const outpatientDobInput = document.getElementById('edit_outpatient_date_of_birth');
         const inpatientDobInput = document.getElementById('edit_date_of_birth');
         
         if (outpatientDobInput) {
@@ -236,7 +236,7 @@ const EditPatientModal = {
         this.updateSaveButtonTarget();
         this.resetFloorState();
         this.handleRoomTypeChange();
-        const outpatientAge = document.getElementById('edit_inpatient_age');
+        const outpatientAge = document.getElementById('edit_outpatient_age');
         if (outpatientAge) {
             outpatientAge.value = '';
         }
@@ -367,7 +367,7 @@ const EditPatientModal = {
 
         // Determine which prefix to use based on active form
         const addressPrefix = isInpatient ? 'edit_inpatient' : 'edit_outpatient';
-        const dobFieldId = isInpatient ? 'edit_date_of_birth' : 'edit_inpatient_date_of_birth';
+        const dobFieldId = isInpatient ? 'edit_date_of_birth' : 'edit_outpatient_date_of_birth';
         
         // Extract nested data if present
         let medicalHistory = {};
@@ -1084,7 +1084,6 @@ const EditPatientModal = {
     /**
      * Validate form data
      */
-<<<<<<< HEAD
     validateFormData(data, formType = 'outpatient') {
         const typeValue = (formType || data.patient_type || 'outpatient').toLowerCase();
         let rules = {};
@@ -1129,26 +1128,6 @@ const EditPatientModal = {
             };
         }
 
-=======
-    validateFormData(data) {
-        const rules = {
-            first_name: { required: true, label: 'First Name' },
-            last_name: { required: true, label: 'Last Name' },
-            gender: { required: true, label: 'Gender' },
-            date_of_birth: { required: true, label: 'Date of Birth' },
-            civil_status: { required: true, label: 'Civil Status' },
-            phone: { required: true, label: 'Phone Number', pattern: /^09\d{9}$/, message: 'Contact number must start with 09 and be exactly 11 digits.' },
-            address: { required: true, label: 'Address' },
-            province: { required: true, label: 'Province' },
-            city: { required: true, label: 'City' },
-            barangay: { required: true, label: 'Barangay' },
-            zip_code: { required: true, label: 'ZIP Code' },
-            emergency_contact_name: { required: true, label: 'Emergency Contact Name' },
-            emergency_contact_phone: { required: true, label: 'Emergency Contact Phone', pattern: /^09\d{9}$/, message: 'Emergency contact number must start with 09 and be exactly 11 digits.' },
-            email: { email: true, label: 'Email' }
-        };
-        
->>>>>>> 4083aca29ad024810e89cc84868565c55bbef4db
         return PatientUtils.validateForm(data, rules);
     },
 
@@ -1545,8 +1524,8 @@ const EditPatientModal = {
     },
 
     handleDobChange() {
-        const dobInput = document.getElementById('edit_inpatient_date_of_birth');
-        const ageDisplay = document.getElementById('edit_inpatient_age');
+        const dobInput = document.getElementById('edit_outpatient_date_of_birth');
+        const ageDisplay = document.getElementById('edit_outpatient_age');
         if (!dobInput || !ageDisplay) return;
 
         const dobValue = dobInput.value;

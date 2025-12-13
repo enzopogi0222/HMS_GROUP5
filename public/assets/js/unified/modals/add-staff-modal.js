@@ -41,6 +41,10 @@ window.AddStaffModal = {
                     if (dobErrEl) dobErrEl.textContent = dobErrors.date_of_birth || '';
                 });
             }
+
+            const contactEl = document.getElementById('contact_no');
+            const contactErrEl = document.getElementById('err_contact_no');
+            StaffModalUtils.bindLiveContactNoValidation(contactEl, contactErrEl);
         }
         
         StaffModalUtils.setupModalCloseHandlers(this.modal, () => this.close());
@@ -138,6 +142,7 @@ window.AddStaffModal = {
                 clientErrors.first_name = 'First name is required (min 2 characters).';
             }
             StaffModalUtils.validateDob(formData, clientErrors);
+            StaffModalUtils.validateContactNo(formData, clientErrors);
             if (!formData.designation) {
                 clientErrors.designation = 'Designation is required.';
             }

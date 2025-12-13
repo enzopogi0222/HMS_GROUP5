@@ -229,14 +229,14 @@ const EditPatientModal = {
             gender: { required: true, label: 'Gender' },
             date_of_birth: { required: true, label: 'Date of Birth' },
             civil_status: { required: true, label: 'Civil Status' },
-            phone: { required: true, label: 'Phone Number' },
+            phone: { required: true, label: 'Phone Number', pattern: /^09\d{9}$/, message: 'Contact number must start with 09 and be exactly 11 digits.' },
             address: { required: true, label: 'Address' },
             province: { required: true, label: 'Province' },
             city: { required: true, label: 'City' },
             barangay: { required: true, label: 'Barangay' },
             zip_code: { required: true, label: 'ZIP Code' },
             emergency_contact_name: { required: true, label: 'Emergency Contact Name' },
-            emergency_contact_phone: { required: true, label: 'Emergency Contact Phone' },
+            emergency_contact_phone: { required: true, label: 'Emergency Contact Phone', pattern: /^09\d{9}$/, message: 'Emergency contact number must start with 09 and be exactly 11 digits.' },
             email: { email: true, label: 'Email' }
         };
         

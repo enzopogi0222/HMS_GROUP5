@@ -34,7 +34,7 @@ class PatientService
 
         // Validation
         $validation = \Config\Services::validation();
-        $validation->setRules($this->getValidationRules());
+        $validation->setRules($this->getValidationRules(), $this->getValidationMessages());
 
         if (!$validation->run($input)) {
             return [
@@ -301,7 +301,7 @@ class PatientService
     {
         // Validation
         $validation = \Config\Services::validation();
-        $validation->setRules($this->getValidationRules());
+        $validation->setRules($this->getValidationRules(), $this->getValidationMessages());
 
         if (!$validation->run($input)) {
             return [
@@ -652,7 +652,7 @@ class PatientService
             'gender' => 'required|in_list[male,female,other,MALE,FEMALE,OTHER,Male,Female,Other]',
             'date_of_birth' => 'required|valid_date',
             'civil_status' => 'required',
-            'phone' => 'required|max_length[50]',
+            'phone' => 'required|regex_match[/^09\d{9}$/]',
             'email' => 'permit_empty|valid_email',
             'address' => 'required',
             // Inpatient-only details are optional at backend level; frontend enforces them when needed
@@ -661,8 +661,20 @@ class PatientService
             'barangay' => 'permit_empty|max_length[100]',
             'zip_code' => 'permit_empty|max_length[20]',
             'emergency_contact_name' => 'permit_empty|max_length[100]',
-            'emergency_contact_phone' => 'permit_empty|max_length[50]',
+            'emergency_contact_phone' => 'permit_empty|regex_match[/^09\d{9}$/]',
             'patient_type' => 'permit_empty|in_list[outpatient,inpatient,emergency,Outpatient,Inpatient,Emergency]',
+        ];
+    }
+
+    private function getValidationMessages(): array
+    {
+        return [
+            'phone' => [
+                'regex_match' => 'Contact number must start with 09 and be exactly 11 digits.',
+            ],
+            'emergency_contact_phone' => [
+                'regex_match' => 'Emergency contact number must start with 09 and be exactly 11 digits.',
+            ],
         ];
     }
 

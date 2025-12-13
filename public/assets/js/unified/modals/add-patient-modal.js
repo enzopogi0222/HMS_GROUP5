@@ -226,6 +226,32 @@ const AddPatientModal = {
         // Clear errors when user interacts with form fields
         this.setupErrorClearing();
 
+        // Live contact number validation (per form, since the modal contains duplicate IDs)
+        Object.values(this.forms).forEach((formEl) => {
+            if (!formEl) return;
+
+            const phoneEl = formEl.querySelector('input[name="phone"]');
+            const phoneErrEl = formEl.querySelector('#err_phone');
+            PatientUtils.bindLiveContactNoValidation(phoneEl, phoneErrEl);
+
+            const formType = formEl.dataset.formType || '';
+            if (formType === 'outpatient') {
+                const emerEl = formEl.querySelector('input[name="emergency_contact_phone"]');
+                const emerErrEl = formEl.querySelector('#err_emergency_contact_phone');
+                PatientUtils.bindLiveContactNoValidation(emerEl, emerErrEl);
+            }
+
+            if (formType === 'inpatient') {
+                const guardianEl = formEl.querySelector('input[name="guardian_contact"]');
+                const guardianErrEl = formEl.querySelector('#err_guardian_contact');
+                PatientUtils.bindLiveContactNoValidation(guardianEl, guardianErrEl);
+
+                const secondaryEl = formEl.querySelector('input[name="secondary_contact"]');
+                const secondaryErrEl = formEl.querySelector('#err_secondary_contact');
+                PatientUtils.bindLiveContactNoValidation(secondaryEl, secondaryErrEl);
+            }
+        });
+
         // Close modal when clicking outside
         this.modal.addEventListener('click', (e) => {
             if (e.target === this.modal) {
@@ -1228,6 +1254,33 @@ const AddPatientModal = {
                 room_number: { required: true, label: 'Room Number' },
                 bed_number: { required: true, label: 'Bed Number' },
                 level_of_consciousness: { required: true, label: 'Level of Consciousness' }
+            };
+        }
+
+        // Apply phone/contact number format validation for PH numbers
+        rules.phone = {
+            ...(rules.phone || { required: true, label: 'Contact Number' }),
+            pattern: /^09\d{9}$/,
+            message: 'Contact number must start with 09 and be exactly 11 digits.'
+        };
+
+        if (typeValue === 'outpatient') {
+            rules.emergency_contact_phone = {
+                ...(rules.emergency_contact_phone || { required: true, label: 'Emergency Contact Phone' }),
+                pattern: /^09\d{9}$/,
+                message: 'Emergency contact number must start with 09 and be exactly 11 digits.'
+            };
+        } else {
+            rules.guardian_contact = {
+                ...(rules.guardian_contact || { required: true, label: 'Guardian Contact' }),
+                pattern: /^09\d{9}$/,
+                message: 'Guardian contact number must start with 09 and be exactly 11 digits.'
+            };
+            rules.secondary_contact = {
+                required: false,
+                label: 'Secondary Contact',
+                pattern: /^09\d{9}$/,
+                message: 'Secondary contact number must start with 09 and be exactly 11 digits.'
             };
         }
 

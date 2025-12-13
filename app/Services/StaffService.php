@@ -179,12 +179,8 @@ class StaffService
     /**
      * Create new staff member
      */
-  public function createStaff($input, $userRole)
-{
-    if (!$this->canCreateStaff($userRole)) {
-        return ['success' => false, 'message' => 'Permission denied'];
-    }
-
+    public function createStaff($input, $userRole)
+    {
     $input = $this->normalizeInput($input);
 
     $dobCheck = $this->validateDobAndAge($input['dob'] ?? null, 18, 100);
@@ -201,7 +197,10 @@ class StaffService
     }
 
     $validation = \Config\Services::validation();
-    $validation->setRules($this->getValidationRules($input['role'] ?? 'staff'));
+    $validation->setRules(
+        $this->getValidationRules($input['role'] ?? 'staff'),
+        $this->getValidationMessages()
+    );
     if (!$validation->run($input)) {
         return ['success' => false, 'message' => 'Validation failed', 'errors' => $validation->getErrors()];
     }
@@ -270,7 +269,10 @@ class StaffService
         }
 
         $validation = \Config\Services::validation();
-        $validation->setRules($this->getUpdateValidationRules($input['role'] ?? 'staff', $id));
+        $validation->setRules(
+            $this->getUpdateValidationRules($input['role'] ?? 'staff', $id),
+            $this->getValidationMessages()
+        );
         if (!$validation->run($input)) {
             return ['success' => false, 'message' => 'Validation failed', 'errors' => $validation->getErrors()];
         }
@@ -468,7 +470,7 @@ class StaffService
             'last_name' => 'permit_empty|max_length[100]',
             'gender' => 'permit_empty|in_list[male,female,other,Male,Female,Other]',
             'dob' => 'required|valid_date',
-            'contact_no' => 'permit_empty|max_length[255]',
+            'contact_no' => 'permit_empty|regex_match[/^09\d{9}$/]',
             'email' => 'permit_empty|valid_email',
             'address' => 'permit_empty',
             'department' => 'permit_empty|max_length[255]',
@@ -494,6 +496,15 @@ class StaffService
         }
 
         return $baseRules;
+    }
+
+    private function getValidationMessages(): array
+    {
+        return [
+            'contact_no' => [
+                'regex_match' => 'Contact number must start with 09 and be exactly 11 digits.',
+            ],
+        ];
     }
 
     private function getUpdateValidationRules($role, $excludeId)

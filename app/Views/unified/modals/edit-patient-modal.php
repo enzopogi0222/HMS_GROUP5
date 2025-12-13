@@ -68,7 +68,7 @@
                                     </div>
                                     <div>
                             <label class="form-label" for="edit_phone">Contact Number*</label>
-                            <input type="text" id="edit_phone" name="phone" class="form-input" required>
+                            <input type="text" id="edit_phone" name="phone" class="form-input" required inputmode="numeric" maxlength="11" pattern="^09\d{9}$">
                             <small id="err_edit_phone" class="form-error"></small>
                                     </div>
                                     <div>
@@ -166,7 +166,7 @@
                                     </div>
                                     <div>
                             <label class="form-label" for="edit_emergency_contact_phone">Contact Number*</label>
-                            <input type="text" id="edit_emergency_contact_phone" name="emergency_contact_phone" class="form-input" required>
+                            <input type="text" id="edit_emergency_contact_phone" name="emergency_contact_phone" class="form-input" required inputmode="numeric" maxlength="11" pattern="^09\d{9}$">
                             <small id="err_edit_emergency_contact_phone" class="form-error"></small>
                                     </div>
                                 </div>

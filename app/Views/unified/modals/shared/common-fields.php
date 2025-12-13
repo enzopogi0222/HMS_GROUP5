@@ -45,9 +45,20 @@ $defaultDepts = ['Administration','Emergency','Cardiology','Intensive Care Unit'
     <input type="email" id="<?= $prefix ?>email" name="email" class="form-input">
     <small id="<?= $prefix ?>err_email" style="color:#dc2626"></small>
 </div>
+<?php if ($prefix === ''): ?>
+<div>
+    <label class="form-label" for="department_category">Department Category</label>
+    <select id="department_category" name="department_category" class="form-select" required>
+        <option value="">Select category</option>
+        <option value="medical">Medical Department</option>
+        <option value="non_medical">Non-medical Department</option>
+    </select>
+    <small id="err_department_category" style="color:#dc2626"></small>
+</div>
+<?php endif; ?>
 <div>
     <label class="form-label" for="<?= $prefix ?>department">Department</label>
-    <select id="<?= $prefix ?>department" name="department" class="form-select">
+    <select id="<?= $prefix ?>department" name="department" class="form-select" <?= $prefix === '' ? 'disabled required' : '' ?>>
         <option value="">Select department</option>
         <?php if (!empty($departments) && is_array($departments)): ?>
             <?php foreach ($departments as $dept): ?>

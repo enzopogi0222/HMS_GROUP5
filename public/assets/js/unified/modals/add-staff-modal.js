@@ -5,6 +5,7 @@
 window.AddStaffModal = {
     modal: null,
     form: null,
+    departmentsLoadedFor: null,
     
     init() {
         this.modal = document.getElementById('addStaffModal');
@@ -30,6 +31,13 @@ window.AddStaffModal = {
                 });
             }
 
+            const deptCategoryEl = document.getElementById('department_category');
+            if (deptCategoryEl) {
+                deptCategoryEl.addEventListener('change', () => {
+                    this.loadDepartmentsForCategory(deptCategoryEl.value);
+                });
+            }
+
             const dobEl = document.getElementById('date_of_birth');
             if (dobEl && !dobEl.__boundDobValidation) {
                 dobEl.__boundDobValidation = true;
@@ -48,6 +56,51 @@ window.AddStaffModal = {
         }
         
         StaffModalUtils.setupModalCloseHandlers(this.modal, () => this.close());
+    },
+
+    async loadDepartmentsForCategory(category) {
+        const deptEl = document.getElementById('department');
+        const deptIdEl = document.getElementById('department_id');
+        if (!deptEl) return;
+
+        const normalized = String(category || '').trim();
+        deptEl.disabled = true;
+        deptEl.innerHTML = '<option value="">Loading...</option>';
+        if (deptIdEl) deptIdEl.value = '';
+
+        if (!normalized) {
+            deptEl.innerHTML = '<option value="">Select department</option>';
+            return;
+        }
+
+        try {
+            const url = StaffConfig.getUrl('staff/departments-by-category') + '?category=' + encodeURIComponent(normalized);
+            const response = await StaffUtils.makeRequest(url);
+
+            if (!response.ok || response.status !== 'success') {
+                throw new Error(response.message || 'Failed to load departments');
+            }
+
+            const rows = Array.isArray(response.data) ? response.data : [];
+            deptEl.innerHTML = '<option value="">Select department</option>';
+            rows.forEach((d) => {
+                const opt = document.createElement('option');
+                opt.value = d.name || '';
+                if (d.department_id !== undefined && d.department_id !== null) {
+                    opt.setAttribute('data-id', String(d.department_id));
+                }
+                opt.textContent = d.name || '';
+                deptEl.appendChild(opt);
+            });
+
+            deptEl.disabled = false;
+            this.departmentsLoadedFor = normalized;
+        } catch (e) {
+            console.error('Failed to load departments:', e);
+            deptEl.innerHTML = '<option value="">Select department</option>';
+            deptEl.disabled = false;
+            StaffUtils.showNotification('Failed to load departments for selected category', 'error');
+        }
     },
     
     open() {
@@ -81,6 +134,15 @@ window.AddStaffModal = {
             StaffModalUtils.toggleRoleFields('');
             const deptIdEl = document.getElementById('department_id');
             if (deptIdEl) deptIdEl.value = '';
+
+            const deptCategoryEl = document.getElementById('department_category');
+            const deptEl = document.getElementById('department');
+            if (deptCategoryEl) deptCategoryEl.value = '';
+            if (deptEl) {
+                deptEl.disabled = true;
+                deptEl.value = '';
+            }
+            this.departmentsLoadedFor = null;
         }
     },
 
@@ -146,6 +208,16 @@ window.AddStaffModal = {
             if (!formData.designation) {
                 clientErrors.designation = 'Designation is required.';
             }
+
+            const deptCategory = (formData.department_category || '').trim();
+            const department = (formData.department || '').trim();
+            if (!deptCategory) {
+                clientErrors.department_category = 'Department category is required.';
+            }
+            if (!department) {
+                clientErrors.department = 'Department is required.';
+            }
+
             StaffModalUtils.validateRoleFields(formData, clientErrors);
             
             if (Object.keys(clientErrors).length) {

@@ -369,8 +369,10 @@ class PrescriptionService
 
             $this->db->transCommit();
 
-            // Automatically add to billing if prescription is created with completed/dispensed status
+            // Automatically add to billing and reduce stock if prescription is created with completed/dispensed status
             if (in_array($status, ['completed', 'dispensed'])) {
+                // Reduce stock from resources
+                $this->reduceStockForPrescription($prescriptionId);
                 // Fetch the full prescription to ensure we have all data
                 $fullPrescription = $this->getPrescription($prescriptionId);
                 if ($fullPrescription) {
@@ -429,8 +431,11 @@ class PrescriptionService
             $result = $this->db->table('prescriptions')->where('id', $id)->update($updateData);
             
             if ($result) {
-                // Automatically add to billing when prescription is dispensed/completed
+                // Automatically add to billing and reduce stock when prescription is dispensed/completed
                 if ($newStatus && in_array($newStatus, ['dispensed', 'completed']) && $oldStatus !== $newStatus) {
+                    // Reduce stock from resources
+                    $this->reduceStockForPrescription($id);
+                    // Add to billing
                     $this->addPrescriptionToBilling($id, $existingPrescription, $staffId);
                 }
                 
@@ -581,9 +586,11 @@ class PrescriptionService
             }
 
             if ($this->db->table('prescriptions')->where('id', $id)->update($updateData)) {
-                // Automatically add to billing when prescription is completed or dispensed
+                // Automatically add to billing and reduce stock when prescription is completed or dispensed
                 // Note: 'completed' status maps to 'dispensed' via mapStatus, so we check for 'dispensed'
                 if ($dbStatus === 'dispensed' && $oldStatus !== 'dispensed') {
+                    // Reduce stock from resources
+                    $this->reduceStockForPrescription($id);
                     // Get updated prescription data
                     $updatedPrescription = $this->getPrescription($id);
                     if ($updatedPrescription) {
@@ -592,7 +599,7 @@ class PrescriptionService
                 }
                 
                 return ['success' => true, 'message' => 'Prescription status updated successfully. ' . 
-                    ($dbStatus === 'dispensed' ? 'Prescription has been automatically added to billing.' : '')];
+                    ($dbStatus === 'dispensed' ? 'Prescription has been automatically added to billing and stock has been reduced.' : '')];
             }
 
             return ['success' => false, 'message' => 'Failed to update prescription status'];
@@ -931,21 +938,98 @@ class PrescriptionService
                 }
             }
 
-            // Calculate medication cost
-            $medicationCost = $this->calculateMedicationCost($prescriptionId, $prescription);
-            $quantity = (int)($prescription['quantity'] ?? $prescription['dispensed_quantity'] ?? 1);
+            // Get prescription items and calculate unit price from selling_price
+            $totalQuantity = 0;
+            $totalCost = 0.0;
+            $unitPrice = 0.0;
+            
+            if ($this->db->tableExists('prescription_items')) {
+                $items = $this->db->table('prescription_items')
+                    ->where('prescription_id', $prescriptionId)
+                    ->get()
+                    ->getResultArray();
 
-            // Add to billing
+                if (!empty($items)) {
+                    log_message('debug', "PrescriptionService::addPrescriptionToBilling - Found " . count($items) . " prescription items for prescription {$prescriptionId}");
+                    
+                    // Calculate total cost and quantity from all items
+                    foreach ($items as $item) {
+                        $resourceId = $item['medication_resource_id'] ?? $item['resource_id'] ?? null;
+                        $medicationName = $item['medication_name'] ?? '';
+                        $itemUnitPrice = $this->getMedicationPrice($medicationName, $resourceId);
+                        $itemQuantity = (int)($item['quantity'] ?? 1);
+                        
+                        log_message('debug', "PrescriptionService::addPrescriptionToBilling - Item: '{$medicationName}', Resource ID: {$resourceId}, Unit Price: ₱{$itemUnitPrice}, Quantity: {$itemQuantity}");
+                        
+                        if ($itemUnitPrice > 0 && $itemQuantity > 0) {
+                            $totalCost += $itemUnitPrice * $itemQuantity;
+                            $totalQuantity += $itemQuantity;
+                        } else {
+                            log_message('warning', "PrescriptionService::addPrescriptionToBilling - Item '{$medicationName}' has invalid price ({$itemUnitPrice}) or quantity ({$itemQuantity})");
+                        }
+                    }
+                    
+                    // Calculate average unit price (for single billing item)
+                    if ($totalQuantity > 0) {
+                        $unitPrice = $totalCost / $totalQuantity;
+                        log_message('debug', "PrescriptionService::addPrescriptionToBilling - Calculated unit price: ₱{$unitPrice} (Total Cost: ₱{$totalCost}, Total Quantity: {$totalQuantity})");
+                    } else {
+                        log_message('warning', "PrescriptionService::addPrescriptionToBilling - Total quantity is 0, cannot calculate unit price");
+                    }
+                } else {
+                    log_message('debug', "PrescriptionService::addPrescriptionToBilling - No prescription items found for prescription {$prescriptionId}");
+                }
+            } else {
+                log_message('debug', "PrescriptionService::addPrescriptionToBilling - prescription_items table does not exist");
+            }
+
+            // Fallback: if no prescription_items or no items found, use old method
+            if ($unitPrice <= 0) {
+                log_message('debug', "PrescriptionService::addPrescriptionToBilling - Unit price is 0, using fallback calculateMedicationCost");
+                $medicationCost = $this->calculateMedicationCost($prescriptionId, $prescription);
+                $quantity = (int)($prescription['quantity'] ?? $prescription['dispensed_quantity'] ?? 1);
+                
+                // Calculate unit price from total cost
+                $unitPrice = $quantity > 0 ? ($medicationCost / $quantity) : $medicationCost;
+                $totalQuantity = $quantity;
+                log_message('debug', "PrescriptionService::addPrescriptionToBilling - Fallback: Medication Cost: ₱{$medicationCost}, Quantity: {$quantity}, Unit Price: ₱{$unitPrice}");
+            } else {
+                $totalQuantity = $totalQuantity > 0 ? $totalQuantity : (int)($prescription['quantity'] ?? $prescription['dispensed_quantity'] ?? 1);
+            }
+
+            // Validate unit price before adding to billing
+            if ($unitPrice <= 0) {
+                log_message('error', "PrescriptionService::addPrescriptionToBilling - Cannot add prescription {$prescriptionId} to billing: unit price is 0 or negative");
+                return;
+            }
+
+            log_message('debug', "PrescriptionService::addPrescriptionToBilling - Adding prescription {$prescriptionId} to billing {$billingId} with unit price: ₱{$unitPrice}, quantity: {$totalQuantity}");
+
+            // Add to billing with calculated unit price
             $result = $financialService->addItemFromPrescription(
                 $billingId,
                 $prescriptionId,
-                $medicationCost,
-                $quantity,
+                $unitPrice, // Unit price from selling_price
+                $totalQuantity,
                 $staffId
             );
 
             if (!($result['success'] ?? false)) {
                 log_message('error', "Prescription {$prescriptionId}: Failed to add to billing - " . ($result['message'] ?? 'Unknown error'));
+            } else {
+                // Verify the billing item was actually inserted
+                if ($this->db->tableExists('billing_items')) {
+                    $itemCount = $this->db->table('billing_items')
+                        ->where('billing_id', $billingId)
+                        ->where('prescription_id', $prescriptionId)
+                        ->countAllResults();
+                    
+                    if ($itemCount > 0) {
+                        log_message('debug', "PrescriptionService::addPrescriptionToBilling - Successfully verified: Billing item exists for prescription {$prescriptionId} in billing account {$billingId}");
+                    } else {
+                        log_message('error', "PrescriptionService::addPrescriptionToBilling - WARNING: Billing item was not found after insertion for prescription {$prescriptionId} in billing account {$billingId}");
+                    }
+                }
             }
         } catch (\Throwable $e) {
             log_message('error', 'PrescriptionService::addPrescriptionToBilling error: ' . $e->getMessage());
@@ -970,11 +1054,24 @@ class PrescriptionService
                     foreach ($items as $item) {
                         // Try to get price from resources using medication_resource_id or medication_name
                         $resourceId = $item['medication_resource_id'] ?? $item['resource_id'] ?? null;
-                        $unitPrice = $this->getMedicationPrice($item['medication_name'] ?? '', $resourceId);
+                        $medicationName = $item['medication_name'] ?? '';
+                        $unitPrice = $this->getMedicationPrice($medicationName, $resourceId);
                         $quantity = (int)($item['quantity'] ?? 1);
-                        $totalCost += $unitPrice * $quantity;
+                        
+                        if ($unitPrice > 0 && $quantity > 0) {
+                            $totalCost += $unitPrice * $quantity;
+                            log_message('debug', "PrescriptionService::calculateMedicationCost - Item: {$medicationName}, Resource ID: {$resourceId}, Unit Price: ₱{$unitPrice}, Quantity: {$quantity}, Subtotal: ₱" . ($unitPrice * $quantity));
+                        } else {
+                            log_message('warning', "PrescriptionService::calculateMedicationCost - Could not get price for item: {$medicationName} (Resource ID: {$resourceId})");
+                        }
                     }
-                    return $totalCost > 0 ? $totalCost : 100.00; // Default if calculation fails
+                    
+                    if ($totalCost > 0) {
+                        log_message('debug', "PrescriptionService::calculateMedicationCost - Total cost: ₱{$totalCost}");
+                        return $totalCost;
+                    } else {
+                        log_message('warning', "PrescriptionService::calculateMedicationCost - Total cost is 0 for prescription {$prescriptionId}");
+                    }
                 }
             }
 
@@ -982,13 +1079,20 @@ class PrescriptionService
             $medicationName = $prescription['medication'] ?? '';
             if (!empty($medicationName)) {
                 $price = $this->getMedicationPrice($medicationName);
-                return $price > 0 ? $price : 100.00; // Default medication cost
+                if ($price > 0) {
+                    log_message('debug', "PrescriptionService::calculateMedicationCost - Fallback price for '{$medicationName}': ₱{$price}");
+                    return $price;
+                } else {
+                    log_message('warning', "PrescriptionService::calculateMedicationCost - Could not find price for medication: {$medicationName}");
+                }
             }
 
-            return 100.00; // Default medication cost
+            log_message('error', "PrescriptionService::calculateMedicationCost - No price found for prescription {$prescriptionId}, returning 0");
+            return 0.0; // Return 0 instead of hardcoded 100.00
         } catch (\Throwable $e) {
             log_message('error', 'PrescriptionService::calculateMedicationCost error: ' . $e->getMessage());
-            return 100.00; // Default on error
+            log_message('error', 'Stack trace: ' . $e->getTraceAsString());
+            return 0.0; // Return 0 instead of hardcoded 100.00
         }
     }
 
@@ -1001,22 +1105,31 @@ class PrescriptionService
             // Try to get price from resources table by ID
             if ($this->db->tableExists('resources') && $resourceId) {
                 $resource = $this->db->table('resources')
-                    ->select('price, unit_price, selling_price')
+                    ->select('price, selling_price')
                     ->where('id', $resourceId)
                     ->where('category', 'Medications')
                     ->get()
                     ->getRowArray();
 
                 if ($resource) {
-                    // Use price field first, then fallback to selling_price or unit_price
-                    return (float)($resource['price'] ?? $resource['selling_price'] ?? $resource['unit_price'] ?? 0);
+                    // Prioritize selling_price for prescriptions (required for medications)
+                    if (!empty($resource['selling_price']) && (float)$resource['selling_price'] > 0) {
+                        log_message('debug', "PrescriptionService::getMedicationPrice - Using selling_price: ₱{$resource['selling_price']} for resource ID {$resourceId}");
+                        return (float)$resource['selling_price'];
+                    }
+                    // Fallback to price only if selling_price is not set
+                    $price = $resource['price'] ?? 0;
+                    if ($price > 0) {
+                        log_message('debug', "PrescriptionService::getMedicationPrice - Using fallback price: ₱{$price} for resource ID {$resourceId} (selling_price not set)");
+                    }
+                    return (float)$price;
                 }
             }
 
             // Try to find by medication name
             if ($this->db->tableExists('resources') && !empty($medicationName)) {
                 $resource = $this->db->table('resources')
-                    ->select('price, unit_price, selling_price')
+                    ->select('price, selling_price')
                     ->where('category', 'Medications')
                     ->groupStart()
                         ->like('equipment_name', $medicationName)
@@ -1026,15 +1139,104 @@ class PrescriptionService
                     ->getRowArray();
 
                 if ($resource) {
-                    // Use price field first, then fallback to selling_price or unit_price
-                    return (float)($resource['price'] ?? $resource['selling_price'] ?? $resource['unit_price'] ?? 0);
+                    // Prioritize selling_price for prescriptions (required for medications)
+                    if (!empty($resource['selling_price']) && (float)$resource['selling_price'] > 0) {
+                        log_message('debug', "PrescriptionService::getMedicationPrice - Using selling_price: ₱{$resource['selling_price']} for medication: {$medicationName}");
+                        return (float)$resource['selling_price'];
+                    }
+                    // Fallback to price only if selling_price is not set
+                    $price = $resource['price'] ?? 0;
+                    if ($price > 0) {
+                        log_message('debug', "PrescriptionService::getMedicationPrice - Using fallback price: ₱{$price} for medication: {$medicationName} (selling_price not set)");
+                    }
+                    return (float)$price;
                 }
             }
 
             return 0.0;
         } catch (\Throwable $e) {
             log_message('error', 'PrescriptionService::getMedicationPrice error: ' . $e->getMessage());
+            log_message('error', 'PrescriptionService::getMedicationPrice stack trace: ' . $e->getTraceAsString());
             return 0.0;
+        }
+    }
+
+    /**
+     * Reduce stock from resources when prescription is dispensed
+     * @param int $prescriptionId Prescription ID
+     */
+    private function reduceStockForPrescription(int $prescriptionId): void
+    {
+        try {
+            // Check if prescription_items table exists
+            if (!$this->db->tableExists('prescription_items')) {
+                log_message('debug', "PrescriptionService::reduceStockForPrescription - prescription_items table does not exist for prescription {$prescriptionId}");
+                return;
+            }
+
+            // Get prescription items
+            $items = $this->db->table('prescription_items')
+                ->where('prescription_id', $prescriptionId)
+                ->get()
+                ->getResultArray();
+
+            if (empty($items)) {
+                log_message('debug', "PrescriptionService::reduceStockForPrescription - No items found for prescription {$prescriptionId}");
+                return;
+            }
+
+            // Load ResourceModel to update quantities
+            $resourceModel = new \App\Models\ResourceModel();
+
+            foreach ($items as $item) {
+                $resourceId = $item['medication_resource_id'] ?? $item['resource_id'] ?? null;
+                $quantity = (int)($item['quantity'] ?? 0);
+                $medicationName = $item['medication_name'] ?? '';
+
+                if ($quantity <= 0) {
+                    continue;
+                }
+
+                // If we have a resource_id, reduce stock directly
+                if ($resourceId) {
+                    $result = $resourceModel->updateQuantity($resourceId, $quantity, 'subtract');
+                    if ($result) {
+                        log_message('debug', "PrescriptionService::reduceStockForPrescription - Reduced {$quantity} units from resource ID {$resourceId} for prescription {$prescriptionId}");
+                    } else {
+                        log_message('error', "PrescriptionService::reduceStockForPrescription - Failed to reduce stock for resource ID {$resourceId}");
+                    }
+                } else {
+                    // Try to find resource by medication name
+                    if (!empty($medicationName) && $this->db->tableExists('resources')) {
+                        $resource = $this->db->table('resources')
+                            ->where('category', 'Medications')
+                            ->groupStart()
+                                ->like('equipment_name', $medicationName)
+                                ->orLike('medication_name', $medicationName)
+                            ->groupEnd()
+                            ->where('status', 'Stock In')
+                            ->where('quantity >', 0)
+                            ->orderBy('quantity', 'DESC')
+                            ->get()
+                            ->getRowArray();
+
+                        if ($resource && !empty($resource['id'])) {
+                            $result = $resourceModel->updateQuantity($resource['id'], $quantity, 'subtract');
+                            if ($result) {
+                                log_message('debug', "PrescriptionService::reduceStockForPrescription - Reduced {$quantity} units from resource ID {$resource['id']} ({$medicationName}) for prescription {$prescriptionId}");
+                            } else {
+                                log_message('error', "PrescriptionService::reduceStockForPrescription - Failed to reduce stock for medication: {$medicationName}");
+                            }
+                        } else {
+                            log_message('warning', "PrescriptionService::reduceStockForPrescription - No matching resource found for medication: {$medicationName} in prescription {$prescriptionId}");
+                        }
+                    }
+                }
+            }
+
+        } catch (\Throwable $e) {
+            log_message('error', 'PrescriptionService::reduceStockForPrescription error: ' . $e->getMessage());
+            log_message('error', 'Stack trace: ' . $e->getTraceAsString());
         }
     }
 

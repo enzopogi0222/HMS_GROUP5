@@ -28,7 +28,6 @@ $moduleMappings = [
         'admin' => ['url' => 'admin/appointments', 'icon' => 'fas fa-calendar-check', 'label' => 'Appointments'],
         'doctor' => ['url' => 'doctor/appointments', 'icon' => 'fas fa-calendar-check', 'label' => 'Appointments'],
         'receptionist' => ['url' => 'receptionist/appointments', 'icon' => 'fas fa-calendar-alt', 'label' => 'Appointments'],
-        'accountant' => ['url' => 'accountant/appointments', 'icon' => 'fas fa-calendar-check', 'label' => 'Appointments'],
     ],
     'staff' => [
         'admin' => ['url' => 'admin/staff-management', 'icon' => 'fas fa-user-tie', 'label' => 'Staff Management'],

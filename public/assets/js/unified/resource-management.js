@@ -34,7 +34,13 @@
         }
     });
 
-    // Edit and Delete functions
+    // View, Edit and Delete functions
+    window.viewResource = function(id) {
+        if (window.ViewResourceModal && window.ViewResourceModal.open) {
+            window.ViewResourceModal.open(id);
+        }
+    };
+
     window.editResource = function(id) {
         if (window.EditResourceModal && window.EditResourceModal.open) {
             window.EditResourceModal.open(id);

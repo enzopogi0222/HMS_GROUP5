@@ -65,7 +65,7 @@
 
             <br>
 
-            <?php if (in_array($userRole ?? '', ['admin', 'doctor'])): ?>
+            <?php if (in_array($userRole ?? '', ['admin', 'it_staff', 'accountant', 'doctor', 'receptionist'])): ?>
             <!-- ============================
                  DASHBOARD CARDS 
             ============================== -->
@@ -85,11 +85,11 @@
                         <div class="card-metrics">
                             <div class="metric">
                                 <div class="metric-value green">₱<?= number_format($stats['total_income'] ?? 0, 2) ?></div>
-                                <div class="metric-label">Total</div>
+                                <div class="metric-label">TOTAL</div>
                             </div>
                             <div class="metric">
                                 <div class="metric-value blue">₱<?= number_format($stats['monthly_income'] ?? 0, 2) ?></div>
-                                <div class="metric-label">This Month</div>
+                                <div class="metric-label">THIS MONTH</div>
                             </div>
                         </div>
                     </div>
@@ -106,11 +106,11 @@
                         <div class="card-metrics">
                             <div class="metric">
                                 <div class="metric-value red">₱<?= number_format($stats['total_expenses'] ?? 0, 2) ?></div>
-                                <div class="metric-label">Total</div>
+                                <div class="metric-label">TOTAL</div>
                             </div>
                             <div class="metric">
                                 <div class="metric-value orange">₱<?= number_format($stats['monthly_expenses'] ?? 0, 2) ?></div>
-                                <div class="metric-label">This Month</div>
+                                <div class="metric-label">THIS MONTH</div>
                             </div>
                         </div>
                     </div>
@@ -163,10 +163,11 @@
 
                 <?php endif; ?>
 
-                <!-- Net Balance -->
+                <?php if (in_array($userRole, ['admin','it_staff','accountant'])): ?>
+                <!-- Financial Balance -->
                 <div class="overview-card">
                     <div class="card-header-modern">
-                        <div class="card-icon-modern blue"><i class="fas fa-balance-scale"></i></div>
+                        <div class="card-icon-modern purple"><i class="fas fa-balance-scale"></i></div>
                         <div class="card-info">
                             <h3 class="card-title-modern">Financial Balance</h3>
                             <p class="card-subtitle">Current status</p>
@@ -174,15 +175,41 @@
                     </div>
                     <div class="card-metrics">
                         <div class="metric">
-                            <div class="metric-value blue">₱<?= number_format($stats['net_balance'] ?? 0, 2) ?></div>
-                            <div class="metric-label">Net Balance</div>
+                            <div class="metric-value purple">₱<?= number_format($stats['net_balance'] ?? 0, 2) ?></div>
+                            <div class="metric-label">NET BALANCE</div>
                         </div>
                         <div class="metric">
                             <div class="metric-value purple">₱<?= number_format($stats['profit_margin'] ?? 0, 2) ?></div>
-                            <div class="metric-label">Profit</div>
+                            <div class="metric-label">PROFIT</div>
                         </div>
                     </div>
                 </div>
+
+                <!-- Pending Billing Accounts -->
+                <div class="overview-card">
+                    <div class="card-header-modern">
+                        <div class="card-icon-modern orange"><i class="fas fa-file-invoice-dollar"></i></div>
+                        <div class="card-info">
+                            <h3 class="card-title-modern">Billing Accounts</h3>
+                            <p class="card-subtitle">Account status</p>
+                        </div>
+                    </div>
+                    <div class="card-metrics">
+                        <div class="metric">
+                            <div class="metric-value orange"><?= esc($stats['pending_billing_accounts'] ?? 0) ?></div>
+                            <div class="metric-label">PENDING</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value red"><?= esc($stats['overdue_billing_accounts'] ?? 0) ?></div>
+                            <div class="metric-label">OVERDUE</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value blue"><?= esc($stats['total_billing_accounts'] ?? 0) ?></div>
+                            <div class="metric-label">TOTAL</div>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
 
             </div>
             <?php endif; ?>

@@ -337,9 +337,7 @@
                             <th>Quantity</th>
                             <th>Status</th>
                             <th>Location</th>
-                            <?php if (in_array('edit', $permissions['resources'] ?? []) || in_array('delete', $permissions['resources'] ?? [])): ?>
-                                <th>Actions</th>
-                            <?php endif; ?>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="resourcesTableBody">
@@ -361,27 +359,28 @@
                                         <span class="badge <?= $badgeClass ?>"><?= esc($status) ?></span>
                                     </td>
                                     <td><?= esc($r['location'] ?? '-') ?></td>
-                                    <?php if (in_array('edit', $permissions['resources'] ?? []) || in_array('delete', $permissions['resources'] ?? [])): ?>
-                                        <td>
-                                            <div style="display: flex; gap: 0.5rem;">
-                                                <?php if (in_array('edit', $permissions['resources'] ?? [])): ?>
-                                                    <button class="btn btn-warning btn-small" onclick="editResource(<?= esc($r['id'] ?? 0) ?>)" aria-label="Edit Resource">
-                                                        <i class="fas fa-edit"></i> Edit
-                                                    </button>
-                                                <?php endif; ?>
-                                                <?php if (in_array('delete', $permissions['resources'] ?? [])): ?>
-                                                    <button class="btn btn-danger btn-small" onclick="deleteResource(<?= esc($r['id'] ?? 0) ?>)" aria-label="Delete Resource">
-                                                        <i class="fas fa-trash"></i> Delete
-                                                    </button>
-                                                <?php endif; ?>
-                                            </div>
-                                        </td>
-                                    <?php endif; ?>
+                                    <td>
+                                        <div style="display: flex; gap: 0.5rem;">
+                                            <button class="btn btn-info btn-small" onclick="viewResource(<?= esc($r['id'] ?? 0) ?>)" aria-label="View Resource">
+                                                <i class="fas fa-eye"></i> View
+                                            </button>
+                                            <?php if (in_array('edit', $permissions['resources'] ?? [])): ?>
+                                                <button class="btn btn-warning btn-small" onclick="editResource(<?= esc($r['id'] ?? 0) ?>)" aria-label="Edit Resource">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </button>
+                                            <?php endif; ?>
+                                            <?php if (in_array('delete', $permissions['resources'] ?? [])): ?>
+                                                <button class="btn btn-danger btn-small" onclick="deleteResource(<?= esc($r['id'] ?? 0) ?>)" aria-label="Delete Resource">
+                                                    <i class="fas fa-trash"></i> Delete
+                                                </button>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="<?= (in_array('edit', $permissions['resources'] ?? []) || in_array('delete', $permissions['resources'] ?? [])) ? '6' : '5' ?>" class="empty-state">
+                                <td colspan="6" class="empty-state">
                                     <i class="fas fa-box-open"></i>
                                     <h3>No Resources Found</h3>
                                     <p>Start by adding your first resource</p>
@@ -393,6 +392,7 @@
             </div>
 
             <?= $this->include('unified/modals/add-resource-modal', ['categories' => $categories ?? []]) ?>
+            <?= $this->include('unified/modals/view-resource-modal', ['permissions' => $permissions ?? []]) ?>
 
             <!-- Add Department Modal -->
             <div id="addDepartmentModal" class="hms-modal-overlay" aria-hidden="true">
@@ -447,6 +447,7 @@
             <script src="<?= base_url('assets/js/unified/modals/shared/resource-modal-utils.js') ?>"></script>
             <script src="<?= base_url('assets/js/unified/modals/add-resource-modal.js') ?>"></script>
             <script src="<?= base_url('assets/js/unified/modals/edit-resource-modal.js') ?>"></script>
+            <script src="<?= base_url('assets/js/unified/modals/view-resource-modal.js') ?>"></script>
             <script src="<?= base_url('assets/js/unified/resource-management.js') ?>"></script>
         </main>
     </div>

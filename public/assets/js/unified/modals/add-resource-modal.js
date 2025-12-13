@@ -18,14 +18,14 @@
 
         form.addEventListener('submit', handleSubmit);
         
-        // Additional validation for price when category is Medications
+        // Additional validation for selling price when category is Medications
         const categorySelect = document.getElementById('res_category');
         if (categorySelect) {
             categorySelect.addEventListener('change', () => {
                 const isMedication = categorySelect.value === 'Medications';
-                const priceInput = document.getElementById('res_price');
-                if (priceInput) {
-                    priceInput.required = isMedication;
+                const sellingPriceInput = document.getElementById('res_selling_price');
+                if (sellingPriceInput) {
+                    sellingPriceInput.required = isMedication;
                 }
             });
         }
@@ -72,11 +72,11 @@
             hasErrors = true;
         }
         
-        // Validate price for medications
+        // Validate selling price for medications
         if (category === 'Medications') {
-            const price = document.getElementById('res_price')?.value;
-            if (!price || parseFloat(price) < 0) {
-                document.getElementById('err_res_price').textContent = 'Price is required and must be 0 or greater for medications.';
+            const sellingPrice = document.getElementById('res_selling_price')?.value;
+            if (!sellingPrice || parseFloat(sellingPrice) < 0) {
+                document.getElementById('err_res_selling_price').textContent = 'Selling price is required and must be 0 or greater for medications.';
                 hasErrors = true;
             }
         }

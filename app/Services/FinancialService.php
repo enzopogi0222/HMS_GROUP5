@@ -56,45 +56,546 @@ class FinancialService
 
     private function getSystemWideStats(): array
     {
-        $totalIncome = $this->sumIfTable('payments', 'amount', ['status' => 'completed']);
-        $totalExpenses = $this->sumIfTable('expenses', 'amount');
-        $pendingBills = $this->countIfTable('bills', ['status' => 'pending']);
+        try {
+            // Calculate total income from multiple sources
+            $totalIncome = $this->calculateTotalIncome();
+            $totalExpenses = $this->calculateTotalExpenses();
+            $pendingBills = $this->countIfTable('bills', ['status' => 'pending']);
+            
+            // Get billing accounts statistics (with error handling)
+            $billingStats = ['pending' => 0, 'overdue' => 0, 'total' => 0];
+            try {
+                $billingStats = $this->getBillingAccountsStats();
+            } catch (\Exception $e) {
+                log_message('error', 'FinancialService::getSystemWideStats - getBillingAccountsStats error: ' . $e->getMessage());
+            }
 
-        return [
-            'total_income' => (float)$totalIncome,
-            'total_expenses' => (float)$totalExpenses,
-            'net_balance' => (float)$totalIncome - (float)$totalExpenses,
-            'pending_bills' => $pendingBills,
-            'paid_bills' => $this->countIfTable('bills', ['status' => 'paid']),
-            'monthly_income' => $this->getMonthlyIncome(),
-            'monthly_expenses' => $this->getMonthlyExpenses(),
-            'profit_margin' => (float)$totalIncome - (float)$totalExpenses,
+            // Get monthly stats (with error handling)
+            $monthlyIncome = 0.0;
+            $monthlyExpenses = 0.0;
+            try {
+                $monthlyIncome = $this->getMonthlyIncome();
+            } catch (\Exception $e) {
+                log_message('error', 'FinancialService::getSystemWideStats - getMonthlyIncome error: ' . $e->getMessage());
+            }
+            try {
+                $monthlyExpenses = $this->getMonthlyExpenses();
+            } catch (\Exception $e) {
+                log_message('error', 'FinancialService::getSystemWideStats - getMonthlyExpenses error: ' . $e->getMessage());
+            }
+
+            return [
+                'total_income' => (float)$totalIncome,
+                'total_expenses' => (float)$totalExpenses,
+                'net_balance' => (float)$totalIncome - (float)$totalExpenses,
+                'pending_bills' => $pendingBills,
+                'paid_bills' => $this->countIfTable('bills', ['status' => 'paid']),
+                'monthly_income' => (float)$monthlyIncome,
+                'monthly_expenses' => (float)$monthlyExpenses,
+                'profit_margin' => (float)$totalIncome - (float)$totalExpenses,
+                'pending_billing_accounts' => (int)$billingStats['pending'],
+                'overdue_billing_accounts' => (int)$billingStats['overdue'],
+                'total_billing_accounts' => (int)$billingStats['total'],
+            ];
+        } catch (\Exception $e) {
+            log_message('error', 'FinancialService::getSystemWideStats error: ' . $e->getMessage());
+            log_message('error', 'Stack trace: ' . $e->getTraceAsString());
+            // Return default values on error
+            return [
+                'total_income' => 0,
+                'total_expenses' => 0,
+                'net_balance' => 0,
+                'pending_bills' => 0,
+                'paid_bills' => 0,
+                'monthly_income' => 0,
+                'monthly_expenses' => 0,
+                'profit_margin' => 0,
+                'pending_billing_accounts' => 0,
+                'overdue_billing_accounts' => 0,
+                'total_billing_accounts' => 0,
+            ];
+        }
+    }
+
+    /**
+     * Get billing accounts statistics (pending, overdue, total)
+     */
+    private function getBillingAccountsStats(): array
+    {
+        $stats = [
+            'pending' => 0,
+            'overdue' => 0,
+            'total' => 0,
         ];
+
+        if (!$this->db->tableExists('billing_accounts')) {
+            return $stats;
+        }
+
+        try {
+            // Get all billing accounts that have items
+            $billingIdsWithItems = [];
+            if ($this->db->tableExists('billing_items')) {
+                $billingIdsResult = $this->db->table('billing_items')
+                    ->select('billing_id')
+                    ->distinct()
+                    ->get()
+                    ->getResultArray();
+                $billingIdsWithItems = array_column($billingIdsResult, 'billing_id');
+            }
+
+            // If no items exist, return empty stats
+            if (empty($billingIdsWithItems) && $this->db->tableExists('billing_items')) {
+                return $stats;
+            }
+
+            // Total billing accounts with items
+            if (!empty($billingIdsWithItems)) {
+                $stats['total'] = count($billingIdsWithItems);
+            } else {
+                // If billing_items table doesn't exist, count all billing accounts
+                $stats['total'] = $this->db->table('billing_accounts')->countAllResults();
+            }
+
+            // Pending billing accounts (status = open, pending, or unpaid)
+            // Use case-insensitive comparison by filtering in PHP
+            if ($this->db->fieldExists('status', 'billing_accounts')) {
+                $allAccounts = [];
+                if (!empty($billingIdsWithItems)) {
+                    $allAccounts = $this->db->table('billing_accounts')
+                        ->whereIn('billing_id', $billingIdsWithItems)
+                        ->get()
+                        ->getResultArray();
+                } else {
+                    $allAccounts = $this->db->table('billing_accounts')
+                        ->get()
+                        ->getResultArray();
+                }
+
+                $pendingCount = 0;
+                foreach ($allAccounts as $account) {
+                    $status = strtolower(trim($account['status'] ?? ''));
+                    if (in_array($status, ['open', 'pending', 'unpaid'])) {
+                        $pendingCount++;
+                    }
+                }
+                $stats['pending'] = $pendingCount;
+            } else {
+                // If no status field, count all as pending
+                $stats['pending'] = $stats['total'];
+            }
+
+            // Overdue billing accounts (created more than 30 days ago and still pending)
+            // Use case-insensitive comparison by filtering in PHP
+            if ($this->db->fieldExists('status', 'billing_accounts')) {
+                $hasCreatedAt = $this->db->fieldExists('created_at', 'billing_accounts');
+                
+                if ($hasCreatedAt) {
+                    $thirtyDaysAgo = date('Y-m-d H:i:s', strtotime('-30 days'));
+                    
+                    $allAccounts = [];
+                    if (!empty($billingIdsWithItems)) {
+                        $allAccounts = $this->db->table('billing_accounts')
+                            ->whereIn('billing_id', $billingIdsWithItems)
+                            ->get()
+                            ->getResultArray();
+                    } else {
+                        $allAccounts = $this->db->table('billing_accounts')
+                            ->get()
+                            ->getResultArray();
+                    }
+
+                    $overdueCount = 0;
+                    foreach ($allAccounts as $account) {
+                        $status = strtolower(trim($account['status'] ?? ''));
+                        $accountDate = $account['created_at'] ?? null;
+                        
+                        // Check if account is pending and older than 30 days
+                        if (in_array($status, ['open', 'pending', 'unpaid']) && $accountDate) {
+                            if (strtotime($accountDate) < strtotime($thirtyDaysAgo)) {
+                                $overdueCount++;
+                            }
+                        }
+                    }
+                    $stats['overdue'] = $overdueCount;
+                } else {
+                    // If no created_at field, we can't determine overdue accounts
+                    $stats['overdue'] = 0;
+                }
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'FinancialService::getBillingAccountsStats error: ' . $e->getMessage());
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Calculate total income from multiple sources:
+     * 1. Payments table (completed/processed payments) - primary source
+     * 2. Billing accounts marked as paid (from billing_items) - if payments table is empty or incomplete
+     * 
+     * Note: We prioritize payments table, but also include paid billing accounts
+     * to ensure we capture all income even if payment records are missing
+     */
+    private function calculateTotalIncome(): float
+    {
+        $total = 0.0;
+        $hasPayments = false;
+
+        // Income from payments table (primary source)
+        if ($this->db->tableExists('payments')) {
+            // Check for both 'completed' and 'Processed' status
+            $payments = $this->db->table('payments')
+                ->selectSum('amount')
+                ->groupStart()
+                    ->where('status', 'completed')
+                    ->orWhere('status', 'Processed')
+                    ->orWhere('status', 'processed')
+                ->groupEnd()
+                ->get()
+                ->getRow();
+            
+            if ($payments && isset($payments->amount) && (float)$payments->amount > 0) {
+                $total += (float)$payments->amount;
+                $hasPayments = true;
+            }
+        }
+
+        // Income from paid billing accounts (net total from billing_items)
+        // This ensures we capture income even if payment records are not in payments table
+        if ($this->db->tableExists('billing_accounts') && $this->db->tableExists('billing_items')) {
+            // Get all billing accounts and filter by status (case-insensitive)
+            $allAccounts = $this->db->table('billing_accounts')
+                ->get()
+                ->getResultArray();
+
+            $paidAccounts = [];
+            foreach ($allAccounts as $account) {
+                $status = strtolower(trim($account['status'] ?? ''));
+                if ($status === 'paid') {
+                    $paidAccounts[] = $account;
+                }
+            }
+
+            log_message('debug', 'calculateTotalIncome: Found ' . count($paidAccounts) . ' paid billing accounts out of ' . count($allAccounts) . ' total');
+
+            foreach ($paidAccounts as $account) {
+                $billingId = (int)($account['billing_id'] ?? 0);
+                $status = strtolower(trim($account['status'] ?? ''));
+                log_message('debug', "calculateTotalIncome: Processing billing account {$billingId} with status '{$status}'");
+                
+                if ($billingId > 0) {
+                    $items = $this->db->table('billing_items')
+                        ->where('billing_id', $billingId)
+                        ->get()
+                        ->getResultArray();
+
+                    log_message('debug', "calculateTotalIncome: Billing account {$billingId} has " . count($items) . ' items');
+
+                    if (empty($items)) {
+                        log_message('debug', "calculateTotalIncome: WARNING - Billing account {$billingId} is paid but has no items!");
+                        continue;
+                    }
+
+                    foreach ($items as $item) {
+                        $itemAmount = 0.0;
+                        // Use final_amount if available, otherwise calculate from line_total
+                        if ($this->db->fieldExists('final_amount', 'billing_items') && isset($item['final_amount']) && (float)$item['final_amount'] > 0) {
+                            $itemAmount = (float)$item['final_amount'];
+                        } else {
+                            $lineTotal = (float)($item['line_total'] ?? 0);
+                            if ($lineTotal == 0) {
+                                $unitPrice = (float)($item['unit_price'] ?? 0);
+                                $quantity = (float)($item['quantity'] ?? 1);
+                                $lineTotal = $unitPrice * $quantity;
+                            }
+                            $itemAmount = $lineTotal;
+                        }
+                        $total += $itemAmount;
+                        log_message('debug', "calculateTotalIncome: Added {$itemAmount} from billing item for account {$billingId} (item_id: " . ($item['item_id'] ?? 'N/A') . ")");
+                    }
+                }
+            }
+            
+            log_message('debug', 'calculateTotalIncome: Total from billing accounts: ' . $total);
+        }
+
+        return max(0.0, $total); // Ensure non-negative
+    }
+
+    /**
+     * Calculate total expenses from multiple sources:
+     * 1. Expenses table (dedicated expenses)
+     * 2. Transactions table (type = 'expense')
+     * 3. Financial_transactions table (type = 'Expense') - note: plural
+     */
+    private function calculateTotalExpenses(): float
+    {
+        $total = 0.0;
+
+        // Expenses from dedicated expenses table
+        if ($this->db->tableExists('expenses')) {
+            try {
+                log_message('debug', 'calculateTotalExpenses: Checking expenses table');
+                $result = $this->db->table('expenses')
+                    ->selectSum('amount')
+                    ->get()
+                    ->getRow();
+
+                log_message('debug', 'calculateTotalExpenses: expenses table result: ' . json_encode($result));
+                
+                if ($result && isset($result->amount) && (float)$result->amount > 0) {
+                    $amount = (float)$result->amount;
+                    $total += $amount;
+                    log_message('debug', 'calculateTotalExpenses: From expenses table: ' . $amount);
+                } else {
+                    log_message('debug', 'calculateTotalExpenses: expenses table has no amount or amount is 0/null');
+                }
+            } catch (\Exception $e) {
+                log_message('error', 'FinancialService::calculateTotalExpenses (expenses table) error: ' . $e->getMessage());
+            }
+        } else {
+            log_message('debug', 'calculateTotalExpenses: expenses table does not exist');
+        }
+
+        // Expenses from transactions table (type = 'expense')
+        if ($this->db->tableExists('transactions')) {
+            try {
+                log_message('debug', 'calculateTotalExpenses: Checking transactions table for type=expense');
+                $result = $this->db->table('transactions')
+                    ->selectSum('amount')
+                    ->where('type', 'expense')
+                    ->where('amount IS NOT NULL', null, false)
+                    ->get()
+                    ->getRow();
+
+                log_message('debug', 'calculateTotalExpenses: transactions table result: ' . json_encode($result));
+                
+                if ($result && isset($result->amount) && (float)$result->amount > 0) {
+                    $amount = (float)$result->amount;
+                    $total += $amount;
+                    log_message('debug', 'calculateTotalExpenses: From transactions table: ' . $amount);
+                } else {
+                    log_message('debug', 'calculateTotalExpenses: transactions table has no expense records or amount is 0/null');
+                }
+            } catch (\Exception $e) {
+                log_message('error', 'FinancialService::calculateTotalExpenses (transactions table) error: ' . $e->getMessage());
+            }
+        } else {
+            log_message('debug', 'calculateTotalExpenses: transactions table does not exist');
+        }
+
+        // Expenses from financial_transactions table (type = 'Expense') - note: plural
+        if ($this->db->tableExists('financial_transactions')) {
+            try {
+                log_message('debug', 'calculateTotalExpenses: Checking financial_transactions table for type=Expense');
+                $result = $this->db->table('financial_transactions')
+                    ->selectSum('amount')
+                    ->where('type', 'Expense')
+                    ->get()
+                    ->getRow();
+
+                log_message('debug', 'calculateTotalExpenses: financial_transactions table result: ' . json_encode($result));
+                
+                if ($result && isset($result->amount) && (float)$result->amount > 0) {
+                    $amount = (float)$result->amount;
+                    $total += $amount;
+                    log_message('debug', 'calculateTotalExpenses: From financial_transactions table: ' . $amount);
+                } else {
+                    log_message('debug', 'calculateTotalExpenses: financial_transactions table has no Expense records or amount is 0/null');
+                }
+            } catch (\Exception $e) {
+                log_message('error', 'FinancialService::calculateTotalExpenses (financial_transactions table) error: ' . $e->getMessage());
+            }
+        } else {
+            log_message('debug', 'calculateTotalExpenses: financial_transactions table does not exist');
+        }
+
+        log_message('debug', 'calculateTotalExpenses: Total expenses: ' . $total);
+        return max(0.0, $total); // Ensure non-negative
     }
 
     private function getMonthlyIncome(): float
     {
-        if (!$this->db->tableExists('payments')) {
-            return 0.0;
+        $total = 0.0;
+        $firstDayOfMonth = date('Y-m-01');
+        $lastDayOfMonth = date('Y-m-t 23:59:59');
+
+        // Income from payments table (use created_at if payment_date doesn't exist)
+        if ($this->db->tableExists('payments')) {
+            $hasPaymentDate = $this->db->fieldExists('payment_date', 'payments');
+            $dateColumn = $hasPaymentDate ? 'payment_date' : 'created_at';
+
+            $payments = $this->db->table('payments')
+                ->selectSum('amount')
+                ->where($dateColumn . ' >=', $firstDayOfMonth)
+                ->where($dateColumn . ' <=', $lastDayOfMonth)
+                ->groupStart()
+                    ->where('status', 'completed')
+                    ->orWhere('status', 'Processed')
+                    ->orWhere('status', 'processed')
+                ->groupEnd()
+                ->get()
+                ->getRow();
+
+            if ($payments && isset($payments->amount)) {
+                $total += (float)$payments->amount;
+            }
         }
-        return (float)$this->db->table('payments')
-            ->selectSum('amount')
-            ->where('MONTH(payment_date)', date('m'))
-            ->where('YEAR(payment_date)', date('Y'))
-            ->where('status', 'completed')
-            ->get()->getRow()->amount ?? 0.0;
+
+        // Income from billing accounts marked as paid this month
+        if ($this->db->tableExists('billing_accounts') && $this->db->tableExists('billing_items')) {
+            // Check which date column exists
+            $hasUpdatedAt = $this->db->fieldExists('updated_at', 'billing_accounts');
+            $hasCreatedAt = $this->db->fieldExists('created_at', 'billing_accounts');
+            
+            // Get all accounts and filter by date and status
+            $allAccounts = $this->db->table('billing_accounts')
+                ->get()
+                ->getResultArray();
+            
+            // Filter accounts paid this month (case-insensitive status check)
+            $allAccountsThisMonth = [];
+            foreach ($allAccounts as $account) {
+                $status = strtolower(trim($account['status'] ?? ''));
+                if ($status !== 'paid') {
+                    continue;
+                }
+                
+                // Check date based on available columns
+                $accountDate = null;
+                if ($hasUpdatedAt && !empty($account['updated_at'])) {
+                    $accountDate = $account['updated_at'];
+                } elseif ($hasCreatedAt && !empty($account['created_at'])) {
+                    $accountDate = $account['created_at'];
+                }
+                
+                if ($accountDate && $accountDate >= $firstDayOfMonth && $accountDate <= $lastDayOfMonth) {
+                    $allAccountsThisMonth[] = $account;
+                }
+            }
+
+            $paidAccounts = [];
+            foreach ($allAccountsThisMonth as $account) {
+                $status = strtolower(trim($account['status'] ?? ''));
+                if ($status === 'paid') {
+                    $paidAccounts[] = $account;
+                }
+            }
+
+            foreach ($paidAccounts as $account) {
+                $billingId = (int)($account['billing_id'] ?? 0);
+                if ($billingId > 0) {
+                    $items = $this->db->table('billing_items')
+                        ->where('billing_id', $billingId)
+                        ->get()
+                        ->getResultArray();
+
+                    foreach ($items as $item) {
+                        // Use final_amount if available, otherwise calculate from line_total
+                        if ($this->db->fieldExists('final_amount', 'billing_items') && isset($item['final_amount']) && (float)$item['final_amount'] > 0) {
+                            $total += (float)$item['final_amount'];
+                        } else {
+                            $lineTotal = (float)($item['line_total'] ?? 0);
+                            if ($lineTotal == 0) {
+                                $unitPrice = (float)($item['unit_price'] ?? 0);
+                                $quantity = (float)($item['quantity'] ?? 1);
+                                $lineTotal = $unitPrice * $quantity;
+                            }
+                            $total += $lineTotal;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $total;
     }
 
     private function getMonthlyExpenses(): float
     {
-        if (!$this->db->tableExists('expenses')) {
-            return 0.0;
+        $total = 0.0;
+        $firstDayOfMonth = date('Y-m-01');
+        $lastDayOfMonth = date('Y-m-t 23:59:59');
+
+        // Expenses from dedicated expenses table
+        if ($this->db->tableExists('expenses')) {
+            try {
+                // Check if expense_date column exists, otherwise use created_at
+                $hasExpenseDate = $this->db->fieldExists('expense_date', 'expenses');
+                $hasCreatedAt = $this->db->fieldExists('created_at', 'expenses');
+                
+                if ($hasExpenseDate) {
+                    $result = $this->db->table('expenses')
+                        ->selectSum('amount')
+                        ->where('expense_date >=', $firstDayOfMonth)
+                        ->where('expense_date <=', $lastDayOfMonth)
+                        ->get()
+                        ->getRow();
+                } elseif ($hasCreatedAt) {
+                    $result = $this->db->table('expenses')
+                        ->selectSum('amount')
+                        ->where('created_at >=', $firstDayOfMonth)
+                        ->where('created_at <=', $lastDayOfMonth)
+                        ->get()
+                        ->getRow();
+                } else {
+                    // If no date column, get all expenses (fallback)
+                    $result = $this->db->table('expenses')
+                        ->selectSum('amount')
+                        ->get()
+                        ->getRow();
+                }
+
+                if ($result && isset($result->amount)) {
+                    $total += (float)$result->amount;
+                }
+            } catch (\Exception $e) {
+                log_message('error', 'FinancialService::getMonthlyExpenses (expenses table) error: ' . $e->getMessage());
+            }
         }
-        return (float)$this->db->table('expenses')
-            ->selectSum('amount')
-            ->where('MONTH(expense_date)', date('m'))
-            ->where('YEAR(expense_date)', date('Y'))
-            ->get()->getRow()->amount ?? 0.0;
+
+        // Expenses from transactions table (type = 'expense')
+        if ($this->db->tableExists('transactions')) {
+            try {
+                $result = $this->db->table('transactions')
+                    ->selectSum('amount')
+                    ->where('type', 'expense')
+                    ->where('transaction_date >=', $firstDayOfMonth)
+                    ->where('transaction_date <=', $lastDayOfMonth)
+                    ->where('amount IS NOT NULL', null, false)
+                    ->get()
+                    ->getRow();
+
+                if ($result && isset($result->amount)) {
+                    $total += (float)$result->amount;
+                }
+            } catch (\Exception $e) {
+                log_message('error', 'FinancialService::getMonthlyExpenses (transactions table) error: ' . $e->getMessage());
+            }
+        }
+
+        // Expenses from financial_transactions table (type = 'Expense') - note: plural
+        if ($this->db->tableExists('financial_transactions')) {
+            try {
+                $result = $this->db->table('financial_transactions')
+                    ->selectSum('amount')
+                    ->where('type', 'Expense')
+                    ->where('transaction_date >=', $firstDayOfMonth)
+                    ->where('transaction_date <=', $lastDayOfMonth)
+                    ->get()
+                    ->getRow();
+
+                if ($result && isset($result->amount)) {
+                    $total += (float)$result->amount;
+                }
+            } catch (\Exception $e) {
+                log_message('error', 'FinancialService::getMonthlyExpenses (financial_transactions table) error: ' . $e->getMessage());
+            }
+        }
+
+        return max(0.0, $total);
     }
 
     private function getDoctorStats(int $doctorId): array
@@ -518,12 +1019,15 @@ class FinancialService
         $existingColumns = $this->db->getFieldNames('billing_accounts');
         $insertData = array_intersect_key($insertData, array_flip($existingColumns));
 
+        log_message('debug', 'createBillingAccount: Attempting to insert billing account with data: ' . json_encode($insertData));
+        
         $result = $this->db->table('billing_accounts')->insert($insertData);
         
         if (!$result) {
             $error = $this->db->error();
             $errorMsg = $error['message'] ?? 'Unknown database error';
             log_message('error', 'Failed to create billing account. Error: ' . $errorMsg);
+            log_message('error', 'createBillingAccount: Insert data was: ' . json_encode($insertData));
             log_message('error', 'Insert data: ' . json_encode($insertData));
             log_message('error', 'Existing columns: ' . json_encode($existingColumns));
             throw new \RuntimeException('Failed to create billing account: ' . $errorMsg);
@@ -787,10 +1291,23 @@ class FinancialService
                 'unit_price' => max(0, (float)$unitPrice),
             ], $createdByStaffId);
 
-            return ['success' => true, 'message' => 'Prescription item added to billing'];
+            // Verify the item was inserted
+            $itemCount = $this->db->table('billing_items')
+                ->where('billing_id', $billingId)
+                ->where('prescription_id', $prescriptionId)
+                ->countAllResults();
+            
+            if ($itemCount > 0) {
+                log_message('debug', "FinancialService::addItemFromPrescription - Successfully added prescription {$prescriptionId} to billing account {$billingId}. Item count verified: {$itemCount}");
+                return ['success' => true, 'message' => 'Prescription item added to billing'];
+            } else {
+                log_message('error', "FinancialService::addItemFromPrescription - WARNING: Prescription {$prescriptionId} was not found in billing_items after insertion");
+                return ['success' => false, 'message' => 'Prescription item was not added to billing'];
+            }
         } catch (\Exception $e) {
             log_message('error', 'FinancialService::addItemFromPrescription error: ' . $e->getMessage());
-            return ['success' => false, 'message' => 'Error adding prescription to billing'];
+            log_message('error', 'FinancialService::addItemFromPrescription stack trace: ' . $e->getTraceAsString());
+            return ['success' => false, 'message' => 'Error adding prescription to billing: ' . $e->getMessage()];
         }
     }
 
@@ -1061,7 +1578,21 @@ class FinancialService
         if ($this->db->fieldExists('created_at', 'billing_items')) {
             $itemData['created_at'] = date('Y-m-d H:i:s');
         }
-        $this->db->table('billing_items')->insert($itemData);
+        
+        // Only insert fields that exist in the table
+        $existingColumns = $this->db->getFieldNames('billing_items');
+        $itemData = array_intersect_key($itemData, array_flip($existingColumns));
+        
+        try {
+            $this->db->table('billing_items')->insert($itemData);
+            $insertId = $this->db->insertID();
+            log_message('debug', "FinancialService::insertBillingItem - Successfully inserted billing item with ID {$insertId} for billing_id {$itemData['billing_id']}, patient_id {$itemData['patient_id']}, description: {$itemData['description']}, unit_price: ₱{$itemData['unit_price']}, quantity: {$itemData['quantity']}");
+        } catch (\Exception $e) {
+            log_message('error', 'FinancialService::insertBillingItem - Failed to insert billing item: ' . $e->getMessage());
+            log_message('error', 'FinancialService::insertBillingItem - Item data: ' . json_encode($itemData));
+            log_message('error', 'FinancialService::insertBillingItem - Stack trace: ' . $e->getTraceAsString());
+            throw $e; // Re-throw to let caller handle it
+        }
     }
 
     public function getBillingAccount(int $billingId, string $userRole, ?int $staffId = null): ?array
@@ -1343,6 +1874,12 @@ class FinancialService
 
             $accounts = $builder->orderBy('ba.billing_id', 'DESC')->get()->getResultArray();
             log_message('debug', 'getBillingAccounts: Found ' . count($accounts) . ' billing accounts before filtering by items');
+            
+            // Debug: Log all billing account IDs
+            if (!empty($accounts)) {
+                $accountIds = array_column($accounts, 'billing_id');
+                log_message('debug', 'getBillingAccounts: Billing account IDs found: ' . implode(', ', $accountIds));
+            }
 
             // Filter to only show accounts that have billing items
             if ($this->db->tableExists('billing_items')) {
@@ -1352,10 +1889,14 @@ class FinancialService
                         ->where('billing_id', $account['billing_id'])
                         ->countAllResults();
                     
-                    log_message('debug', "getBillingAccounts: Billing account {$account['billing_id']} has {$itemCount} items");
+                    log_message('debug', "getBillingAccounts: Billing account {$account['billing_id']} (patient_id: {$account['patient_id']}, status: " . ($account['status'] ?? 'N/A') . ") has {$itemCount} items");
                     
                     if ($itemCount > 0) {
                         $accountsWithItems[] = $account;
+                    } else {
+                        // Debug: Check if there are any items at all
+                        $totalItems = $this->db->table('billing_items')->countAllResults();
+                        log_message('debug', "getBillingAccounts: Account {$account['billing_id']} has no items. Total items in billing_items table: {$totalItems}");
                     }
                 }
                 $accounts = $accountsWithItems;

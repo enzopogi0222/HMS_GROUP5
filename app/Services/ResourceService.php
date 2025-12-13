@@ -32,6 +32,32 @@ class ResourceService
         }
     }
 
+    public function getResourceById($resourceId, $role, $staffId = null)
+    {
+        try {
+            if (!$this->permissionManager->hasPermission($role, 'resources', 'view')) {
+                return null;
+            }
+
+            $resource = $this->resourceModel->find($resourceId);
+            
+            if (!$resource) {
+                return null;
+            }
+
+            // Apply role-based filtering
+            $allowedCategories = $this->getCategories($role);
+            if (!in_array($resource['category'] ?? '', $allowedCategories)) {
+                return null; // Resource not accessible to this role
+            }
+
+            return $resource;
+        } catch (\Exception $e) {
+            log_message('error', 'ResourceService::getResourceById - ' . $e->getMessage());
+            return null;
+        }
+    }
+
     public function getResourceStats($role, $staffId = null)
     {
         try {
@@ -71,6 +97,8 @@ class ResourceService
                 'batch_number' => trim($data['batch_number'] ?? ''),
                 'expiry_date' => !empty($data['expiry_date']) ? $data['expiry_date'] : null,
                 'serial_number' => trim($data['serial_number'] ?? ''),
+                'price' => !empty($data['purchase_cost']) ? (float)$data['purchase_cost'] : (!empty($data['price']) ? (float)$data['price'] : null),
+                'selling_price' => !empty($data['selling_price']) ? (float)$data['selling_price'] : null,
                 'remarks' => trim($data['remarks'] ?? '')
             ];
 
@@ -80,7 +108,7 @@ class ResourceService
                 return ['success' => false, 'message' => 'You do not have permission to create resources in this category. Allowed categories: ' . implode(', ', $allowedCategories)];
             }
 
-            // Validate medications require batch number and expiry date
+            // Validate medications require batch number, expiry date, and selling price
             if ($resourceData['category'] === 'Medications') {
                 if (empty($resourceData['batch_number'])) {
                     return ['success' => false, 'message' => 'Batch number is required for medications'];
@@ -90,6 +118,9 @@ class ResourceService
                 }
                 if ($resourceData['expiry_date'] < date('Y-m-d')) {
                     return ['success' => false, 'message' => 'Cannot add expired medication. Expiry date is in the past'];
+                }
+                if (empty($resourceData['selling_price']) || (float)$resourceData['selling_price'] < 0) {
+                    return ['success' => false, 'message' => 'Selling price is required and must be 0 or greater for medications'];
                 }
             }
 
@@ -107,8 +138,21 @@ class ResourceService
 
             $resourceId = $this->resourceModel->getInsertID();
 
-            // Create stock_in transaction record
-            $this->createStockTransaction($resourceId, 'stock_in', $quantity, $resourceData['equipment_name'], $staffId);
+            // Get purchase cost if provided (for expense transaction)
+            // Priority: 1) purchase_cost from form, 2) price from resources table, 3) null
+            $purchaseCost = null;
+            if (isset($data['purchase_cost']) && !empty($data['purchase_cost'])) {
+                // Use purchase_cost from form (unit cost)
+                $unitPurchaseCost = (float)$data['purchase_cost'];
+                $purchaseCost = $unitPurchaseCost * $quantity; // Total cost for expense transaction
+            } elseif (isset($resourceData['price']) && !empty($resourceData['price'])) {
+                // Fallback: use price column from resources table as purchase cost
+                $unitPurchaseCost = (float)$resourceData['price'];
+                $purchaseCost = $unitPurchaseCost * $quantity; // Total cost for expense transaction
+            }
+
+            // Create stock_in transaction record (and expense if purchase cost provided)
+            $this->createStockTransaction($resourceId, 'stock_in', $quantity, $resourceData['equipment_name'], $staffId, $purchaseCost);
 
             // Complete transaction
             $this->db->transComplete();
@@ -414,8 +458,14 @@ class ResourceService
 
     /**
      * Create a stock transaction record
+     * @param int $resourceId Resource ID
+     * @param string $type Transaction type (stock_in, stock_out)
+     * @param int $quantity Quantity of items
+     * @param string $resourceName Name of the resource
+     * @param int $createdBy User ID who created the transaction
+     * @param float|null $purchaseCost Optional purchase cost - if provided, will create an expense transaction
      */
-    private function createStockTransaction($resourceId, $type, $quantity, $resourceName, $createdBy)
+    private function createStockTransaction($resourceId, $type, $quantity, $resourceName, $createdBy, $purchaseCost = null)
     {
         try {
             // Check if transactions table exists and supports stock transactions
@@ -446,9 +496,62 @@ class ResourceService
             $transactionModel->insert($transactionData);
             $transactionModel->skipValidation(false);
 
+            // If purchase cost is provided, create an expense transaction
+            if ($purchaseCost !== null && $purchaseCost > 0 && $type === 'stock_in') {
+                $this->createStockPurchaseExpense($resourceId, $quantity, $resourceName, $purchaseCost, $createdBy);
+            }
+
         } catch (\Exception $e) {
             // Log error but don't fail the resource operation
             log_message('error', 'ResourceService::createStockTransaction - ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Create an expense transaction for stock purchase
+     * @param int $resourceId Resource ID
+     * @param int $quantity Quantity purchased
+     * @param string $resourceName Name of the resource
+     * @param float $purchaseCost Total purchase cost (unit cost * quantity)
+     * @param int $createdBy User ID who created the transaction
+     */
+    private function createStockPurchaseExpense($resourceId, $quantity, $resourceName, $purchaseCost, $createdBy)
+    {
+        try {
+            // Check if transactions table exists
+            if (!$this->db->tableExists('transactions')) {
+                return;
+            }
+
+            $transactionModel = new TransactionModel();
+            $transactionId = $transactionModel->generateTransactionId();
+
+            // Calculate unit cost from total cost
+            $unitCost = $quantity > 0 ? $purchaseCost / $quantity : $purchaseCost;
+
+            $expenseData = [
+                'transaction_id' => $transactionId,
+                'type' => 'expense',
+                'category' => 'Stock Purchase',
+                'amount' => (float)$purchaseCost, // Total amount
+                'quantity' => $quantity,
+                'description' => 'Purchase of ' . $quantity . ' unit(s) of ' . $resourceName . ' @ ₱' . number_format($unitCost, 2) . ' per unit',
+                'resource_id' => $resourceId,
+                'payment_status' => 'completed',
+                'transaction_date' => date('Y-m-d'),
+                'transaction_time' => date('H:i:s'),
+                'created_by' => $createdBy,
+                'notes' => 'Purchase cost: ₱' . number_format($unitCost, 2) . ' per unit. Total: ₱' . number_format($purchaseCost, 2)
+            ];
+
+            $transactionModel->skipValidation(false);
+            $transactionModel->insert($expenseData);
+
+            log_message('debug', "ResourceService::createStockPurchaseExpense - Created expense transaction for resource {$resourceId}: Unit cost ₱{$unitCost}, Total ₱{$purchaseCost}");
+
+        } catch (\Exception $e) {
+            // Log error but don't fail the stock transaction
+            log_message('error', 'ResourceService::createStockPurchaseExpense - ' . $e->getMessage());
         }
     }
 

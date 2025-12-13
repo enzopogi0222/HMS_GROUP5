@@ -58,9 +58,18 @@
                     </div>
                     <div class="form-row" id="medicationPriceFields" style="display: none;">
                         <div class="form-group">
-                            <label for="res_price"><i class="fas fa-dollar-sign"></i> Price <small style="color: #666;">(Required for medications - used for billing)</small></label>
-                            <input id="res_price" name="price" type="number" step="0.01" min="0" class="form-control" autocomplete="off" placeholder="0.00">
-                            <small id="err_res_price" style="color:#dc2626"></small>
+                            <label for="res_selling_price"><i class="fas fa-tag"></i> Selling Price (₱) <small style="color: #666;">(Required for medications - used for prescriptions/billing)</small></label>
+                            <input id="res_selling_price" name="selling_price" type="number" step="0.01" min="0" class="form-control" autocomplete="off" placeholder="0.00" required>
+                            <small id="err_res_selling_price" style="color:#dc2626"></small>
+                            <small style="color: #666; font-size: 0.85em;">Price charged to patients for this medication.</small>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="res_purchase_cost"><i class="fas fa-shopping-cart"></i> Purchase Cost (₱) <small style="color: #666;">(Optional - creates expense transaction)</small></label>
+                            <input id="res_purchase_cost" name="purchase_cost" type="number" step="0.01" min="0" class="form-control" autocomplete="off" placeholder="0.00">
+                            <small id="err_res_purchase_cost" style="color:#dc2626"></small>
+                            <small style="color: #666; font-size: 0.85em;">Enter the total cost paid to purchase this stock. This will create an expense transaction.</small>
                         </div>
                     </div>
                     <div class="form-row">

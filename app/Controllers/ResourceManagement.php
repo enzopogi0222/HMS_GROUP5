@@ -69,6 +69,33 @@ class ResourceManagement extends BaseController
         ]);
     }
 
+    public function getResource($resourceId)
+    {
+        if (!session()->get('isLoggedIn')) {
+            return $this->jsonResponse(['success' => false, 'message' => 'Not authenticated'], 401);
+        }
+
+        if (!$this->permissionManager->hasPermission($this->userRole, 'resources', 'view')) {
+            return $this->jsonResponse(['success' => false, 'message' => 'Access denied'], 403);
+        }
+
+        try {
+            $resource = $this->resourceService->getResourceById((int)$resourceId, $this->userRole, $this->staffId);
+            
+            if (!$resource) {
+                return $this->jsonResponse(['success' => false, 'message' => 'Resource not found'], 404);
+            }
+
+            return $this->jsonResponse([
+                'success' => true,
+                'resource' => $resource
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', 'ResourceManagement::getResource error: ' . $e->getMessage());
+            return $this->jsonResponse(['success' => false, 'message' => 'Failed to fetch resource'], 500);
+        }
+    }
+
     public function create()
     {
         if (!session()->get('isLoggedIn')) {

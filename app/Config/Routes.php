@@ -102,6 +102,7 @@ $routes->post('admin/resource-management/delete', 'ResourceManagement::delete', 
 // Pharmacist routes - medications and pharmacy resources only
 $routes->get('pharmacist/resource-management', 'ResourceManagement::index', ['filter' => 'roleauth:pharmacist']);
 $routes->get('pharmacist/resource-management/api', 'ResourceManagement::getResourcesAPI', ['filter' => 'roleauth:pharmacist']);
+$routes->get('pharmacist/resource-management/(:num)', 'ResourceManagement::getResource/$1', ['filter' => 'roleauth:pharmacist']);
 $routes->post('pharmacist/resource-management/create', 'ResourceManagement::create', ['filter' => 'roleauth:pharmacist']);
 $routes->post('pharmacist/resource-management/update', 'ResourceManagement::update', ['filter' => 'roleauth:pharmacist']);
 $routes->post('pharmacist/resource-management/delete', 'ResourceManagement::delete', ['filter' => 'roleauth:pharmacist']);
@@ -109,6 +110,7 @@ $routes->post('pharmacist/resource-management/delete', 'ResourceManagement::dele
 // Laboratorist routes - lab equipment and supplies only
 $routes->get('laboratorist/resource-management', 'ResourceManagement::index', ['filter' => 'roleauth:laboratorist']);
 $routes->get('laboratorist/resource-management/api', 'ResourceManagement::getResourcesAPI', ['filter' => 'roleauth:laboratorist']);
+$routes->get('laboratorist/resource-management/(:num)', 'ResourceManagement::getResource/$1', ['filter' => 'roleauth:laboratorist']);
 $routes->post('laboratorist/resource-management/create', 'ResourceManagement::create', ['filter' => 'roleauth:laboratorist']);
 $routes->post('laboratorist/resource-management/update', 'ResourceManagement::update', ['filter' => 'roleauth:laboratorist']);
 $routes->post('laboratorist/resource-management/delete', 'ResourceManagement::delete', ['filter' => 'roleauth:laboratorist']);

@@ -65,13 +65,6 @@ class PrescriptionManagement extends BaseController
             $unitPrice = isset($payload['unit_price']) ? (float)$payload['unit_price'] : 0.0;
             $quantity  = isset($payload['quantity']) ? (int)$payload['quantity'] : null;
 
-            if ($unitPrice <= 0) {
-                return $this->response->setStatusCode(422)->setJSON([
-                    'success' => false,
-                    'message' => 'Unit price must be greater than zero.'
-                ]);
-            }
-
             // Load prescription to get patient_id and validate existence
             $prescription = $this->prescriptionService->getPrescription($id);
             if (!$prescription) {
@@ -108,6 +101,82 @@ class PrescriptionManagement extends BaseController
             }
 
             $billingId = (int)$account['billing_id'];
+
+            // If unit_price not provided, get it from resources using selling_price
+            if ($unitPrice <= 0) {
+                // Try to get selling_price from prescription items
+                $db = \Config\Database::connect();
+                if ($db->tableExists('prescription_items')) {
+                    $items = $db->table('prescription_items')
+                        ->where('prescription_id', $id)
+                        ->get()
+                        ->getResultArray();
+                    
+                    if (!empty($items)) {
+                        $firstItem = $items[0];
+                        $resourceId = $firstItem['medication_resource_id'] ?? $firstItem['resource_id'] ?? null;
+                        $medicationName = $firstItem['medication_name'] ?? '';
+                        
+                        // Get selling_price from resources - PRIORITIZE selling_price over price
+                        if ($resourceId && $db->tableExists('resources')) {
+                            $resource = $db->table('resources')
+                                ->select('selling_price, price')
+                                ->where('id', $resourceId)
+                                ->where('category', 'Medications')
+                                ->get()
+                                ->getRowArray();
+                            
+                            if ($resource) {
+                                // Prioritize selling_price - only use price as last resort
+                                if (!empty($resource['selling_price']) && (float)$resource['selling_price'] > 0) {
+                                    $unitPrice = (float)$resource['selling_price'];
+                                    log_message('debug', "PrescriptionManagement::addToBilling - Using selling_price: ₱{$unitPrice} for resource ID {$resourceId}");
+                                } else {
+                                    // Only use price if selling_price is not set
+                                    $unitPrice = (float)($resource['price'] ?? 0);
+                                    if ($unitPrice > 0) {
+                                        log_message('warning', "PrescriptionManagement::addToBilling - Resource ID {$resourceId} has no selling_price, using price: ₱{$unitPrice}");
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // If still no price, try by medication name
+                        if ($unitPrice <= 0 && !empty($medicationName) && $db->tableExists('resources')) {
+                            $resource = $db->table('resources')
+                                ->select('selling_price, price')
+                                ->where('category', 'Medications')
+                                ->groupStart()
+                                    ->like('equipment_name', $medicationName)
+                                    ->orLike('medication_name', $medicationName)
+                                ->groupEnd()
+                                ->get()
+                                ->getRowArray();
+                            
+                            if ($resource) {
+                                // Prioritize selling_price - only use price as last resort
+                                if (!empty($resource['selling_price']) && (float)$resource['selling_price'] > 0) {
+                                    $unitPrice = (float)$resource['selling_price'];
+                                    log_message('debug', "PrescriptionManagement::addToBilling - Using selling_price: ₱{$unitPrice} for medication '{$medicationName}'");
+                                } else {
+                                    // Only use price if selling_price is not set
+                                    $unitPrice = (float)($resource['price'] ?? 0);
+                                    if ($unitPrice > 0) {
+                                        log_message('warning', "PrescriptionManagement::addToBilling - Medication '{$medicationName}' has no selling_price, using price: ₱{$unitPrice}");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ($unitPrice <= 0) {
+                return $this->response->setStatusCode(422)->setJSON([
+                    'success' => false,
+                    'message' => 'Unit price must be greater than zero. Please provide unit price or ensure medication has a selling price set.'
+                ]);
+            }
 
             // Add item from prescription
             $result = $this->financialService->addItemFromPrescription($billingId, (int)$id, $unitPrice, $quantity, (int)$this->staffId);

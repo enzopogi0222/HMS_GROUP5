@@ -22,6 +22,7 @@ class ResourceModel extends Model
         'expiry_date',
         'serial_number',
         'price',
+        'selling_price',
         'remarks',
         'assigned_to_staff_id',
         'created_at',
@@ -42,6 +43,7 @@ class ResourceModel extends Model
         'expiry_date' => 'permit_empty|valid_date[Y-m-d]',
         'serial_number' => 'permit_empty|max_length[100]',
         'price' => 'permit_empty|decimal|greater_than_equal_to[0]',
+        'selling_price' => 'permit_empty|decimal|greater_than_equal_to[0]',
         'remarks' => 'permit_empty|max_length[1000]'
     ];
 

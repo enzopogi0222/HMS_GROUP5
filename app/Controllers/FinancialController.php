@@ -63,8 +63,31 @@ class FinancialController extends BaseController
                 $permissions[] = 'create_expense';
             }
 
-            // Debug: log how many billing accounts were loaded
+            // Debug: log stats and accounts
             log_message('debug', 'FinancialController index - accounts count: ' . count($accounts));
+            log_message('debug', 'FinancialController index - stats: ' . json_encode($stats));
+            
+            // Additional debugging: Check database directly
+            $db = \Config\Database::connect();
+            if ($db->tableExists('billing_accounts')) {
+                $totalAccounts = $db->table('billing_accounts')->countAllResults();
+                log_message('debug', 'FinancialController index - Total billing_accounts in database: ' . $totalAccounts);
+            }
+            if ($db->tableExists('billing_items')) {
+                $totalItems = $db->table('billing_items')->countAllResults();
+                log_message('debug', 'FinancialController index - Total billing_items in database: ' . $totalItems);
+                
+                // Get billing IDs that have items
+                if ($totalItems > 0) {
+                    $billingIdsWithItems = $db->table('billing_items')
+                        ->select('billing_id')
+                        ->distinct()
+                        ->get()
+                        ->getResultArray();
+                    $billingIds = array_column($billingIdsWithItems, 'billing_id');
+                    log_message('debug', 'FinancialController index - Billing IDs with items: ' . implode(', ', $billingIds));
+                }
+            }
 
             $data = [
                 'title'       => 'Financial Management',
@@ -78,6 +101,7 @@ class FinancialController extends BaseController
             return view('unified/financial-management', $data);
         } catch (\Exception $e) {
             log_message('error', 'FinancialManagement::index error: ' . $e->getMessage());
+            log_message('error', 'Stack trace: ' . $e->getTraceAsString());
             echo "Error: " . $e->getMessage();
             echo "<br><br>Financial management system is being set up. Please try again in a moment.";
         }
@@ -483,6 +507,31 @@ class FinancialController extends BaseController
             return $this->response->setStatusCode(500)->setJSON([
                 'success' => false,
                 'message' => 'Failed to fetch transactions',
+            ]);
+        }
+    }
+
+    /**
+     * API: Get financial statistics
+     */
+    public function getFinancialStatsAPI()
+    {
+        $session = session();
+        $userRole = $session->get('role') ?? 'accountant';
+        $staffId = (int)($session->get('staff_id') ?? 0);
+
+        try {
+            $stats = $this->financialService->getFinancialStats($userRole, $staffId);
+            
+            return $this->response->setJSON([
+                'success' => true,
+                'data' => $stats,
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', 'FinancialController::getFinancialStatsAPI - ' . $e->getMessage());
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => 'Failed to fetch financial statistics',
             ]);
         }
     }

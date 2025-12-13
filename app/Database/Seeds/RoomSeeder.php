@@ -365,36 +365,43 @@ class RoomSeeder extends Seeder
                 'type_name' => 'Ward',
                 'description' => 'General ward with multiple beds, typically 4-6 beds per room.',
                 'accommodation_type' => 'Ward',
+                'base_daily_rate' => 1500.00,
             ],
             [
                 'type_name' => 'Semi-Private',
                 'description' => 'Room with 2 beds, offering more privacy than a ward.',
                 'accommodation_type' => 'Semi-Private',
+                'base_daily_rate' => 2500.00,
             ],
             [
                 'type_name' => 'Private',
                 'description' => 'Single occupancy room with private facilities.',
                 'accommodation_type' => 'Private',
+                'base_daily_rate' => 3500.00,
             ],
             [
                 'type_name' => 'ICU',
                 'description' => 'Intensive Care Unit room with specialized monitoring equipment.',
                 'accommodation_type' => 'ICU',
+                'base_daily_rate' => 5000.00,
             ],
             [
                 'type_name' => 'Isolation',
                 'description' => 'Isolation room for patients with infectious diseases.',
                 'accommodation_type' => 'Isolation',
+                'base_daily_rate' => 3000.00,
             ],
             [
                 'type_name' => 'Emergency',
                 'description' => 'Emergency department treatment room.',
                 'accommodation_type' => 'Emergency',
+                'base_daily_rate' => 2000.00,
             ],
             [
                 'type_name' => 'Consultation',
                 'description' => 'Outpatient consultation room.',
                 'accommodation_type' => 'Outpatient',
+                'base_daily_rate' => 0.00, // Consultation rooms typically don't charge daily rates
             ],
         ];
 
@@ -412,9 +419,41 @@ class RoomSeeder extends Seeder
         });
 
         if (!empty($newTypes)) {
-            $inserted = $db->table('room_type')->insertBatch(array_values($newTypes));
+            // Check if base_daily_rate field exists before including it
+            $hasDailyRateField = $db->fieldExists('base_daily_rate', 'room_type');
+            
+            // Filter out base_daily_rate if field doesn't exist
+            $typesToInsert = array_map(function($type) use ($hasDailyRateField) {
+                if (!$hasDailyRateField && isset($type['base_daily_rate'])) {
+                    unset($type['base_daily_rate']);
+                }
+                return $type;
+            }, array_values($newTypes));
+            
+            $inserted = $db->table('room_type')->insertBatch($typesToInsert);
             if ($inserted) {
                 echo "Successfully inserted " . count($newTypes) . " room type(s).\n";
+            }
+        } else {
+            // Update existing room types with daily rates if field exists
+            $hasDailyRateField = $db->fieldExists('base_daily_rate', 'room_type');
+            if ($hasDailyRateField) {
+                $rateMap = [
+                    'Ward' => 1500.00,
+                    'Semi-Private' => 2500.00,
+                    'Private' => 3500.00,
+                    'ICU' => 5000.00,
+                    'Isolation' => 3000.00,
+                    'Emergency' => 2000.00,
+                    'Consultation' => 0.00,
+                ];
+                
+                foreach ($rateMap as $typeName => $rate) {
+                    $db->table('room_type')
+                        ->where('type_name', $typeName)
+                        ->update(['base_daily_rate' => $rate]);
+                }
+                echo "Updated daily rates for existing room types.\n";
             }
         }
     }

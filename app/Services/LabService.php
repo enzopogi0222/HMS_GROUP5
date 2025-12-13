@@ -441,10 +441,10 @@ return [];
                 return ['success' => false, 'message' => 'Lab order not found'];
             }
 
-            // Permission: Only laboratorist can process labs (update status)
+            // Permission: Admin and laboratorist can process labs (update status)
             // Doctors cannot update status - they can only create orders
-            if (!in_array($userRole, ['laboratorist'], true)) {
-                return ['success' => false, 'message' => 'Permission denied. Only lab staff can process lab orders.'];
+            if (!in_array($userRole, ['admin', 'laboratorist'], true)) {
+                return ['success' => false, 'message' => 'Permission denied. Only admin and lab staff can process lab orders.'];
             }
 
             // Check payment requirement for outpatients when changing to 'in_progress'

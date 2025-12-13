@@ -443,19 +443,31 @@ class FinancialService
     public function getOrCreateBillingAccountForPatient(int $patientId, ?int $admissionId = null, int $createdByStaffId = null): ?array
     {
         if (!$this->db->tableExists('billing_accounts')) {
+            log_message('warning', 'Billing accounts table does not exist');
             return null;
         }
 
         try {
             $account = $this->findExistingBillingAccount($patientId, $admissionId);
-            if ($account) {
+            if ($account && !empty($account['billing_id'])) {
+                log_message('debug', "getOrCreateBillingAccountForPatient: Using existing billing account {$account['billing_id']}");
                 return $account;
             }
 
+            log_message('debug', "getOrCreateBillingAccountForPatient: Creating new billing account for patient {$patientId}, admission_id=" . ($admissionId ?? 'NULL'));
             $this->createBillingAccount($patientId, $admissionId, $createdByStaffId);
-            return $this->findExistingBillingAccount($patientId, $admissionId);
+            
+            $account = $this->findExistingBillingAccount($patientId, $admissionId);
+            if ($account && !empty($account['billing_id'])) {
+                log_message('debug', "getOrCreateBillingAccountForPatient: Successfully created billing account {$account['billing_id']}");
+                return $account;
+            }
+            
+            log_message('error', "getOrCreateBillingAccountForPatient: Failed to retrieve billing account after creation for patient {$patientId}");
+            return null;
         } catch (\Exception $e) {
             log_message('error', 'FinancialService::getOrCreateBillingAccountForPatient error: ' . $e->getMessage());
+            log_message('error', 'Stack trace: ' . $e->getTraceAsString());
             return null;
         }
     }
@@ -467,7 +479,7 @@ class FinancialService
             $builder->where('admission_id', $admissionId);
         } else {
             // For outpatients, admission_id should be NULL
-            $builder->where('admission_id IS NULL');
+            $builder->where('admission_id IS NULL', null, false);
         }
         if ($this->db->fieldExists('status', 'billing_accounts')) {
             $builder->where('status', 'open');
@@ -502,6 +514,10 @@ class FinancialService
             $insertData['created_at'] = date('Y-m-d H:i:s');
         }
 
+        // Only insert fields that exist in the table
+        $existingColumns = $this->db->getFieldNames('billing_accounts');
+        $insertData = array_intersect_key($insertData, array_flip($existingColumns));
+
         $result = $this->db->table('billing_accounts')->insert($insertData);
         
         if (!$result) {
@@ -509,8 +525,19 @@ class FinancialService
             $errorMsg = $error['message'] ?? 'Unknown database error';
             log_message('error', 'Failed to create billing account. Error: ' . $errorMsg);
             log_message('error', 'Insert data: ' . json_encode($insertData));
+            log_message('error', 'Existing columns: ' . json_encode($existingColumns));
             throw new \RuntimeException('Failed to create billing account: ' . $errorMsg);
         }
+        
+        $billingId = (int) $this->db->insertID();
+        if ($billingId <= 0) {
+            $error = $this->db->error();
+            $errorMsg = $error['message'] ?? 'No billing ID returned after insert';
+            log_message('error', 'Failed to create billing account - no ID returned. Error: ' . $errorMsg);
+            throw new \RuntimeException('Failed to create billing account: ' . $errorMsg);
+        }
+        
+        log_message('debug', "createBillingAccount: Created billing account {$billingId} for patient {$patientId}, admission_id=" . ($admissionId ?? 'NULL'));
     }
 
     /**

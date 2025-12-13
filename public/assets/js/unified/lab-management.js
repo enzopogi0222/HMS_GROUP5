@@ -84,7 +84,7 @@
 
             const canAct = ['admin', 'doctor', 'laboratorist', 'it_staff'].includes(userRole);
             const canEdit = ['admin', 'doctor', 'it_staff'].includes(userRole);
-            const canComplete = ['laboratorist'].includes(userRole); // Only lab staff can complete lab orders
+            const canComplete = ['admin', 'laboratorist'].includes(userRole); // Admin and lab staff can complete lab orders
             const canDelete = userRole === 'admin';
             const labOrderId = order.lab_order_id;
             const currentStatus = order.status || 'ordered';
@@ -102,12 +102,12 @@
                 actions.push(`<button class="btn btn-warning" style="padding:0.3rem 0.6rem;font-size:0.75rem;" onclick="LabUI.editOrder(${labOrderId})" title="Edit Lab Order"><i class="fas fa-edit"></i> Edit</button>`);
             }
             
-            // Start Processing button - for laboratorist when status is 'ordered'
+            // Start Processing button - for admin and laboratorist when status is 'ordered'
             if (canComplete && statusLower === 'ordered') {
                 actions.push(`<button class="btn btn-info" style="padding:0.3rem 0.6rem;font-size:0.75rem;" onclick="LabUI.updateStatus(${labOrderId}, 'in_progress')" title="Start Processing"><i class="fas fa-play"></i> Start</button>`);
             }
             
-            // Complete button - only for laboratorist (lab staff) when status is 'in_progress'
+            // Complete button - for admin and laboratorist when status is 'in_progress'
             if (canComplete && statusLower === 'in_progress') {
                 actions.push(`<button class="btn btn-success" style="padding:0.3rem 0.6rem;font-size:0.75rem;" onclick="LabUI.updateStatus(${labOrderId}, 'completed')" title="Mark as Completed"><i class="fas fa-check"></i> Complete</button>`);
             }

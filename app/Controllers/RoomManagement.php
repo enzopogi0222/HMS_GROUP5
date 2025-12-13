@@ -446,24 +446,87 @@ class RoomManagement extends BaseController
                         'admission_datetime' => $assignedAt,
                         'admission_type' => 'Scheduled',
                         'admitting_diagnosis' => 'Room assignment',
-                        'status' => 'active',
                     ];
+                    
+                    // Only include fields that exist in the table
+                    $admissionColumns = $this->db->getFieldNames('inpatient_admissions');
+                    $admissionData = array_intersect_key($admissionData, array_flip($admissionColumns));
+                    
                     $this->db->table('inpatient_admissions')->insert($admissionData);
                     $admissionId = (int) $this->db->insertID();
                 }
             }
 
             // Calculate daily rate if not provided
-            if (!$dailyRate || $dailyRate === 'Auto-calculated') {
+            if (!$dailyRate || $dailyRate === 'Auto-calculated' || $dailyRate === '0' || (float)$dailyRate <= 0) {
+                $dailyRate = null;
+                
                 if ($this->db->tableExists('room_type') && $roomType) {
+                    // Try to find by room_type_id first
                     $roomTypeData = $this->db->table('room_type')
-                        ->where('room_type_id', $roomType)
+                        ->where('room_type_id', (int)$roomType)
                         ->get()
                         ->getRowArray();
-                    $dailyRate = $roomTypeData['base_daily_rate'] ?? 0;
-                } else {
-                    $dailyRate = 0;
+                    
+                    // If not found by ID, try to get from the room's room_type_id
+                    if (!$roomTypeData && isset($room['room_type_id'])) {
+                        $roomTypeData = $this->db->table('room_type')
+                            ->where('room_type_id', (int)$room['room_type_id'])
+                            ->get()
+                            ->getRowArray();
+                    }
+                    
+                    if ($roomTypeData) {
+                        // Check if base_daily_rate field exists
+                        if ($this->db->fieldExists('base_daily_rate', 'room_type')) {
+                            $dailyRate = (float)($roomTypeData['base_daily_rate'] ?? 0);
+                        }
+                    }
                 }
+                
+                // If still no rate, try to get from room's room_type_id directly
+                if ((!$dailyRate || $dailyRate <= 0) && isset($room['room_type_id'])) {
+                    $roomTypeData = $this->db->table('room_type')
+                        ->where('room_type_id', (int)$room['room_type_id'])
+                        ->get()
+                        ->getRowArray();
+                    
+                    if ($roomTypeData && $this->db->fieldExists('base_daily_rate', 'room_type')) {
+                        $dailyRate = (float)($roomTypeData['base_daily_rate'] ?? 0);
+                    }
+                }
+                
+                // Final validation - if still no rate, try default rates based on room type name
+                if (!$dailyRate || $dailyRate <= 0) {
+                    $roomTypeName = $this->getRoomTypeName($roomType) ?? $room['room_type'] ?? '';
+                    $defaultRates = [
+                        'ward' => 1500.00,
+                        'semi-private' => 2500.00,
+                        'private' => 3500.00,
+                        'icu' => 5000.00,
+                        'isolation' => 3000.00,
+                        'emergency' => 2000.00,
+                        'consultation' => 0.00,
+                    ];
+                    
+                    $roomTypeLower = strtolower($roomTypeName);
+                    foreach ($defaultRates as $type => $rate) {
+                        if (strpos($roomTypeLower, $type) !== false) {
+                            $dailyRate = $rate;
+                            break;
+                        }
+                    }
+                }
+                
+                // Final validation - if still no rate, return error
+                if (!$dailyRate || $dailyRate <= 0) {
+                    return $this->jsonResponse($this->appendCsrfHash([
+                        'success' => false,
+                        'message' => 'No valid room rate available. Please set daily rate for this room type in room management settings.'
+                    ]), 400);
+                }
+            } else {
+                $dailyRate = (float)$dailyRate;
             }
 
             // Create room assignment

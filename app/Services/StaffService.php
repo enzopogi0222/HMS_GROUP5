@@ -500,12 +500,57 @@ class StaffService
 
         $linkTable = $category === 'medical' ? 'medical_department' : 'non_medical_department';
         if (!$this->db->tableExists($linkTable)) {
+            // If category table doesn't exist, try to auto-link the department
+            // This handles cases where departments exist but aren't linked yet
+            $deptRow = $this->db->table('department')->where('department_id', $deptId)->get()->getRowArray();
+            if ($deptRow) {
+                // Try to infer category from department type
+                $isMedical = false;
+                if ($this->db->fieldExists('type', 'department')) {
+                    $deptType = $deptRow['type'] ?? '';
+                    $isMedical = in_array($deptType, ['Clinical', 'Emergency', 'Diagnostic'], true);
+                }
+                
+                // If category matches inferred type, auto-link it
+                if (($category === 'medical' && $isMedical) || ($category === 'non_medical' && !$isMedical)) {
+                    try {
+                        $this->db->table($linkTable)->insert(['department_id' => $deptId]);
+                    } catch (\Throwable $e) {
+                        // Ignore if already exists or other error
+                    }
+                    return ['valid' => true, 'errors' => []];
+                }
+            }
             return ['valid' => false, 'errors' => ['department' => 'Department category table is missing. Please run migrations.']];
         }
 
         $exists = $this->db->table($linkTable)->where('department_id', $deptId)->get()->getRowArray();
         if (!$exists) {
-            return ['valid' => false, 'errors' => ['department' => 'Selected department does not belong to the chosen category.']];
+            // Try to auto-link if department exists in main table
+            $deptRow = $this->db->table('department')->where('department_id', $deptId)->get()->getRowArray();
+            if ($deptRow) {
+                // Check if department type matches category
+                $isMedical = false;
+                if ($this->db->fieldExists('type', 'department')) {
+                    $deptType = $deptRow['type'] ?? '';
+                    $isMedical = in_array($deptType, ['Clinical', 'Emergency', 'Diagnostic'], true);
+                }
+                
+                // Auto-link if type matches category
+                if (($category === 'medical' && $isMedical) || ($category === 'non_medical' && !$isMedical)) {
+                    try {
+                        $this->db->table($linkTable)->insert(['department_id' => $deptId]);
+                        return ['valid' => true, 'errors' => []];
+                    } catch (\Throwable $e) {
+                        // If insert fails (e.g., duplicate), check again
+                        $exists = $this->db->table($linkTable)->where('department_id', $deptId)->get()->getRowArray();
+                        if ($exists) {
+                            return ['valid' => true, 'errors' => []];
+                        }
+                    }
+                }
+            }
+            return ['valid' => false, 'errors' => ['department' => 'Selected department does not belong to the chosen category. Please select a department from the dropdown list.']];
         }
 
         return ['valid' => true, 'errors' => []];

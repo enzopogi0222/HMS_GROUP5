@@ -34,6 +34,15 @@ window.AddStaffModal = {
             const deptCategoryEl = document.getElementById('department_category');
             if (deptCategoryEl) {
                 deptCategoryEl.addEventListener('change', () => {
+                    // Clear department selection when category changes
+                    const deptEl = document.getElementById('department');
+                    const deptIdEl = document.getElementById('department_id');
+                    if (deptEl) {
+                        deptEl.value = '';
+                    }
+                    if (deptIdEl) {
+                        deptIdEl.value = '';
+                    }
                     this.loadDepartmentsForCategory(deptCategoryEl.value);
                 });
             }
@@ -70,6 +79,7 @@ window.AddStaffModal = {
 
         if (!normalized) {
             deptEl.innerHTML = '<option value="">Select department</option>';
+            deptEl.disabled = true;
             return;
         }
 
@@ -83,15 +93,26 @@ window.AddStaffModal = {
 
             const rows = Array.isArray(response.data) ? response.data : [];
             deptEl.innerHTML = '<option value="">Select department</option>';
-            rows.forEach((d) => {
+            
+            if (rows.length === 0) {
+                // No departments found for this category
                 const opt = document.createElement('option');
-                opt.value = d.name || '';
-                if (d.department_id !== undefined && d.department_id !== null) {
-                    opt.setAttribute('data-id', String(d.department_id));
-                }
-                opt.textContent = d.name || '';
+                opt.value = '';
+                opt.textContent = 'No departments available for this category';
+                opt.disabled = true;
                 deptEl.appendChild(opt);
-            });
+                StaffUtils.showNotification('No departments found for the selected category. Please add departments first.', 'warning');
+            } else {
+                rows.forEach((d) => {
+                    const opt = document.createElement('option');
+                    opt.value = d.name || '';
+                    if (d.department_id !== undefined && d.department_id !== null) {
+                        opt.setAttribute('data-id', String(d.department_id));
+                    }
+                    opt.textContent = d.name || '';
+                    deptEl.appendChild(opt);
+                });
+            }
 
             deptEl.disabled = false;
             this.departmentsLoadedFor = normalized;
@@ -99,7 +120,7 @@ window.AddStaffModal = {
             console.error('Failed to load departments:', e);
             deptEl.innerHTML = '<option value="">Select department</option>';
             deptEl.disabled = false;
-            StaffUtils.showNotification('Failed to load departments for selected category', 'error');
+            StaffUtils.showNotification('Failed to load departments for selected category: ' + (e.message || 'Unknown error'), 'error');
         }
     },
     
@@ -116,6 +137,9 @@ window.AddStaffModal = {
             }
 
             StaffModalUtils.applyDobAgeLimit(document.getElementById('date_of_birth'));
+            
+            // Restore draft if available (this will also load departments if category is set)
+            this.restoreDraft();
         }
     },
     
@@ -194,6 +218,18 @@ window.AddStaffModal = {
             }
             
             StaffModalUtils.clearErrors(this.form);
+            
+            // Ensure department_id is set from selected option before collecting form data
+            const deptEl = document.getElementById('department');
+            const deptIdEl = document.getElementById('department_id');
+            if (deptEl && deptIdEl && deptEl.selectedIndex > 0) {
+                const selectedOption = deptEl.options[deptEl.selectedIndex];
+                const deptId = selectedOption.getAttribute('data-id');
+                if (deptId) {
+                    deptIdEl.value = deptId;
+                }
+            }
+            
             const formData = this.collectFormData();
 
             const clientErrors = {};
@@ -211,11 +247,15 @@ window.AddStaffModal = {
 
             const deptCategory = (formData.department_category || '').trim();
             const department = (formData.department || '').trim();
+            const departmentId = (formData.department_id || '').trim();
             if (!deptCategory) {
                 clientErrors.department_category = 'Department category is required.';
             }
             if (!department) {
                 clientErrors.department = 'Department is required.';
+            }
+            if (!departmentId) {
+                clientErrors.department = 'Department ID is missing. Please select a valid department.';
             }
 
             StaffModalUtils.validateRoleFields(formData, clientErrors);
@@ -288,7 +328,7 @@ window.AddStaffModal = {
     },
 
     // Restore draft values from localStorage
-    restoreDraft() {
+    async restoreDraft() {
         if (!this.form || !window.localStorage) return;
         try {
             const raw = window.localStorage.getItem('hms_staff_add_draft');
@@ -306,12 +346,36 @@ window.AddStaffModal = {
                 }
             });
 
-            // Re-apply department_id based on selected department option
-            const deptEl = document.getElementById('department');
-            const deptIdEl = document.getElementById('department_id');
-            if (deptEl && deptIdEl && deptEl.selectedOptions.length) {
-                const opt = deptEl.selectedOptions[0];
-                deptIdEl.value = opt.getAttribute('data-id') || '';
+            // If department_category was restored, load departments for it
+            const deptCategoryEl = document.getElementById('department_category');
+            if (deptCategoryEl && deptCategoryEl.value) {
+                await this.loadDepartmentsForCategory(deptCategoryEl.value);
+                
+                // After loading, try to restore the selected department
+                const deptEl = document.getElementById('department');
+                const deptIdEl = document.getElementById('department_id');
+                if (deptEl && data.department) {
+                    // Wait a bit for options to be populated
+                    setTimeout(() => {
+                        const matchingOption = Array.from(deptEl.options).find(
+                            opt => opt.value === data.department
+                        );
+                        if (matchingOption) {
+                            deptEl.value = data.department;
+                            if (deptIdEl) {
+                                deptIdEl.value = matchingOption.getAttribute('data-id') || '';
+                            }
+                        }
+                    }, 100);
+                }
+            } else {
+                // Re-apply department_id based on selected department option
+                const deptEl = document.getElementById('department');
+                const deptIdEl = document.getElementById('department_id');
+                if (deptEl && deptIdEl && deptEl.selectedOptions.length) {
+                    const opt = deptEl.selectedOptions[0];
+                    deptIdEl.value = opt.getAttribute('data-id') || '';
+                }
             }
 
             StaffModalUtils.toggleRoleFields('');

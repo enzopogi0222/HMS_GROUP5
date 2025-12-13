@@ -224,6 +224,7 @@ class StaffManagement extends BaseController
 
             $departments = [];
 
+            // Try to get departments from category-specific tables first
             if ($category === 'medical' && $this->db->tableExists('medical_department')) {
                 $departments = $this->db->table('medical_department md')
                     ->select('d.department_id, d.name')
@@ -236,8 +237,10 @@ class StaffManagement extends BaseController
                     ->join('department d', 'd.department_id = nmd.department_id', 'inner')
                     ->orderBy('d.name', 'ASC')
                     ->get()->getResultArray();
-            } else {
-                // Fallback: infer category from department.type
+            }
+
+            // If no departments found from category tables, fall back to department.type
+            if (empty($departments)) {
                 $typeList = $category === 'medical'
                     ? ['Clinical', 'Emergency', 'Diagnostic']
                     : ['Administrative', 'Support'];
@@ -249,6 +252,7 @@ class StaffManagement extends BaseController
                         ->orderBy('name', 'ASC')
                         ->get()->getResultArray();
                 } else {
+                    // Last resort: return all departments if type field doesn't exist
                     $departments = $this->db->table('department')
                         ->select('department_id, name')
                         ->orderBy('name', 'ASC')

@@ -372,7 +372,13 @@ class PrescriptionManagement extends BaseController
             $result = $this->prescriptionService->updatePrescriptionStatus($id, $status, $this->userRole, $this->staffId);
             $statusCode = $result['success'] ? 200 : ($result['message'] === 'Permission denied' ? 403 : 422);
             
-            return $this->jsonResponse($result['success'] ? 'success' : 'error', $result['message'], null, $statusCode);
+            // Include errors in response if available
+            $responseData = null;
+            if (!$result['success'] && !empty($result['errors'])) {
+                $responseData = ['errors' => $result['errors']];
+            }
+            
+            return $this->jsonResponse($result['success'] ? 'success' : 'error', $result['message'], $responseData, $statusCode);
 
         } catch (\Throwable $e) {
             log_message('error', 'PrescriptionManagement::updateStatus error: ' . $e->getMessage());

@@ -226,6 +226,29 @@ class ResourceModel extends Model
     }
 
     /**
+     * Get resources with quantity below threshold (for stock alerts)
+     * @param int $threshold Threshold value (default 20)
+     * @param string|null $role User role for filtering
+     * @return array
+     */
+    public function getLowStockResources($threshold = 20, $role = null)
+    {
+        $builder = $this->builder();
+        
+        // Apply role-based filtering if role is provided
+        if ($role) {
+            $this->applyRoleFilter($builder, $role);
+        }
+        
+        return $builder->where('quantity <', $threshold)
+            ->where('quantity >', 0) // Exclude zero quantity items
+            ->where('status', 'Stock In')
+            ->orderBy('quantity', 'ASC')
+            ->get()
+            ->getResultArray();
+    }
+
+    /**
      * Assign resource to staff
      */
     public function assignToStaff($resourceId, $staffId)

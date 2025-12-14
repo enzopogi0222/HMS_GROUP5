@@ -22,9 +22,40 @@
         'dismissFn' => 'dismissResourcesNotification()'
     ]) ?>
 
-    <!-- Expiry Notifications -->
-    <?php if (!empty($expiredMedications) || !empty($expiringMedications)): ?>
+    <!-- Stock and Expiry Notifications -->
+    <?php if (!empty($lowStockResources) || !empty($expiredMedications) || !empty($expiringMedications)): ?>
         <div class="expiry-notifications" style="margin: 1rem auto; max-width: 1180px;">
+            <?php if (!empty($lowStockResources)): ?>
+                <div class="stock-alert low-stock" style="
+                    padding: 1rem;
+                    margin-bottom: 0.75rem;
+                    border-radius: 6px;
+                    border: 1px solid #fbbf24;
+                    background: #fef3c7;
+                    color: #92400e;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                ">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 1.25rem;"></i>
+                    <div style="flex: 1;">
+                        <strong>Low Stock Alert</strong>
+                        <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
+                            <?= count($lowStockResources) ?> resource(s) have stock below 20:
+                            <?php 
+                            $lowStockNames = array_slice(array_map(function($r) { 
+                                $name = esc($r['equipment_name'] ?? 'Unknown');
+                                $quantity = (int)($r['quantity'] ?? 0);
+                                return $name . ' (' . $quantity . ' remaining)';
+                            }, $lowStockResources), 0, 5);
+                            echo implode(', ', $lowStockNames);
+                            if (count($lowStockResources) > 5) echo ' and ' . (count($lowStockResources) - 5) . ' more';
+                            ?>
+                        </p>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <?php if (!empty($expiredMedications)): ?>
                 <div class="expiry-alert expired" style="
                     padding: 1rem;

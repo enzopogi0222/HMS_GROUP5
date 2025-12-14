@@ -387,13 +387,29 @@ class PrescriptionManager {
                 })
             });
 
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                // If response is not JSON, try to get text
+                const text = await response.text();
+                console.error('Failed to parse response as JSON:', text);
+                this.showError(`Failed to update prescription status: ${response.status} ${response.statusText}`);
+                return;
+            }
 
             if (data.status === 'success') {
                 this.showSuccess(`Prescription marked as ${status.toLowerCase()}`);
                 this.loadPrescriptions();
             } else {
-                this.showError(data.message || 'Failed to update prescription status');
+                // Show detailed error message including validation errors
+                let errorMessage = data.message || 'Failed to update prescription status';
+                if (data.data && data.data.errors && Array.isArray(data.data.errors) && data.data.errors.length > 0) {
+                    // Join errors with HTML line breaks for better display
+                    errorMessage += '<br>' + data.data.errors.join('<br>');
+                }
+                console.error('Prescription status update error:', data);
+                this.showError(errorMessage);
             }
 
             // Update CSRF hash
@@ -401,7 +417,8 @@ class PrescriptionManager {
                 this.config.csrfHash = data.csrf.value;
             }
         } catch (error) {
-            this.showError('Failed to update prescription status');
+            console.error('Update prescription status error:', error);
+            this.showError('Failed to update prescription status: ' + (error.message || 'Unknown error'));
         }
     }
 
@@ -428,7 +445,16 @@ class PrescriptionManager {
                 })
             });
 
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                // If response is not JSON, try to get text
+                const text = await response.text();
+                console.error('Failed to parse response as JSON:', text);
+                this.showError(`Failed to complete prescription: ${response.status} ${response.statusText}`);
+                return;
+            }
 
             if (data.status === 'success') {
                 // Show success message with billing info if available
@@ -441,7 +467,14 @@ class PrescriptionManager {
                 }
                 this.loadPrescriptions();
             } else {
-                this.showError(data.message || 'Failed to complete prescription');
+                // Show detailed error message including validation errors
+                let errorMessage = data.message || 'Failed to complete prescription';
+                if (data.data && data.data.errors && Array.isArray(data.data.errors) && data.data.errors.length > 0) {
+                    // Join errors with HTML line breaks for better display
+                    errorMessage += '<br>' + data.data.errors.join('<br>');
+                }
+                console.error('Prescription completion error:', data);
+                this.showError(errorMessage);
             }
 
             // Update CSRF hash
@@ -450,9 +483,10 @@ class PrescriptionManager {
             }
         } catch (error) {
             console.error('Complete prescription error:', error);
-            this.showError('Failed to complete prescription');
+            this.showError('Failed to complete prescription: ' + (error.message || 'Unknown error'));
         }
     }
+
 
 
     setupAutoRefresh() {
@@ -587,7 +621,14 @@ class PrescriptionManager {
                 : (isSuccess ? 'fa-check-circle' : 'fa-info-circle');
             iconEl.className = 'fas ' + iconClass;
 
-            textEl.textContent = this.escapeHtml(message || '');
+            // Check if message contains HTML (like <br> tags)
+            if (message && message.includes('<br>')) {
+                // Escape HTML but preserve <br> tags for line breaks
+                const escaped = this.escapeHtml(message || '');
+                textEl.innerHTML = escaped.replace(/&lt;br&gt;/gi, '<br>');
+            } else {
+                textEl.textContent = this.escapeHtml(message || '');
+            }
             container.style.display = 'flex';
 
             setTimeout(() => {

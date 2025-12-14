@@ -433,6 +433,22 @@ class ResourceService
     }
 
     /**
+     * Get resources with low stock (quantity < 20)
+     * @param int $threshold Threshold value (default 20)
+     * @param string|null $role User role for filtering
+     * @return array
+     */
+    public function getLowStockResources($threshold = 20, $role = null)
+    {
+        try {
+            return $this->resourceModel->getLowStockResources($threshold, $role);
+        } catch (\Exception $e) {
+            log_message('error', 'ResourceService::getLowStockResources - ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * Get medication resources (category = 'Medications') with optional search filter.
      */
     public function getMedications(?string $search = null): array

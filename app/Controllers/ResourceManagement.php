@@ -46,6 +46,7 @@ class ResourceManagement extends BaseController
             'resources' => $this->resourceService->getResources($this->userRole, $this->staffId),
             'expiringMedications' => $this->resourceService->getExpiringMedications(30),
             'expiredMedications' => $this->resourceService->getExpiredMedications(),
+            'lowStockResources' => $this->resourceService->getLowStockResources(20, $this->userRole),
             'redirectUrl' => $this->getRedirectUrl($this->userRole)
         ]);
     }

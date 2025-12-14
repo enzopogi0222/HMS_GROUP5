@@ -367,6 +367,19 @@ class PrescriptionService
                 }
             }
 
+            // Validate stock availability for ALL prescriptions before committing
+            $stockValidation = $this->validateStockAvailability($items);
+            if (!$stockValidation['valid']) {
+                // Rollback the transaction since we can't accept the prescription
+                $this->db->transRollback();
+                
+                return [
+                    'success' => false,
+                    'message' => $stockValidation['message'],
+                    'errors' => $stockValidation['errors']
+                ];
+            }
+
             $this->db->transCommit();
 
             // Automatically add to billing and reduce stock if prescription is created with completed/dispensed status
@@ -427,6 +440,39 @@ class PrescriptionService
             
             $newStatus = isset($data['status']) ? $this->mapStatus($data['status']) : null;
             $oldStatus = $existingPrescription['status'] ?? null;
+            
+            // If updating quantity and status is already completed/dispensed, validate stock
+            // Note: This validation is for legacy single-medication prescriptions
+            // For multi-medication prescriptions, quantity updates should be done via prescription_items
+            if (isset($updateData['quantity']) && in_array($oldStatus, ['dispensed', 'completed'])) {
+                // Get prescription items to validate
+                $items = $this->db->table('prescription_items')
+                    ->where('prescription_id', $id)
+                    ->get()
+                    ->getResultArray();
+                
+                // If prescription_items exist, update the first item's quantity for validation
+                // Otherwise, create a temporary item array for legacy single-medication prescriptions
+                if (!empty($items)) {
+                    $items[0]['quantity'] = $updateData['quantity'];
+                } else {
+                    // Legacy single-medication prescription - create item array from existing prescription
+                    $items = [[
+                        'medication_resource_id' => $existingPrescription['medication_resource_id'] ?? null,
+                        'medication_name' => $existingPrescription['medication'] ?? '',
+                        'quantity' => $updateData['quantity']
+                    ]];
+                }
+                
+                $stockValidation = $this->validateStockAvailability($items);
+                if (!$stockValidation['valid']) {
+                    return [
+                        'success' => false,
+                        'message' => $stockValidation['message'],
+                        'errors' => $stockValidation['errors']
+                    ];
+                }
+            }
             
             $result = $this->db->table('prescriptions')->where('id', $id)->update($updateData);
             
@@ -1158,6 +1204,97 @@ class PrescriptionService
             log_message('error', 'PrescriptionService::getMedicationPrice error: ' . $e->getMessage());
             log_message('error', 'PrescriptionService::getMedicationPrice stack trace: ' . $e->getTraceAsString());
             return 0.0;
+        }
+    }
+
+    /**
+     * Validate that prescription quantities do not exceed available stock
+     * @param array $items Prescription items array (can be from createPrescription or prescription_items table)
+     * @return array Returns ['valid' => bool, 'message' => string, 'errors' => array]
+     */
+    private function validateStockAvailability($items): array
+    {
+        try {
+            if (empty($items) || !is_array($items)) {
+                return ['valid' => true, 'message' => '', 'errors' => []]; // No items to validate
+            }
+
+            $resourceModel = new \App\Models\ResourceModel();
+            $errors = [];
+
+            foreach ($items as $index => $item) {
+                $resourceId = $item['medication_resource_id'] ?? $item['resource_id'] ?? null;
+                $quantity = (int)($item['quantity'] ?? 0);
+                $medicationName = $item['medication_name'] ?? $item['medication'] ?? '';
+
+                if ($quantity <= 0) {
+                    continue; // Skip invalid quantities
+                }
+
+                $availableStock = 0;
+                $resourceName = '';
+
+                // If we have a resource_id, check stock directly
+                if ($resourceId) {
+                    $resource = $resourceModel->find($resourceId);
+                    if ($resource) {
+                        $availableStock = (int)($resource['quantity'] ?? 0);
+                        $resourceName = $resource['equipment_name'] ?? $medicationName;
+                    } else {
+                        $errors[] = "Medication '{$medicationName}' (Resource ID: {$resourceId}) not found in inventory.";
+                        continue;
+                    }
+                } else {
+                    // Try to find resource by medication name
+                    if (!empty($medicationName) && $this->db->tableExists('resources')) {
+                        $resource = $this->db->table('resources')
+                            ->where('category', 'Medications')
+                            ->groupStart()
+                                ->like('equipment_name', $medicationName)
+                                ->orLike('medication_name', $medicationName)
+                            ->groupEnd()
+                            ->where('status', 'Stock In')
+                            ->where('quantity >', 0)
+                            ->orderBy('quantity', 'DESC')
+                            ->get()
+                            ->getRowArray();
+
+                        if ($resource && !empty($resource['id'])) {
+                            $availableStock = (int)($resource['quantity'] ?? 0);
+                            $resourceName = $resource['equipment_name'] ?? $medicationName;
+                        } else {
+                            $errors[] = "Medication '{$medicationName}' not found in inventory or out of stock.";
+                            continue;
+                        }
+                    } else {
+                        $errors[] = "Cannot validate stock for medication '{$medicationName}' - no resource ID or medication name provided.";
+                        continue;
+                    }
+                }
+
+                // Check if requested quantity exceeds available stock
+                if ($quantity > $availableStock) {
+                    $errors[] = "Insufficient stock for '{$resourceName}'. Requested: {$quantity}, Available: {$availableStock}";
+                }
+            }
+
+            if (!empty($errors)) {
+                return [
+                    'valid' => false,
+                    'message' => 'Insufficient stock available for one or more medications.',
+                    'errors' => $errors
+                ];
+            }
+
+            return ['valid' => true, 'message' => '', 'errors' => []];
+
+        } catch (\Throwable $e) {
+            log_message('error', 'PrescriptionService::validateStockAvailability error: ' . $e->getMessage());
+            return [
+                'valid' => false,
+                'message' => 'Error validating stock availability.',
+                'errors' => ['An error occurred while checking stock availability.']
+            ];
         }
     }
 

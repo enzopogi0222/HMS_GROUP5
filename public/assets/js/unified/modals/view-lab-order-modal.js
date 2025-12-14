@@ -113,12 +113,16 @@
                     if (testCodeContainer) testCodeContainer.style.display = 'none';
                 }
             } else {
-                alert(data.message || 'Failed to load lab order');
+                if (typeof showUniversalNotification === 'function') {
+                    showUniversalNotification(data.message || 'Failed to load lab order', 'error');
+                }
                 close();
             }
         } catch (e) {
             console.error('Failed to load lab order', e);
-            alert('Failed to load lab order');
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('Failed to load lab order', 'error');
+            }
             close();
         }
     }

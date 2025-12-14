@@ -161,6 +161,27 @@ class PrescriptionService
                 }
             }
 
+            // Check if patient has any incomplete prescriptions (not completed or dispensed)
+            $incompletePrescriptions = $this->db->table('prescriptions')
+                ->where('patient_id', (int) $data['patient_id'])
+                ->whereNotIn('status', ['completed', 'dispensed', 'cancelled'])
+                ->get()
+                ->getResultArray();
+
+            if (!empty($incompletePrescriptions)) {
+                $incompleteCount = count($incompletePrescriptions);
+                $statuses = array_unique(array_column($incompletePrescriptions, 'status'));
+                $statusList = implode(', ', array_map('ucfirst', $statuses));
+                
+                return [
+                    'success' => false,
+                    'message' => "Cannot create new prescription. Patient has {$incompleteCount} incomplete prescription(s) with status: {$statusList}. Please complete or dispense the existing prescription(s) before creating a new one.",
+                    'errors'  => [
+                        'patient_id' => "Patient has {$incompleteCount} incomplete prescription(s). Complete existing prescriptions first."
+                    ]
+                ];
+            }
+
             // Validate items array for multi-medicine support
             if (empty($data['items']) || !is_array($data['items'])) {
                 return [

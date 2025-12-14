@@ -451,7 +451,9 @@ class ShiftManager {
     openCreateModal() {
         // Double-check permission before opening modal
         if (!this.canCreateShift()) {
-            alert('You do not have permission to create schedules. Only administrators and IT staff can create schedules.');
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('You do not have permission to create schedules. Only administrators and IT staff can create schedules.', 'error');
+            }
             return;
         }
         if (window.AddShiftModal) {

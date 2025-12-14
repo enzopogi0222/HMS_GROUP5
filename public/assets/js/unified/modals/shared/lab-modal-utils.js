@@ -184,7 +184,9 @@ class LabModalUtils {
                 container.style.display = 'block';
             }
         } else {
-            alert(errorMsg);
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification(errorMsg, 'error');
+            }
         }
     }
 

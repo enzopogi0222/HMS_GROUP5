@@ -14,7 +14,9 @@
         const container = document.getElementById('roomsNotification');
         const messageEl = document.getElementById('departmentsNotificationMessage') || container?.querySelector('span');
         if (!container || !messageEl) {
-            alert(message);
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification(message, 'error');
+            }
             return;
         }
 

@@ -54,7 +54,9 @@
     async function loadResource(resourceId) {
         const resource = (window.resourcesById || {})[resourceId];
         if (!resource) {
-            alert('Resource not found');
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('Resource not found', 'error');
+            }
             close();
             return;
         }
@@ -178,12 +180,16 @@
                 if (data?.errors) {
                     utils.displayErrors(data.errors, 'err_er_');
                 } else {
-                    alert(errorMsg);
+                    if (typeof showUniversalNotification === 'function') {
+                        showUniversalNotification(errorMsg, 'error');
+                    }
                 }
             }
         } catch (err) {
             console.error('Error:', err);
-            alert('An error occurred while updating the resource.');
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('An error occurred while updating the resource.', 'error');
+            }
         }
     }
 

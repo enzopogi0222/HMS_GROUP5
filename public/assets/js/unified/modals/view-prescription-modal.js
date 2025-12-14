@@ -249,7 +249,9 @@ window.ViewPrescriptionModal = {
         } else if (typeof showPrescriptionsNotification === 'function') {
             showPrescriptionsNotification(message, type);
         } else {
-            alert(message);
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification(message, 'error');
+            }
         }
     }
 };

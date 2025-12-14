@@ -64,7 +64,9 @@ class RoomModalUtils {
         if (window.showRoomsNotification) {
             window.showRoomsNotification(message, type);
         } else {
-            alert(message);
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification(message, 'error');
+            }
         }
     }
 

@@ -388,8 +388,15 @@ window.AddPrescriptionModal = {
             window.prescriptionManager.showNotification(message, type);
         } else if (typeof showPrescriptionsNotification === 'function') {
             showPrescriptionsNotification(message, type);
+        } else if (typeof showUniversalNotification === 'function') {
+            showUniversalNotification(message, type);
         } else {
-            alert(message);
+            // Last resort fallback
+            const notif = document.createElement('div');
+            notif.style.cssText = 'position:fixed;top:20px;right:20px;padding:1rem;background:#fee2e2;color:#991b1b;border-radius:8px;z-index:10050;max-width:400px;';
+            notif.textContent = message;
+            document.body.appendChild(notif);
+            setTimeout(() => notif.remove(), 4000);
         }
     }
 };

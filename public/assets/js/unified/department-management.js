@@ -136,13 +136,17 @@
     window.viewDepartment = function(deptId) {
         console.log('View department:', deptId);
         // TODO: Implement view department modal
-        alert('View department ' + deptId + ' - Feature coming soon');
+        if (typeof showUniversalNotification === 'function') {
+            showUniversalNotification('View department ' + deptId + ' - Feature coming soon', 'info');
+        }
     };
 
     window.editDepartment = function(deptId) {
         console.log('Edit department:', deptId);
         // TODO: Implement edit department modal
-        alert('Edit department ' + deptId + ' - Feature coming soon');
+        if (typeof showUniversalNotification === 'function') {
+            showUniversalNotification('Edit department ' + deptId + ' - Feature coming soon', 'info');
+        }
     };
 
     window.deleteDepartment = function(deptId) {
@@ -151,7 +155,9 @@
         }
         console.log('Delete department:', deptId);
         // TODO: Implement delete department
-        alert('Delete department ' + deptId + ' - Feature coming soon');
+        if (typeof showUniversalNotification === 'function') {
+            showUniversalNotification('Delete department ' + deptId + ' - Feature coming soon', 'info');
+        }
     };
 
     // Fetch departments on page load
@@ -222,7 +228,9 @@
         const container = document.getElementById('departmentsNotification');
         const messageEl = document.getElementById('departmentsNotificationMessage');
         if (!container || !messageEl) {
-            alert(message);
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification(message, 'error');
+            }
             return;
         }
 

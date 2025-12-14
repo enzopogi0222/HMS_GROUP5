@@ -190,7 +190,17 @@
             return;
         }
 
-        alert(message || (type === 'error' ? 'Error' : 'Notice'));
+        // Fallback to universal notification
+        if (typeof showUniversalNotification === 'function') {
+            showUniversalNotification(message || (type === 'error' ? 'Error' : 'Notice'), type);
+        } else {
+            // Last resort: create a simple notification
+            const notif = document.createElement('div');
+            notif.style.cssText = 'position:fixed;top:20px;right:20px;padding:1rem;background:#fee2e2;color:#991b1b;border-radius:8px;z-index:10050;max-width:400px;';
+            notif.textContent = message || (type === 'error' ? 'Error' : 'Notice');
+            document.body.appendChild(notif);
+            setTimeout(() => notif.remove(), 4000);
+        }
     }
 
     window.dismissResourcesNotification = function() {

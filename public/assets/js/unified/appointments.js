@@ -88,7 +88,11 @@
         const idInput = document.getElementById('billing_appointment_id');
         const amountInput = document.getElementById('billing_amount');
         if (!idInput || !amountInput) {
-            alert('Form elements not found.');
+            if (typeof showAppointmentsNotification === 'function') {
+                showAppointmentsNotification('Form elements not found.', 'error');
+            } else if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('Form elements not found.', 'error');
+            }
             return;
         }
 
@@ -96,12 +100,20 @@
         const unitPrice = parseFloat(amountInput.value);
 
         if (!appointmentId || isNaN(appointmentId) || appointmentId <= 0) {
-            alert('Invalid appointment ID.');
+            if (typeof showAppointmentsNotification === 'function') {
+                showAppointmentsNotification('Invalid appointment ID.', 'error');
+            } else if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('Invalid appointment ID.', 'error');
+            }
             return;
         }
 
         if (isNaN(unitPrice) || unitPrice <= 0) {
-            alert('Please enter a valid positive amount.');
+            if (typeof showAppointmentsNotification === 'function') {
+                showAppointmentsNotification('Please enter a valid positive amount.', 'error');
+            } else if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('Please enter a valid positive amount.', 'error');
+            }
             amountInput.focus();
             return;
         }
@@ -874,7 +886,11 @@
     // Complete appointment (status update)
     function markCompleted(appointmentId) {
         if (!appointmentId) {
-            alert('Missing appointment ID – cannot complete.');
+            if (typeof showAppointmentsNotification === 'function') {
+                showAppointmentsNotification('Missing appointment ID – cannot complete.', 'error');
+            } else if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('Missing appointment ID – cannot complete.', 'error');
+            }
             return;
         }
 
@@ -937,7 +953,11 @@
     // Delete appointment
     function deleteAppointment(appointmentId) {
         if (!appointmentId) {
-            alert('Missing appointment ID – cannot delete.');
+            if (typeof showAppointmentsNotification === 'function') {
+                showAppointmentsNotification('Missing appointment ID – cannot delete.', 'error');
+            } else if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('Missing appointment ID – cannot delete.', 'error');
+            }
             return;
         }
 

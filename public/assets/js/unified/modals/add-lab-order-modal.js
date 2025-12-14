@@ -47,7 +47,9 @@
         const priority = prioritySelect ? prioritySelect.value : 'routine';
 
         if (!patientId || !testCode) {
-            alert('Patient and Lab Test are required.');
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('Patient and Lab Test are required.', 'error');
+            }
             return;
         }
 
@@ -70,7 +72,9 @@
             });
             const data = await res.json();
 
-            alert(data.message || (data.success ? 'Lab order created' : 'Failed to create lab order'));
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification(data.message || (data.success ? 'Lab order created' : 'Failed to create lab order'), data.success ? 'success' : 'error');
+            }
             if (data.success) {
                 close();
                 if (window.LabUI && window.LabUI.refresh) {
@@ -79,7 +83,9 @@
             }
         } catch (e) {
             console.error('Failed to create lab order', e);
-            alert('Failed to create lab order');
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('Failed to create lab order', 'error');
+            }
         }
     }
 

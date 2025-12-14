@@ -34,7 +34,11 @@ window.AddAppointmentModal = {
                 if (this.canCreateAppointment()) {
                     this.open();
                 } else {
-                    alert('You do not have permission to create appointments. Only administrators, doctors, and receptionists can create appointments.');
+                    if (typeof showAppointmentsNotification === 'function') {
+                        showAppointmentsNotification('You do not have permission to create appointments. Only administrators, doctors, and receptionists can create appointments.', 'error');
+                    } else if (typeof showUniversalNotification === 'function') {
+                        showUniversalNotification('You do not have permission to create appointments. Only administrators, doctors, and receptionists can create appointments.', 'error');
+                    }
                 }
             });
         }
@@ -226,7 +230,11 @@ window.AddAppointmentModal = {
         } else if (typeof showAppointmentsNotification === 'function') {
             showAppointmentsNotification(message, type);
         } else {
-            alert(message);
+            if (typeof showAppointmentsNotification === 'function') {
+                showAppointmentsNotification(message, 'error');
+            } else if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification(message, 'error');
+            }
         }
     }
 };

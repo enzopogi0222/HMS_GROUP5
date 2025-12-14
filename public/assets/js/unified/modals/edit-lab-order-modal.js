@@ -51,12 +51,16 @@
                 if (testSelect) testSelect.value = order.test_code;
                 if (prioritySelect) prioritySelect.value = order.priority || 'routine';
             } else {
-                alert(data.message || 'Failed to load lab order');
+                if (typeof showUniversalNotification === 'function') {
+                    showUniversalNotification(data.message || 'Failed to load lab order', 'error');
+                }
                 close();
             }
         } catch (e) {
             console.error('Failed to load lab order', e);
-            alert('Failed to load lab order');
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('Failed to load lab order', 'error');
+            }
             close();
         }
     }
@@ -70,7 +74,9 @@
         const priority = prioritySelect ? prioritySelect.value : 'routine';
 
         if (!patientId || !testCode) {
-            alert('Patient and Lab Test are required.');
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('Patient and Lab Test are required.', 'error');
+            }
             return;
         }
 
@@ -94,7 +100,9 @@
             });
             const data = await res.json();
 
-            alert(data.message || (data.success ? 'Lab order updated' : 'Failed to update lab order'));
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification(data.message || (data.success ? 'Lab order updated' : 'Failed to update lab order'), data.success ? 'success' : 'error');
+            }
             if (data.success) {
                 close();
                 if (window.LabUI && window.LabUI.refresh) {
@@ -103,7 +111,9 @@
             }
         } catch (e) {
             console.error('Failed to update lab order', e);
-            alert('Failed to update lab order');
+            if (typeof showUniversalNotification === 'function') {
+                showUniversalNotification('Failed to update lab order', 'error');
+            }
         }
     }
 

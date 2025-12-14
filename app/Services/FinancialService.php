@@ -359,26 +359,101 @@ class FinancialService
             log_message('debug', 'calculateTotalExpenses: expenses table does not exist');
         }
 
-        // Expenses from transactions table (type = 'expense')
+        // Expenses from transactions table (type = 'expense' and 'stock_in')
         if ($this->db->tableExists('transactions')) {
             try {
-                log_message('debug', 'calculateTotalExpenses: Checking transactions table for type=expense');
-                $result = $this->db->table('transactions')
+                log_message('debug', 'calculateTotalExpenses: Checking transactions table for type=expense and stock_in');
+                
+                // Get expenses (type = 'expense') - includes Stock Purchase expenses
+                $expenseResult = $this->db->table('transactions')
                     ->selectSum('amount')
                     ->where('type', 'expense')
                     ->where('amount IS NOT NULL', null, false)
                     ->get()
                     ->getRow();
 
-                log_message('debug', 'calculateTotalExpenses: transactions table result: ' . json_encode($result));
+                log_message('debug', 'calculateTotalExpenses: transactions table expense result: ' . json_encode($expenseResult));
                 
-                if ($result && isset($result->amount) && (float)$result->amount > 0) {
-                    $amount = (float)$result->amount;
+                if ($expenseResult && isset($expenseResult->amount) && (float)$expenseResult->amount > 0) {
+                    $amount = (float)$expenseResult->amount;
                     $total += $amount;
-                    log_message('debug', 'calculateTotalExpenses: From transactions table: ' . $amount);
-                } else {
-                    log_message('debug', 'calculateTotalExpenses: transactions table has no expense records or amount is 0/null');
+                    log_message('debug', 'calculateTotalExpenses: From transactions table (expense): ' . $amount);
                 }
+                
+                // Get stock_in transactions (purchases) - these are expenses if they have amounts
+                $stockInResult = $this->db->table('transactions')
+                    ->selectSum('amount')
+                    ->where('type', 'stock_in')
+                    ->where('amount IS NOT NULL', null, false)
+                    ->get()
+                    ->getRow();
+
+                log_message('debug', 'calculateTotalExpenses: transactions table stock_in result: ' . json_encode($stockInResult));
+                
+                if ($stockInResult && isset($stockInResult->amount) && (float)$stockInResult->amount > 0) {
+                    $amount = (float)$stockInResult->amount;
+                    $total += $amount;
+                    log_message('debug', 'calculateTotalExpenses: From transactions table (stock_in): ' . $amount);
+                }
+                
+                // Debug: Count stock_in transactions to see if they exist
+                $stockInCount = $this->db->table('transactions')
+                    ->where('type', 'stock_in')
+                    ->countAllResults(false);
+                log_message('debug', 'calculateTotalExpenses: Total stock_in transactions found: ' . $stockInCount);
+                
+                // Debug: Check if there are stock_in transactions with amounts
+                $stockInWithAmount = $this->db->table('transactions')
+                    ->where('type', 'stock_in')
+                    ->where('amount IS NOT NULL', null, false)
+                    ->countAllResults(false);
+                log_message('debug', 'calculateTotalExpenses: stock_in transactions with amounts: ' . $stockInWithAmount);
+                
+                // Debug: Check expense transactions with Stock Purchase category
+                $stockPurchaseExpenses = $this->db->table('transactions')
+                    ->selectSum('amount')
+                    ->where('type', 'expense')
+                    ->where('category', 'Stock Purchase')
+                    ->where('amount IS NOT NULL', null, false)
+                    ->get()
+                    ->getRow();
+                log_message('debug', 'calculateTotalExpenses: Stock Purchase expense transactions: ' . json_encode($stockPurchaseExpenses));
+                
+                // FALLBACK: Calculate expenses from stock_in transactions using resource prices
+                // This handles cases where stock was added without purchase costs
+                if ($this->db->tableExists('resources')) {
+                    try {
+                        // Get stock_in transactions that don't have amounts
+                        $stockInWithoutExpense = $this->db->table('transactions')
+                            ->select('transactions.resource_id, transactions.quantity, transactions.transaction_date, resources.price')
+                            ->join('resources', 'resources.id = transactions.resource_id', 'left')
+                            ->where('transactions.type', 'stock_in')
+                            ->where('transactions.amount IS NULL', null, false)
+                            ->where('resources.price IS NOT NULL', null, false)
+                            ->where('resources.price >', 0)
+                            ->get()
+                            ->getResultArray();
+                        
+                        if (!empty($stockInWithoutExpense)) {
+                            $fallbackTotal = 0.0;
+                            foreach ($stockInWithoutExpense as $stock) {
+                                $quantity = (int)($stock['quantity'] ?? 1);
+                                $unitPrice = (float)($stock['price'] ?? 0);
+                                if ($quantity > 0 && $unitPrice > 0) {
+                                    $fallbackTotal += $quantity * $unitPrice;
+                                }
+                            }
+                            
+                            if ($fallbackTotal > 0) {
+                                $total += $fallbackTotal;
+                                log_message('debug', 'calculateTotalExpenses: Fallback calculation from stock_in using resource prices: ' . $fallbackTotal);
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        log_message('error', 'FinancialService::calculateTotalExpenses (fallback stock_in calculation) error: ' . $e->getMessage());
+                    }
+                }
+                
             } catch (\Exception $e) {
                 log_message('error', 'FinancialService::calculateTotalExpenses (transactions table) error: ' . $e->getMessage());
             }
@@ -556,10 +631,11 @@ class FinancialService
             }
         }
 
-        // Expenses from transactions table (type = 'expense')
+        // Expenses from transactions table (type = 'expense' and 'stock_in')
         if ($this->db->tableExists('transactions')) {
             try {
-                $result = $this->db->table('transactions')
+                // Get expenses (type = 'expense')
+                $expenseResult = $this->db->table('transactions')
                     ->selectSum('amount')
                     ->where('type', 'expense')
                     ->where('transaction_date >=', $firstDayOfMonth)
@@ -568,8 +644,56 @@ class FinancialService
                     ->get()
                     ->getRow();
 
-                if ($result && isset($result->amount)) {
-                    $total += (float)$result->amount;
+                if ($expenseResult && isset($expenseResult->amount)) {
+                    $total += (float)$expenseResult->amount;
+                }
+                
+                // Get stock_in transactions (purchases) - these are expenses
+                $stockInResult = $this->db->table('transactions')
+                    ->selectSum('amount')
+                    ->where('type', 'stock_in')
+                    ->where('transaction_date >=', $firstDayOfMonth)
+                    ->where('transaction_date <=', $lastDayOfMonth)
+                    ->where('amount IS NOT NULL', null, false)
+                    ->get()
+                    ->getRow();
+
+                if ($stockInResult && isset($stockInResult->amount)) {
+                    $total += (float)$stockInResult->amount;
+                }
+                
+                // FALLBACK: Calculate monthly expenses from stock_in transactions using resource prices
+                if ($this->db->tableExists('resources')) {
+                    try {
+                        $stockInWithoutExpense = $this->db->table('transactions')
+                            ->select('transactions.resource_id, transactions.quantity, transactions.transaction_date, resources.price')
+                            ->join('resources', 'resources.id = transactions.resource_id', 'left')
+                            ->where('transactions.type', 'stock_in')
+                            ->where('transactions.transaction_date >=', $firstDayOfMonth)
+                            ->where('transactions.transaction_date <=', $lastDayOfMonth)
+                            ->where('transactions.amount IS NULL', null, false)
+                            ->where('resources.price IS NOT NULL', null, false)
+                            ->where('resources.price >', 0)
+                            ->get()
+                            ->getResultArray();
+                        
+                        if (!empty($stockInWithoutExpense)) {
+                            $fallbackTotal = 0.0;
+                            foreach ($stockInWithoutExpense as $stock) {
+                                $quantity = (int)($stock['quantity'] ?? 1);
+                                $unitPrice = (float)($stock['price'] ?? 0);
+                                if ($quantity > 0 && $unitPrice > 0) {
+                                    $fallbackTotal += $quantity * $unitPrice;
+                                }
+                            }
+                            
+                            if ($fallbackTotal > 0) {
+                                $total += $fallbackTotal;
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        log_message('error', 'FinancialService::getMonthlyExpenses (fallback stock_in calculation) error: ' . $e->getMessage());
+                    }
                 }
             } catch (\Exception $e) {
                 log_message('error', 'FinancialService::getMonthlyExpenses (transactions table) error: ' . $e->getMessage());

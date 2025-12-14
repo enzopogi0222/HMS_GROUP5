@@ -132,31 +132,67 @@
         return div.innerHTML;
     }
 
-    // Placeholder functions for department actions
+    // Department action functions
     window.viewDepartment = function(deptId) {
-        console.log('View department:', deptId);
-        // TODO: Implement view department modal
-        if (typeof showUniversalNotification === 'function') {
-            showUniversalNotification('View department ' + deptId + ' - Feature coming soon', 'info');
+        if (!deptId) {
+            showDepartmentsNotification('Invalid department ID', 'error');
+            return;
+        }
+        console.log('Opening view modal for department:', deptId);
+        if (window.ViewDepartmentModal && window.ViewDepartmentModal.open) {
+            window.ViewDepartmentModal.open(deptId);
+        } else {
+            console.error('ViewDepartmentModal not available', window.ViewDepartmentModal);
+            showDepartmentsNotification('View modal not available', 'error');
         }
     };
 
     window.editDepartment = function(deptId) {
-        console.log('Edit department:', deptId);
-        // TODO: Implement edit department modal
-        if (typeof showUniversalNotification === 'function') {
-            showUniversalNotification('Edit department ' + deptId + ' - Feature coming soon', 'info');
+        if (!deptId) {
+            showDepartmentsNotification('Invalid department ID', 'error');
+            return;
+        }
+        if (window.AddDepartmentModal && window.AddDepartmentModal.openForEdit) {
+            window.AddDepartmentModal.openForEdit(deptId);
+        } else {
+            showDepartmentsNotification('Edit modal not available', 'error');
         }
     };
 
-    window.deleteDepartment = function(deptId) {
-        if (!confirm('Are you sure you want to delete this department?')) {
+    window.deleteDepartment = async function(deptId) {
+        if (!deptId) {
+            showDepartmentsNotification('Invalid department ID', 'error');
             return;
         }
-        console.log('Delete department:', deptId);
-        // TODO: Implement delete department
-        if (typeof showUniversalNotification === 'function') {
-            showUniversalNotification('Delete department ' + deptId + ' - Feature coming soon', 'info');
+
+        if (!confirm('Are you sure you want to delete this department? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${baseUrl}/departments/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ id: deptId }),
+            });
+
+            const result = await response.json().catch(() => ({ status: 'error', message: 'Invalid response' }));
+
+            if (response.ok && result.status === 'success') {
+                showDepartmentsNotification('Department deleted successfully', 'success');
+                // Reload the departments list
+                setTimeout(() => fetchDepartments(), 500);
+            } else {
+                const message = result.message || 'Failed to delete department';
+                showDepartmentsNotification(message, 'error');
+            }
+        } catch (error) {
+            console.error('Failed to delete department:', error);
+            showDepartmentsNotification('Server error while deleting department', 'error');
         }
     };
 

@@ -223,47 +223,84 @@ class StaffManagement extends BaseController
             }
 
             $departments = [];
+            $typeList = $category === 'medical'
+                ? ['Clinical', 'Emergency', 'Diagnostic']
+                : ['Administrative', 'Support'];
 
-            // Try to get departments from category-specific tables first
+            // First, try to get departments from category-specific tables
             if ($category === 'medical' && $this->db->tableExists('medical_department')) {
-                $departments = $this->db->table('medical_department md')
-                    ->select('d.department_id, d.name')
-                    ->join('department d', 'd.department_id = md.department_id', 'inner')
-                    ->orderBy('d.name', 'ASC')
+                $query = $this->db->table('medical_department md')
+                    ->select('d.department_id, d.name, d.type')
+                    ->join('department d', 'd.department_id = md.department_id', 'inner');
+                
+                // Add status filter if field exists
+                if ($this->db->fieldExists('status', 'department')) {
+                    $query->where('d.status', 'Active');
+                }
+                
+                $deptFromTable = $query->orderBy('d.name', 'ASC')
                     ->get()->getResultArray();
+                
+                if (!empty($deptFromTable)) {
+                    $departments = $deptFromTable;
+                }
             } elseif ($category === 'non_medical' && $this->db->tableExists('non_medical_department')) {
-                $departments = $this->db->table('non_medical_department nmd')
-                    ->select('d.department_id, d.name')
-                    ->join('department d', 'd.department_id = nmd.department_id', 'inner')
-                    ->orderBy('d.name', 'ASC')
+                $query = $this->db->table('non_medical_department nmd')
+                    ->select('d.department_id, d.name, d.type')
+                    ->join('department d', 'd.department_id = nmd.department_id', 'inner');
+                
+                // Add status filter if field exists
+                if ($this->db->fieldExists('status', 'department')) {
+                    $query->where('d.status', 'Active');
+                }
+                
+                $deptFromTable = $query->orderBy('d.name', 'ASC')
                     ->get()->getResultArray();
+                
+                if (!empty($deptFromTable)) {
+                    $departments = $deptFromTable;
+                }
             }
 
             // If no departments found from category tables, fall back to department.type
             if (empty($departments)) {
-                $typeList = $category === 'medical'
-                    ? ['Clinical', 'Emergency', 'Diagnostic']
-                    : ['Administrative', 'Support'];
-
                 if ($this->db->fieldExists('type', 'department')) {
-                    $departments = $this->db->table('department')
-                        ->select('department_id, name')
-                        ->whereIn('type', $typeList)
-                        ->orderBy('name', 'ASC')
+                    $query = $this->db->table('department')
+                        ->select('department_id, name, type')
+                        ->whereIn('type', $typeList);
+                    
+                    // Only show active departments
+                    if ($this->db->fieldExists('status', 'department')) {
+                        $query->where('status', 'Active');
+                    }
+                    
+                    $departments = $query->orderBy('name', 'ASC')
                         ->get()->getResultArray();
                 } else {
-                    // Last resort: return all departments if type field doesn't exist
-                    $departments = $this->db->table('department')
-                        ->select('department_id, name')
-                        ->orderBy('name', 'ASC')
+                    // Last resort: return all active departments if type field doesn't exist
+                    $query = $this->db->table('department')
+                        ->select('department_id, name');
+                    
+                    if ($this->db->fieldExists('status', 'department')) {
+                        $query->where('status', 'Active');
+                    }
+                    
+                    $departments = $query->orderBy('name', 'ASC')
                         ->get()->getResultArray();
                 }
             }
 
+            // Remove type field from response (not needed by frontend)
+            $departments = array_map(function($dept) {
+                unset($dept['type']);
+                return $dept;
+            }, $departments);
+
             return $this->jsonResponse(['status' => 'success', 'data' => $departments]);
         } catch (\Throwable $e) {
             log_message('error', 'Failed to load departments by category: ' . $e->getMessage());
-            return $this->jsonResponse(['status' => 'error', 'message' => 'Failed to load departments'], 500);
+            log_message('error', 'Stack trace: ' . $e->getTraceAsString());
+            return $this->jsonResponse(['status' => 'error', 'message' => 'Failed to load departments: ' . $e->getMessage()], 500);
         }
     }
 

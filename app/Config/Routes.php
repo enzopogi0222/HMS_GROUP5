@@ -134,7 +134,12 @@ $routes->post('rooms/(:num)/delete', 'RoomManagement::deleteRoom/$1', ['filter' 
 // ===================================================================
 
 $routes->get('admin/department-management', 'DepartmentManagement::index', ['filter' => 'roleauth:admin']);
+$routes->get('departments/api', 'DepartmentManagement::getDepartmentsAPI', ['filter' => 'roleauth:admin,it_staff']);
+$routes->get('departments/heads-by-category', 'DepartmentManagement::getDepartmentHeadsByCategory', ['filter' => 'roleauth:admin,it_staff']);
+$routes->get('departments/(:num)', 'DepartmentManagement::getDepartment/$1', ['filter' => 'roleauth:admin,it_staff']);
 $routes->match(['get','post','options'], 'departments/create', 'Departments::create', ['filter' => 'roleauth:admin,it_staff']);
+$routes->post('departments/update', 'DepartmentManagement::update', ['filter' => 'roleauth:admin,it_staff']);
+$routes->post('departments/delete', 'DepartmentManagement::delete', ['filter' => 'roleauth:admin,it_staff']);
 
 // ===================================================================
 // UNIFIED SCHEDULE MANAGEMENT
@@ -272,6 +277,7 @@ $routes->get('financial-management/categories', 'FinancialController::getCategor
 $routes->get('financial-management/transactions', 'FinancialController::getTransactionsAPI', ['filter' => 'roleauth:admin,accountant,it_staff']);
 $routes->get('financial-management/transactions/(:any)', 'FinancialController::getTransaction/$1', ['filter' => 'roleauth:admin,accountant,it_staff']);
 $routes->post('financial-management/transactions/(:any)/delete', 'FinancialController::deleteTransaction/$1', ['filter' => 'roleauth:admin,accountant']);
+$routes->get('financial-management/diagnose-expenses', 'FinancialController::diagnoseExpenses', ['filter' => 'roleauth:admin,accountant,it_staff']);
 $routes->get('billing/accounts/(:num)', 'FinancialController::getBillingAccount/$1', ['filter' => 'roleauth:admin,accountant']);
 $routes->post('financial/billing-accounts/(:num)/paid', 'FinancialController::markBillingAccountPaid/$1', ['filter' => 'roleauth:admin,accountant']);
 $routes->post('financial/billing-accounts/(:num)/delete', 'FinancialController::deleteBillingAccount/$1', ['filter' => 'roleauth:admin,accountant']);

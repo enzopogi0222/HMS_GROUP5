@@ -678,4 +678,101 @@ class FinancialController extends BaseController
             ]);
         }
     }
+
+    /**
+     * Diagnostic endpoint to check expense transactions
+     */
+    public function diagnoseExpenses()
+    {
+        $session = session();
+        $userRole = $session->get('role') ?? 'accountant';
+        
+        if (!in_array($userRole, ['admin', 'accountant', 'it_staff'], true)) {
+            return $this->response->setStatusCode(403)->setJSON([
+                'success' => false,
+                'message' => 'Insufficient permissions',
+            ]);
+        }
+
+        $db = \Config\Database::connect();
+        $diagnostics = [];
+
+        // Check transactions table
+        if ($db->tableExists('transactions')) {
+            // Count expense transactions
+            $expenseCount = $db->table('transactions')
+                ->where('type', 'expense')
+                ->countAllResults(false);
+            
+            $expenseTotal = $db->table('transactions')
+                ->selectSum('amount')
+                ->where('type', 'expense')
+                ->where('amount IS NOT NULL', null, false)
+                ->get()
+                ->getRow();
+
+            // Count stock_in transactions
+            $stockInCount = $db->table('transactions')
+                ->where('type', 'stock_in')
+                ->countAllResults(false);
+            
+            $stockInWithAmount = $db->table('transactions')
+                ->where('type', 'stock_in')
+                ->where('amount IS NOT NULL', null, false)
+                ->countAllResults(false);
+
+            // Check Stock Purchase expenses
+            $stockPurchaseCount = $db->table('transactions')
+                ->where('type', 'expense')
+                ->where('category', 'Stock Purchase')
+                ->countAllResults(false);
+
+            $stockPurchaseTotal = $db->table('transactions')
+                ->selectSum('amount')
+                ->where('type', 'expense')
+                ->where('category', 'Stock Purchase')
+                ->where('amount IS NOT NULL', null, false)
+                ->get()
+                ->getRow();
+
+            $diagnostics['transactions'] = [
+                'expense_count' => $expenseCount,
+                'expense_total' => $expenseTotal->amount ?? 0,
+                'stock_in_count' => $stockInCount,
+                'stock_in_with_amount' => $stockInWithAmount,
+                'stock_purchase_expense_count' => $stockPurchaseCount,
+                'stock_purchase_expense_total' => $stockPurchaseTotal->amount ?? 0,
+            ];
+
+            // Get sample transactions
+            $sampleExpenses = $db->table('transactions')
+                ->where('type', 'expense')
+                ->limit(5)
+                ->get()
+                ->getResultArray();
+
+            $sampleStockIn = $db->table('transactions')
+                ->where('type', 'stock_in')
+                ->limit(5)
+                ->get()
+                ->getResultArray();
+
+            $diagnostics['samples'] = [
+                'expenses' => $sampleExpenses,
+                'stock_in' => $sampleStockIn,
+            ];
+        }
+
+        // Get calculated stats
+        $stats = $this->financialService->getFinancialStats($userRole, (int)($session->get('staff_id') ?? 0));
+
+        return $this->response->setJSON([
+            'success' => true,
+            'diagnostics' => $diagnostics,
+            'calculated_stats' => [
+                'total_expenses' => $stats['total_expenses'] ?? 0,
+                'monthly_expenses' => $stats['monthly_expenses'] ?? 0,
+            ],
+        ]);
+    }
 }

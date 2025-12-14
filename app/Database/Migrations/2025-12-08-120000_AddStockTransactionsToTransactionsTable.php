@@ -77,3 +77,4 @@ class AddStockTransactionsToTransactionsTable extends Migration
 }
 
 
+

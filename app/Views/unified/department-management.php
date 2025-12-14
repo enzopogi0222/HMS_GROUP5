@@ -170,9 +170,11 @@
     'specialties' => $specialties ?? []
 ]) ?>
 
+<?= $this->include('unified/modals/view-department-modal') ?>
 
 <script src="<?= base_url('assets/js/unified/modals/shared/department-modal-utils.js') ?>"></script>
 <script src="<?= base_url('assets/js/unified/modals/add-department-modal.js') ?>"></script>
+<script src="<?= base_url('assets/js/unified/modals/view-department-modal.js') ?>"></script>
 <script src="<?= base_url('assets/js/unified/department-management.js') ?>"></script>
 
 <?php if (session()->getFlashdata('success') || session()->getFlashdata('error')): ?>

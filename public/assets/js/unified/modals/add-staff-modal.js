@@ -124,7 +124,7 @@ window.AddStaffModal = {
         }
     },
     
-    open() {
+    async open() {
         if (this.modal) {
             this.modal.classList.add('active');
             this.modal.setAttribute('aria-hidden', 'false');
@@ -139,7 +139,13 @@ window.AddStaffModal = {
             StaffModalUtils.applyDobAgeLimit(document.getElementById('date_of_birth'));
             
             // Restore draft if available (this will also load departments if category is set)
-            this.restoreDraft();
+            await this.restoreDraft();
+            
+            // If no draft was restored but category is selected, load departments
+            const deptCategoryEl = document.getElementById('department_category');
+            if (deptCategoryEl && deptCategoryEl.value && !this.departmentsLoadedFor) {
+                await this.loadDepartmentsForCategory(deptCategoryEl.value);
+            }
         }
     },
     

@@ -5,7 +5,7 @@
         display: none;
         position: fixed;
         top: 20px;
-        left: 20px;
+        right: 20px;
         padding: 0.75rem 1rem;
         max-width: 400px;
         border-radius: 6px;

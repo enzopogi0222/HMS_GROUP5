@@ -632,12 +632,12 @@ class ShiftManager {
         notification.className = `notification notification-${type}`;
         const isError = type === 'error';
         const isSuccess = type === 'success';
-        notification.style.cssText = `position: fixed; top: 20px; left: 20px; padding: 1rem 1.5rem; border-radius: 8px; color: ${isError ? '#991b1b' : '#166534'}; font-weight: 500; z-index: 10050; max-width: 400px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25); border: ${isError ? '1px solid #fecaca' : '1px solid #bbf7d0'}; background: ${isError ? '#fee2e2' : '#ecfdf5'}; display: flex; align-items: center; gap: 0.5rem; transform: translateX(-100%); transition: transform 0.3s ease;`;
+        notification.style.cssText = `position: fixed; top: 20px; right: 20px; padding: 1rem 1.5rem; border-radius: 8px; color: ${isError ? '#991b1b' : '#166534'}; font-weight: 500; z-index: 10050; max-width: 400px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25); border: ${isError ? '1px solid #fecaca' : '1px solid #bbf7d0'}; background: ${isError ? '#fee2e2' : '#ecfdf5'}; display: flex; align-items: center; gap: 0.5rem; transform: translateX(100%); transition: transform 0.3s ease;`;
         const iconClass = isError ? 'fa-exclamation-triangle' : (isSuccess ? 'fa-check-circle' : 'fa-info-circle');
         notification.innerHTML = `<div style="display: flex; align-items: center; gap: 0.5rem; width: 100%;"><i class="fas ${iconClass}" style="flex-shrink: 0;"></i><span style="flex: 1;">${this.escapeHtml(message)}</span><button onclick="this.parentElement.parentElement.remove()" style="background: none; border: none; color: inherit; margin-left: auto; cursor: pointer; padding: 0.25rem; flex-shrink: 0;"><i class="fas fa-times"></i></button></div>`;
         document.body.appendChild(notification);
         setTimeout(() => notification.style.transform = 'translateX(0)', 100);
-        setTimeout(() => { notification.style.transform = 'translateX(-100%)'; setTimeout(() => notification.remove(), 300); }, 5000);
+        setTimeout(() => { notification.style.transform = 'translateX(100%)'; setTimeout(() => notification.remove(), 300); }, 5000);
     }
 
     escapeHtml(text) {

@@ -170,7 +170,7 @@ window.StaffUtils = {
         notification.style.cssText = `
             position: fixed;
             top: 20px;
-            left: 20px;
+            right: 20px;
             padding: 1rem 1.5rem;
             border-radius: 8px;
             color: ${isError ? '#991b1b' : '#166534'};
@@ -183,7 +183,7 @@ window.StaffUtils = {
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            transform: translateX(-100%);
+            transform: translateX(100%);
             transition: transform 0.3s ease;
         `;
 
@@ -208,7 +208,7 @@ window.StaffUtils = {
         }, 100);
 
         setTimeout(() => {
-            notification.style.transform = 'translateX(-100%)';
+            notification.style.transform = 'translateX(100%)';
             setTimeout(() => {
                 if (notification.parentElement) {
                     notification.remove();

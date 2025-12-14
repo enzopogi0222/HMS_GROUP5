@@ -33,6 +33,14 @@
                             <small id="err_er_quantity" style="color:#dc2626"></small>
                         </div>
                     </div>
+                    <div class="form-row" id="editPurchaseCostFields" style="display: none;">
+                        <div class="form-group">
+                            <label for="er_purchase_cost"><i class="fas fa-shopping-cart"></i> Purchase Cost per Unit (₱) <small style="color: #666;">(Optional - creates expense transaction when adding stock)</small></label>
+                            <input id="er_purchase_cost" name="purchase_cost" type="number" step="0.01" min="0" class="form-control" autocomplete="off" placeholder="0.00">
+                            <small id="err_er_purchase_cost" style="color:#dc2626"></small>
+                            <small style="color: #666; font-size: 0.85em;">Enter the cost per unit for the additional stock. Total expense = unit cost × quantity added. This will create an expense transaction.</small>
+                        </div>
+                    </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="er_location">Location*</label>

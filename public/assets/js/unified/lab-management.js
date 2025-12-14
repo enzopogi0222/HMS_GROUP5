@@ -161,9 +161,7 @@
 
             // Show error message if payment is required
             if (!data.success && data.requires_payment) {
-                if (typeof showUniversalNotification === 'function') {
-                    showUniversalNotification(data.message || 'Payment required before starting lab test for outpatients.', 'error');
-                }
+                alert(data.message || 'Payment required before starting lab test for outpatients.');
                 if (data.billing_id) {
                     const goToBilling = window.confirm('Would you like to go to Financial Management to process payment?');
                     if (goToBilling) {
@@ -173,9 +171,7 @@
                     }
                 }
             } else {
-                if (typeof showUniversalNotification === 'function') {
-                    showUniversalNotification(data.message || (data.success ? 'Status updated' : 'Failed to update status'), data.success ? 'success' : 'error');
-                }
+                alert(data.message || (data.success ? 'Status updated' : 'Failed to update status'));
             }
             
             if (data.success) {
@@ -183,9 +179,7 @@
             }
         } catch (e) {
             console.error('Failed to update lab status', e);
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Failed to update status', 'error');
-            }
+            alert('Failed to update status');
         }
     }
 
@@ -276,9 +270,7 @@
         };
 
         if (!payload.test_code || !payload.test_name) {
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Test code and name are required.', 'error');
-            }
+            alert('Test code and name are required.');
             return;
         }
 
@@ -291,18 +283,14 @@
             });
             const data = await res.json();
 
-                if (typeof showUniversalNotification === 'function') {
-                    showUniversalNotification(data.message || (data.status === 'success' ? 'Saved' : 'Failed to save'), data.status === 'success' ? 'success' : 'error');
-                }
+            alert(data.message || (data.status === 'success' ? 'Saved' : 'Failed to save'));
             if (data.status === 'success') {
                 resetLabTestForm();
                 fetchLabTestsForAdmin();
             }
         } catch (e) {
             console.error('Failed to save lab test', e);
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Failed to save lab test', 'error');
-            }
+            alert('Failed to save lab test');
         }
     }
 
@@ -317,17 +305,13 @@
             });
             const data = await res.json();
 
-                if (typeof showUniversalNotification === 'function') {
-                    showUniversalNotification(data.message || (data.status === 'success' ? 'Deleted' : 'Failed to delete'), data.status === 'success' ? 'success' : 'error');
-                }
+            alert(data.message || (data.status === 'success' ? 'Deleted' : 'Failed to delete'));
             if (data.status === 'success') {
                 fetchLabTestsForAdmin();
             }
         } catch (e) {
             console.error('Failed to delete lab test', e);
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Failed to delete lab test', 'error');
-            }
+            alert('Failed to delete lab test');
         }
     }
 
@@ -445,9 +429,7 @@
             .catch(() => null);
         
         if (!order || !order.success || !order.data) {
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Failed to load lab order details', 'error');
-            }
+            alert('Failed to load lab order details');
             return;
         }
 
@@ -458,9 +440,7 @@
         
         const price = parseFloat(defaultPrice);
         if (isNaN(price) || price <= 0) {
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Please enter a valid price', 'error');
-            }
+            alert('Please enter a valid price');
             return;
         }
 
@@ -473,17 +453,13 @@
             });
             const data = await res.json();
             
-                if (typeof showUniversalNotification === 'function') {
-                    showUniversalNotification(data.message || (data.success ? 'Lab order added to billing successfully' : 'Failed to add to billing'), data.success ? 'success' : 'error');
-                }
+            alert(data.message || (data.success ? 'Lab order added to billing successfully' : 'Failed to add to billing'));
             if (data.success) {
                 fetchLabOrders();
             }
         } catch (e) {
             console.error('Failed to add lab order to billing', e);
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Failed to add lab order to billing', 'error');
-            }
+            alert('Failed to add lab order to billing');
         }
     }
 
@@ -501,17 +477,13 @@
             });
             const data = await res.json();
             
-                if (typeof showUniversalNotification === 'function') {
-                    showUniversalNotification(data.message || (data.success ? 'Lab order deleted successfully' : 'Failed to delete lab order'), data.success ? 'success' : 'error');
-                }
+            alert(data.message || (data.success ? 'Lab order deleted successfully' : 'Failed to delete lab order'));
             if (data.success) {
                 fetchLabOrders();
             }
         } catch (e) {
             console.error('Failed to delete lab order', e);
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Failed to delete lab order', 'error');
-            }
+            alert('Failed to delete lab order');
         }
     }
 

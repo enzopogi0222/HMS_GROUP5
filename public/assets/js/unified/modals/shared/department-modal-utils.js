@@ -85,9 +85,7 @@ class DepartmentModalUtils {
         if (window.showDepartmentsNotification) {
             window.showDepartmentsNotification(message, type);
         } else {
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification(message, 'error');
-            }
+            alert(message);
         }
     }
 }

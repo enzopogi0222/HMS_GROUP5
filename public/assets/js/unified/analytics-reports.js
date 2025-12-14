@@ -103,89 +103,23 @@ const AnalyticsManager = (function() {
             return;
         }
         
-        // Appointment Trends Chart
-        const dailyAppointments = (data.appointment_analytics || {}).daily_appointments || [];
-        if (dailyAppointments.length > 0) {
-            createChart("appointmentTrendsChart", {
-                type: "line",
-                data: {
-                    labels: dailyAppointments.map(item => item.date || item.date),
-                    datasets: [{
-                        label: "Appointments",
-                        data: dailyAppointments.map(item => Number(item.count) || 0),
-                        borderColor: "#6366f1",
-                        backgroundColor: "rgba(99, 102, 241, 0.2)",
-                        tension: 0.3,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            display: false,
-                            grid: {
-                                display: false
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
-                            }
-                        }
-                    }
-                }
-            });
-        }
-        
         // Patient Type Chart
         const patientsByType = data.patient_analytics && data.patient_analytics.patients_by_type || [];
         if (patientsByType.length > 0) {
             createChart("patientTypeChart", {
-            type: "doughnut",
-            data: {
-                labels: patientsByType.map(item => item.patient_type || "Unknown"),
-                datasets: [{
-                    data: patientsByType.map(item => Number(item.count) || 0),
-                    backgroundColor: [
-                        "#1d4ed8",
-                        "#0ea5e9",
-                        "#22c55e",
-                        "#f59e0b",
-                        "#ef4444",
-                        "#8b5cf6"
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: "bottom"
-                    }
-                }
-            });
-        }
-        
-        // Appointment Status Chart
-        const appointmentsByStatus = (data.appointment_analytics || {}).appointments_by_status || [];
-        if (appointmentsByStatus.length > 0) {
-            createChart("appointmentStatusChart", {
-                type: "bar",
+                type: "doughnut",
                 data: {
-                    labels: appointmentsByStatus.map(item => item.status || "Unknown"),
+                    labels: patientsByType.map(item => item.patient_type || "Unknown"),
                     datasets: [{
-                        label: "Count",
-                        data: appointmentsByStatus.map(item => Number(item.count) || 0),
-                        backgroundColor: "#a78bfa"
+                        data: patientsByType.map(item => Number(item.count) || 0),
+                        backgroundColor: [
+                            "#1d4ed8",
+                            "#0ea5e9",
+                            "#22c55e",
+                            "#f59e0b",
+                            "#ef4444",
+                            "#8b5cf6"
+                        ]
                     }]
                 },
                 options: {
@@ -193,25 +127,14 @@ const AnalyticsManager = (function() {
                     maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            display: false,
-                            grid: {
-                                display: false
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
-                            }
+                            display: true,
+                            position: "bottom"
                         }
                     }
                 }
             });
         }
+        
 
         // Revenue Trend Chart
         const revenueByMonth = (data.financial_analytics || {}).revenue_by_month || [];
@@ -319,52 +242,53 @@ const AnalyticsManager = (function() {
                 type: "doughnut",
                 data: {
                     labels: expensesByCategory.map(item => item.category || "Unknown"),
-                datasets: [{
-                    data: expensesByCategory.map(item => Number(item.total) || 0),
-                    backgroundColor: [
-                        "#ef4444",
-                        "#f59e0b",
-                        "#eab308",
-                        "#84cc16",
-                        "#22c55e",
-                        "#10b981",
-                        "#14b8a6",
-                        "#06b6d4",
-                        "#3b82f6",
-                        "#6366f1",
-                        "#8b5cf6",
-                        "#a855f7"
-                    ],
-                    borderWidth: 2,
-                    borderColor: "#ffffff"
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: "bottom",
-                        labels: {
-                            padding: 15,
-                            usePointStyle: true
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                let label = context.label || "";
-                                if (label) {
-                                    label += ": ";
+                    datasets: [{
+                        data: expensesByCategory.map(item => Number(item.total) || 0),
+                        backgroundColor: [
+                            "#ef4444",
+                            "#f59e0b",
+                            "#eab308",
+                            "#84cc16",
+                            "#22c55e",
+                            "#10b981",
+                            "#14b8a6",
+                            "#06b6d4",
+                            "#3b82f6",
+                            "#6366f1",
+                            "#8b5cf6",
+                            "#a855f7"
+                        ],
+                        borderWidth: 2,
+                        borderColor: "#ffffff"
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: "bottom",
+                            labels: {
+                                padding: 15,
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || "";
+                                    if (label) {
+                                        label += ": ";
+                                    }
+                                    if (context.parsed !== null) {
+                                        label += "₱" + Number(context.parsed).toLocaleString("en-US", {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        });
+                                    }
+                                    return label;
                                 }
-                                if (context.parsed !== null) {
-                                    label += "₱" + Number(context.parsed).toLocaleString("en-US", {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2
-                                    });
-                                }
-                                return label;
                             }
                         }
                     }
@@ -477,43 +401,6 @@ const AnalyticsManager = (function() {
             });
         }
 
-        // Appointment Types Chart
-        const appointmentsByType = (data.appointment_analytics || {}).appointments_by_type || [];
-        if (appointmentsByType.length > 0) {
-            createChart("appointmentTypeChart", {
-                type: "doughnut",
-                data: {
-                    labels: appointmentsByType.map(item => item.appointment_type || "Unknown"),
-                    datasets: [{
-                        data: appointmentsByType.map(item => Number(item.count) || 0),
-                        backgroundColor: [
-                            "#6366f1",
-                            "#8b5cf6",
-                            "#a855f7",
-                            "#d946ef",
-                            "#ec4899",
-                            "#f43f5e"
-                        ],
-                        borderWidth: 2,
-                        borderColor: "#ffffff"
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: "bottom",
-                            labels: {
-                                padding: 15,
-                                usePointStyle: true
-                            }
-                        }
-                    }
-                }
-            });
-        }
 
         // Staff by Role Chart
         const staffByRole = (data.staff_analytics || {}).staff_by_role || [];
@@ -735,92 +622,9 @@ const AnalyticsManager = (function() {
             });
         }
 
-        // Peak Hours Chart
-        const peakHours = (data.appointment_analytics || {}).peak_hours || [];
-        if (peakHours.length > 0) {
-            createChart("peakHoursChart", {
-                type: "bar",
-                data: {
-                    labels: peakHours.map(item => {
-                        const hour = Number(item.hour) || 0;
-                        return hour + ":00";
-                    }),
-                    datasets: [{
-                        label: "Appointments",
-                        data: peakHours.map(item => Number(item.count) || 0),
-                        backgroundColor: "#6366f1",
-                        borderRadius: 6
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                stepSize: 1
-                            },
-                            grid: {
-                                color: "rgba(0, 0, 0, 0.05)"
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
-                            }
-                        }
-                    }
-                }
-            });
-        }
     }
     
     function renderDoctorCharts(data) {
-        const myAppointments = data.my_appointments || {};
-        
-        createChart("doctorAppointmentsChart", {
-            type: "bar",
-            data: {
-                labels: ["Total", "Completed"],
-                datasets: [{
-                    label: "Appointments",
-                    data: [
-                        Number(myAppointments.total_appointments) || 0,
-                        Number(myAppointments.completed_appointments) || 0
-                    ],
-                    backgroundColor: ["#6366f1", "#10b981"]
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        display: false,
-                        grid: {
-                            display: false
-                        }
-                    },
-                    x: {
-                        grid: {
-                            display: false
-                        }
-                    }
-                }
-            }
-        });
-        
         const myPatients = data.my_patients || {};
         createChart("patientGrowthChart", {
             type: "line",

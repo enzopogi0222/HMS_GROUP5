@@ -88,11 +88,7 @@
         const idInput = document.getElementById('billing_appointment_id');
         const amountInput = document.getElementById('billing_amount');
         if (!idInput || !amountInput) {
-            if (typeof showAppointmentsNotification === 'function') {
-                showAppointmentsNotification('Form elements not found.', 'error');
-            } else if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Form elements not found.', 'error');
-            }
+            alert('Form elements not found.');
             return;
         }
 
@@ -100,20 +96,12 @@
         const unitPrice = parseFloat(amountInput.value);
 
         if (!appointmentId || isNaN(appointmentId) || appointmentId <= 0) {
-            if (typeof showAppointmentsNotification === 'function') {
-                showAppointmentsNotification('Invalid appointment ID.', 'error');
-            } else if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Invalid appointment ID.', 'error');
-            }
+            alert('Invalid appointment ID.');
             return;
         }
 
         if (isNaN(unitPrice) || unitPrice <= 0) {
-            if (typeof showAppointmentsNotification === 'function') {
-                showAppointmentsNotification('Please enter a valid positive amount.', 'error');
-            } else if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Please enter a valid positive amount.', 'error');
-            }
+            alert('Please enter a valid positive amount.');
             amountInput.focus();
             return;
         }
@@ -520,7 +508,7 @@
             container.id = 'appointmentsNotification';
             container.setAttribute('role', 'alert');
             container.setAttribute('aria-live', 'polite');
-            container.style.cssText = 'display: none; position: fixed; top: 20px; right: 20px; padding: 0.75rem 1rem; max-width: 400px; border-radius: 6px; align-items: center; gap: 0.5rem; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25); font-size: 0.95rem; font-weight: 500; z-index: 10050; flex-direction: row;';
+            container.style.cssText = 'display: none; margin: 0.75rem auto 0 auto; padding: 0.75rem 1rem; max-width: 1180px; border-radius: 6px; align-items: center; gap: 0.5rem; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15); font-size: 0.95rem; font-weight: 500; position: relative; z-index: 1000;';
             
             iconEl = document.createElement('i');
             iconEl.id = 'appointmentsNotificationIcon';
@@ -886,11 +874,7 @@
     // Complete appointment (status update)
     function markCompleted(appointmentId) {
         if (!appointmentId) {
-            if (typeof showAppointmentsNotification === 'function') {
-                showAppointmentsNotification('Missing appointment ID – cannot complete.', 'error');
-            } else if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Missing appointment ID – cannot complete.', 'error');
-            }
+            alert('Missing appointment ID – cannot complete.');
             return;
         }
 
@@ -953,11 +937,7 @@
     // Delete appointment
     function deleteAppointment(appointmentId) {
         if (!appointmentId) {
-            if (typeof showAppointmentsNotification === 'function') {
-                showAppointmentsNotification('Missing appointment ID – cannot delete.', 'error');
-            } else if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Missing appointment ID – cannot delete.', 'error');
-            }
+            alert('Missing appointment ID – cannot delete.');
             return;
         }
 

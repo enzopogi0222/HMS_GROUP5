@@ -5,6 +5,8 @@
 window.EditStaffModal = {
     modal: null,
     form: null,
+    departmentsLoadedFor: null,
+    initialDepartmentOptions: '',
     
     init() {
         this.modal = document.getElementById('editStaffModal');
@@ -30,9 +32,109 @@ window.EditStaffModal = {
             const contactErrEl = document.getElementById('e_err_contact_no');
             StaffModalUtils.bindLiveContactNoValidation(contactEl, contactErrEl);
             StaffModalUtils.toggleRoleFields('e_');
+
+            // Department category change handler (scoped to edit form, supports prefixed/unprefixed IDs)
+            const deptCategoryEl = this.form.querySelector('#e_department_category, #department_category');
+            if (deptCategoryEl) {
+                deptCategoryEl.addEventListener('change', () => {
+                    // Clear department selection when category changes
+                    const deptEl = this.form.querySelector('#e_department, #department');
+                    const deptIdEl = this.form.querySelector('#e_department_id, #department_id');
+                    if (deptEl) {
+                        deptEl.value = '';
+                    }
+                    if (deptIdEl) {
+                        deptIdEl.value = '';
+                    }
+                    this.loadDepartmentsForCategory(deptCategoryEl.value);
+                });
+            }
+
+            // Department change handler (scoped to edit form, supports prefixed/unprefixed IDs)
+            const deptEl = this.form.querySelector('#e_department, #department');
+            if (deptEl) {
+                this.initialDepartmentOptions = deptEl.innerHTML || '<option value="">Select department</option>';
+                deptEl.addEventListener('change', () => {
+                    const deptIdEl = this.form.querySelector('#e_department_id, #department_id');
+                    if (deptIdEl) deptIdEl.value = deptEl.selectedOptions[0]?.getAttribute('data-id') || '';
+                });
+            }
         }
         
         StaffModalUtils.setupModalCloseHandlers(this.modal, () => this.close());
+    },
+    
+    async loadDepartmentsForCategory(category) {
+        if (!this.form) return;
+        const deptEl = this.form.querySelector('#e_department, #department');
+        const deptIdEl = this.form.querySelector('#e_department_id, #department_id');
+        if (!deptEl) return;
+
+        let normalized = String(category || '').trim();
+        const fallbackOptions = this.initialDepartmentOptions || '<option value="">Select department</option>';
+
+        console.log('[EditStaffModal] loadDepartmentsForCategory called with:', category, 'normalized start:', normalized);
+
+        // Accept label-like values and normalize to API-friendly ones
+        const lower = normalized.toLowerCase();
+        if (lower === 'medical department' || lower === 'medical') {
+            normalized = 'medical';
+        } else if (lower === 'non-medical department' || lower === 'non medical department' || lower === 'non_medical' || lower === 'non-medical') {
+            normalized = 'non_medical';
+        }
+
+        console.log('[EditStaffModal] loadDepartmentsForCategory normalized to:', normalized);
+        deptEl.disabled = true;
+        deptEl.innerHTML = '<option value="">Loading...</option>';
+        if (deptIdEl) deptIdEl.value = '';
+
+        if (!normalized) {
+            // When no category is selected, keep the department dropdown disabled,
+            // same behavior as in the Add Staff modal.
+            deptEl.innerHTML = '<option value="">Select department</option>';
+            deptEl.disabled = true;
+            return;
+        }
+
+        try {
+            const url = StaffConfig.getUrl('staff/departments-by-category') + '?category=' + encodeURIComponent(normalized);
+            const response = await StaffUtils.makeRequest(url);
+
+            if (!response.ok || response.status !== 'success') {
+                throw new Error(response.message || 'Failed to load departments');
+            }
+
+            const rows = Array.isArray(response.data) ? response.data : [];
+            deptEl.innerHTML = '<option value="">Select department</option>';
+            
+            if (rows.length === 0) {
+                // No departments found for this category
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No departments available for this category';
+                opt.disabled = true;
+                deptEl.appendChild(opt);
+                StaffUtils.showNotification('No departments found for the selected category. Please add departments first.', 'warning');
+            } else {
+                rows.forEach((d) => {
+                    const opt = document.createElement('option');
+                    opt.value = d.name || '';
+                    if (d.department_id !== undefined && d.department_id !== null) {
+                        opt.setAttribute('data-id', String(d.department_id));
+                    }
+                    opt.textContent = d.name || '';
+                    deptEl.appendChild(opt);
+                });
+            }
+
+            deptEl.disabled = false;
+            this.departmentsLoadedFor = normalized;
+        } catch (e) {
+            console.error('Failed to load departments:', e);
+            deptEl.innerHTML = fallbackOptions;
+            deptEl.disabled = false;
+            StaffUtils.showNotification('Failed to load departments for selected category: ' + (e.message || 'Unknown error'), 'error');
+        }
     },
     
     async open(staffId) {
@@ -48,6 +150,15 @@ window.EditStaffModal = {
             
             try {
                 await this.loadStaffDetails(staffId);
+
+                // After staff details are loaded, if category already has a value
+                const deptCategoryEl =
+                    document.getElementById('e_department_category') ||
+                    document.getElementById('department_category');
+                console.log('[EditStaffModal] open: deptCategoryEl value after loadStaffDetails =', deptCategoryEl?.value);
+                if (deptCategoryEl && deptCategoryEl.value) {
+                    await this.loadDepartmentsForCategory(deptCategoryEl.value);
+                }
             } catch (error) {
                 console.error('Error loading staff details:', error);
                 StaffUtils.showNotification('Failed to load staff details', 'error');
@@ -69,6 +180,22 @@ window.EditStaffModal = {
             this.form.reset();
             StaffModalUtils.clearErrors(this.form, 'e_');
             StaffModalUtils.toggleRoleFields('e_');
+            this.departmentsLoadedFor = null;
+            
+            const deptEl = document.getElementById('e_department');
+            const deptIdEl = document.getElementById('e_department_id');
+            const deptCategoryEl = document.getElementById('e_department_category');
+            
+            if (deptEl) {
+                deptEl.innerHTML = this.initialDepartmentOptions || '<option value="">Select department</option>';
+                deptEl.disabled = true;
+            }
+            if (deptIdEl) {
+                deptIdEl.value = '';
+            }
+            if (deptCategoryEl) {
+                deptCategoryEl.value = '';
+            }
         }
     },
     
@@ -79,7 +206,7 @@ window.EditStaffModal = {
             );
             
             if (response.status === 'success' && response.data) {
-                this.populateForm(response.data);
+                await this.populateForm(response.data);
             } else {
                 throw new Error(response.message || 'Failed to load staff details');
             }
@@ -89,11 +216,37 @@ window.EditStaffModal = {
         }
     },
     
-    populateForm(staff) {
-        const normalizeDepartment = (dept) => {
-            if (!dept) return '';
-            const val = String(dept).trim();
+    async populateForm(staff) {
+        const normalizeDepartment = (dept, fallback) => {
+            const source = dept ?? fallback;
+            if (!source) return '';
+            const val = String(source).trim();
             return (val.toUpperCase() === 'N/A') ? '' : val;
+        };
+        const normalizeCategoryValue = (value) => {
+            if (value === undefined || value === null) return '';
+            const normalized = String(value).trim().toLowerCase();
+            if (!normalized) return '';
+
+            if (normalized.includes('non') && normalized.includes('medical')) {
+                return 'non_medical';
+            }
+
+            const nonMedicalKeywords = ['administrative', 'support', 'finance', 'billing', 'hr', 'human resources', 'it', 'information technology', 'operations'];
+            if (nonMedicalKeywords.some(keyword => normalized.includes(keyword))) {
+                return 'non_medical';
+            }
+
+            if (normalized.includes('medical')) {
+                return 'medical';
+            }
+
+            const medicalKeywords = ['clinical', 'diagnostic', 'emergency'];
+            if (medicalKeywords.some(keyword => normalized.includes(keyword))) {
+                return 'medical';
+            }
+
+            return '';
         };
 
         // Derive a usable role value for the designation select
@@ -111,7 +264,7 @@ window.EditStaffModal = {
             'e_date_of_birth': staff.date_of_birth || staff.dob || '',
             'e_contact_no': staff.contact_no || staff.phone || '',
             'e_email': staff.email || '',
-            'e_department': normalizeDepartment(staff.department),
+            'e_department': normalizeDepartment(staff.department, staff.department_name),
             'e_designation': resolvedRole,
             'e_date_joined': staff.date_joined || '',
             'e_status': staff.status || 'active',
@@ -134,6 +287,83 @@ window.EditStaffModal = {
             if (element) {
                 element.value = value;
             }
+        }
+
+        // Handle department category and department loading
+        const deptId = staff.department_id || null;
+        const deptName = normalizeDepartment(staff.department, staff.department_name);
+        const deptCategoryEl = document.getElementById('e_department_category');
+        const deptEl = document.getElementById('e_department');
+        const deptIdEl = document.getElementById('e_department_id');
+
+        // Prefer API-provided category fields before falling back to heuristics
+        const categorySources = [
+            staff.department_category,
+            staff.department_category_slug,
+            staff.dept_category,
+            staff.dept_category_slug,
+            staff.department_type,
+        ];
+        let category = '';
+        for (const source of categorySources) {
+            category = normalizeCategoryValue(source);
+            if (category) break;
+        }
+
+        if (!category && deptName) {
+            const deptNameLower = deptName.toLowerCase();
+            const medicalKeywords = ['emergency', 'cardiology', 'surgery', 'pediatrics', 'radiology', 'laboratory', 'pathology', 'clinical', 'diagnostic'];
+            const nonMedicalKeywords = ['administration', 'admin', 'finance', 'billing', 'hr', 'human resources', 'it', 'information technology', 'housekeeping', 'maintenance', 'security', 'inventory'];
+
+            if (medicalKeywords.some(keyword => deptNameLower.includes(keyword))) {
+                category = 'medical';
+            } else if (nonMedicalKeywords.some(keyword => deptNameLower.includes(keyword))) {
+                category = 'non_medical';
+            }
+        }
+
+        const applyDepartmentSelection = () => {
+            if (!deptEl) return false;
+            const match = Array.from(deptEl.options).find(
+                (opt) =>
+                    (deptName && opt.value === deptName) ||
+                    (deptId && opt.getAttribute('data-id') === String(deptId))
+            );
+            if (match) {
+                deptEl.value = match.value;
+                if (deptIdEl) {
+                    deptIdEl.value = match.getAttribute('data-id') || deptId || '';
+                }
+                return true;
+            }
+            return false;
+        };
+
+        const tryLoadAndSelect = async (candidateCategory) => {
+            if (!candidateCategory || !deptCategoryEl) return false;
+            await this.loadDepartmentsForCategory(candidateCategory);
+            const matched = applyDepartmentSelection();
+            if (matched) {
+                deptCategoryEl.value = candidateCategory;
+            }
+            return matched;
+        };
+
+        if (deptCategoryEl && category) {
+            deptCategoryEl.value = category;
+            await this.loadDepartmentsForCategory(category);
+            applyDepartmentSelection();
+        } else if ((deptId || deptName) && deptCategoryEl) {
+            const categoriesToTry = ['medical', 'non_medical'];
+            for (const candidate of categoriesToTry) {
+                const matched = await tryLoadAndSelect(candidate);
+                if (matched) {
+                    break;
+                }
+            }
+        } else if (deptIdEl && deptId) {
+            // Set department_id even if we couldn't determine category
+            deptIdEl.value = deptId;
         }
 
         StaffModalUtils.toggleRoleFields('e_');

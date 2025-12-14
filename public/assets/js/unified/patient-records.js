@@ -843,11 +843,7 @@
     // Vital Signs Modal Functions
     function openAddVitalSignsModal() {
         if (!currentPatientId) {
-            if (typeof PatientUtils !== 'undefined' && typeof PatientUtils.showNotification === 'function') {
-                PatientUtils.showNotification('Please select a patient first', 'error');
-            } else if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Please select a patient first', 'error');
-            }
+            alert('Please select a patient first');
             return;
         }
 
@@ -856,11 +852,7 @@
         
         if (!modal) {
             console.error('Vital signs modal not found');
-            if (typeof PatientUtils !== 'undefined' && typeof PatientUtils.showNotification === 'function') {
-                PatientUtils.showNotification('Modal not found. Please refresh the page.', 'error');
-            } else if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Modal not found. Please refresh the page.', 'error');
-            }
+            alert('Modal not found. Please refresh the page.');
             return;
         }
 

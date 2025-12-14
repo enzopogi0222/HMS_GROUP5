@@ -284,14 +284,6 @@ class ResourceService
                 $quantityChange = $newQuantity - $currentQuantity;
             }
 
-            // Get purchase cost if provided (for expense transaction when adding stock)
-            $purchaseCost = null;
-            if (isset($data['purchase_cost']) && !empty($data['purchase_cost']) && $quantityChange > 0) {
-                // Calculate purchase cost for the additional stock only
-                $unitPurchaseCost = (float)$data['purchase_cost'];
-                $purchaseCost = $unitPurchaseCost * abs($quantityChange); // Total cost for expense transaction
-            }
-
             if (!$this->resourceModel->update($resourceId, $updateData)) {
                 $this->db->transRollback();
                 return [
@@ -309,8 +301,7 @@ class ResourceService
                     $transactionType, 
                     abs($quantityChange), 
                     $resource['equipment_name'] ?? 'Resource', 
-                    $staffId,
-                    $purchaseCost // Pass purchase cost for expense transaction
+                    $staffId
                 );
             }
 

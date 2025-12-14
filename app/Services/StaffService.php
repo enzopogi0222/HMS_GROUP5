@@ -18,11 +18,37 @@ class StaffService
      */
     private function buildStaffQuery($includeId = false)
     {
-        $select = 's.*, s.department_id, dpt.name as department, CONCAT(s.first_name, " ", s.last_name) as full_name, TIMESTAMPDIFF(YEAR, s.dob, CURDATE()) as age, DATE_FORMAT(s.date_joined, "%M %d, %Y") as formatted_date_joined, d.specialization as doctor_specialization, d.license_no as doctor_license_no, n.license_no as nurse_license_no, p.license_no as pharmacist_license_no, l.license_no as laboratorist_license_no, l.specialization as laboratorist_specialization, a.license_no as accountant_license_no, r.desk_no as receptionist_desk_no, i.expertise as it_expertise, s.role_id, rl.slug as role_slug, rl.name as role_name';
+        $hasMedicalTable = $this->db->tableExists('medical_department');
+        $hasNonMedicalTable = $this->db->tableExists('non_medical_department');
+        $hasDeptType = $this->db->fieldExists('type', 'department');
+
+        $categoryCase = 'CASE ';
+        if ($hasMedicalTable) {
+            $categoryCase .= 'WHEN mdept.department_id IS NOT NULL THEN "medical" ';
+        }
+        if ($hasNonMedicalTable) {
+            $categoryCase .= 'WHEN nmdept.department_id IS NOT NULL THEN "non_medical" ';
+        }
+        if ($hasDeptType) {
+            $categoryCase .= 'WHEN dpt.type IN ("Clinical","Emergency","Diagnostic") THEN "medical" ';
+            $categoryCase .= 'WHEN dpt.type IN ("Administrative","Support") THEN "non_medical" ';
+        }
+        $categoryCase .= 'ELSE NULL END';
+
+        $select = 's.*, s.department_id, dpt.name as department, dpt.name as department_name, dpt.type as department_type, CONCAT(s.first_name, " ", s.last_name) as full_name, TIMESTAMPDIFF(YEAR, s.dob, CURDATE()) as age, DATE_FORMAT(s.date_joined, "%M %d, %Y") as formatted_date_joined, d.specialization as doctor_specialization, d.license_no as doctor_license_no, n.license_no as nurse_license_no, p.license_no as pharmacist_license_no, l.license_no as laboratorist_license_no, l.specialization as laboratorist_specialization, a.license_no as accountant_license_no, r.desk_no as receptionist_desk_no, i.expertise as it_expertise, s.role_id, rl.slug as role_slug, rl.name as role_name, ' . $categoryCase . ' as department_category, ' . $categoryCase . ' as department_category_slug';
         if ($includeId) $select = 's.staff_id as id, ' . $select;
         
-        return $this->db->table('staff s')->select($select)
-            ->join('department dpt', 'dpt.department_id = s.department_id', 'left')
+        $builder = $this->db->table('staff s')->select($select)
+            ->join('department dpt', 'dpt.department_id = s.department_id', 'left');
+
+        if ($hasMedicalTable) {
+            $builder->join('medical_department mdept', 'mdept.department_id = s.department_id', 'left');
+        }
+        if ($hasNonMedicalTable) {
+            $builder->join('non_medical_department nmdept', 'nmdept.department_id = s.department_id', 'left');
+        }
+
+        return $builder
             ->join('doctor d', 'd.staff_id = s.staff_id', 'left')
             ->join('nurse n', 'n.staff_id = s.staff_id', 'left')
             ->join('pharmacist p', 'p.staff_id = s.staff_id', 'left')

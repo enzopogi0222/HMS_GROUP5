@@ -64,9 +64,7 @@ class BillingModalUtils {
         if (window.showFinancialNotification) {
             window.showFinancialNotification(message, type);
         } else {
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification(message, 'error');
-            }
+            alert(message);
         }
     }
 

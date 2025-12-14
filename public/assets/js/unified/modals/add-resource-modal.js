@@ -119,16 +119,12 @@
                 if (data?.errors) {
                     utils.displayErrors(data.errors, 'err_res_');
                 } else {
-                    if (typeof showUniversalNotification === 'function') {
-                        showUniversalNotification(errorMsg, 'error');
-                    }
+                    alert(errorMsg);
                 }
             }
         } catch (err) {
             console.error('Error:', err);
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('An error occurred while saving the resource.', 'error');
-            }
+            alert('An error occurred while saving the resource.');
         }
     }
 

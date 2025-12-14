@@ -98,22 +98,16 @@
                 if (data.success && data.resource) {
                     displayResourceDetails(data.resource);
                 } else {
-                    if (typeof showUniversalNotification === 'function') {
-                        showUniversalNotification('Resource not found', 'error');
-                    }
+                    alert('Resource not found');
                     close();
                 }
             } else {
-                if (typeof showUniversalNotification === 'function') {
-                    showUniversalNotification('Failed to load resource details', 'error');
-                }
+                alert('Failed to load resource details');
                 close();
             }
         } catch (error) {
             console.error('Error fetching resource:', error);
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Error loading resource details', 'error');
-            }
+            alert('Error loading resource details');
             close();
         }
     }

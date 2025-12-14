@@ -467,20 +467,6 @@
             <!-- Charts Section -->
                 <?php if ($userRole === 'admin' || $userRole === 'accountant' || $userRole === 'it_staff'): ?>
                 <div class="charts-section">
-                    <!-- Full Width Chart -->
-                    <div class="chart-container full-width">
-                        <div class="chart-header">
-                            <div>
-                                <h3 class="chart-title">Appointment Trends</h3>
-                                <p class="chart-subtitle">Daily appointment count over time</p>
-                            </div>
-                            <span class="chart-period">Last 30 days</span>
-                        </div>
-                        <div style="position: relative; height: 350px;">
-                            <canvas id="appointmentTrendsChart"></canvas>
-                        </div>
-                    </div>
-
                     <!-- Revenue Trend Chart -->
                     <div class="chart-container full-width">
                         <div class="chart-header">
@@ -506,17 +492,6 @@
                             </div>
                             <div style="position: relative; height: 300px;">
                                 <canvas id="patientTypeChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <div class="chart-header">
-                                <div>
-                                    <h3 class="chart-title">Appointment Status</h3>
-                                    <p class="chart-subtitle">Status breakdown</p>
-                                </div>
-                            </div>
-                            <div style="position: relative; height: 300px;">
-                                <canvas id="appointmentStatusChart"></canvas>
                             </div>
                         </div>
                     </div>
@@ -558,17 +533,6 @@
                             </div>
                             <div style="position: relative; height: 300px;">
                                 <canvas id="patientAgeChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <div class="chart-header">
-                                <div>
-                                    <h3 class="chart-title">Appointment Types</h3>
-                                    <p class="chart-subtitle">By appointment type</p>
-                                </div>
-                            </div>
-                            <div style="position: relative; height: 300px;">
-                                <canvas id="appointmentTypeChart"></canvas>
                             </div>
                         </div>
                     </div>
@@ -640,33 +604,12 @@
                     </div>
                     <?php endif; ?>
 
-                    <!-- Peak Hours Chart -->
-                    <?php if (isset($analytics['appointment_analytics']['peak_hours']) && !empty($analytics['appointment_analytics']['peak_hours'])): ?>
-                    <div class="chart-container full-width">
-                        <div class="chart-header">
-                            <div>
-                                <h3 class="chart-title">Peak Appointment Hours</h3>
-                                <p class="chart-subtitle">Busiest hours of the day</p>
-                            </div>
-                        </div>
-                        <div style="position: relative; height: 300px;">
-                            <canvas id="peakHoursChart"></canvas>
-                        </div>
-                    </div>
-                    <?php endif; ?>
+                    <!-- Peak Hours Chart removed -->
 
                 </div>
                 <?php elseif ($userRole === 'doctor'): ?>
                 <div class="charts-section">
                     <div class="charts-row">
-                        <div class="chart-container">
-                            <div class="chart-header">
-                                <h3 class="chart-title">My Appointments</h3>
-                            </div>
-                            <div style="position: relative; height: 300px;">
-                                <canvas id="doctorAppointmentsChart"></canvas>
-                            </div>
-                        </div>
                         <div class="chart-container">
                             <div class="chart-header">
                                 <h3 class="chart-title">Patient Growth</h3>

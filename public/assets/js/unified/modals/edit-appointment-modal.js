@@ -252,11 +252,7 @@ window.EditAppointmentModal = {
         } else if (typeof showAppointmentsNotification === 'function') {
             showAppointmentsNotification(message, type);
         } else {
-            if (typeof showAppointmentsNotification === 'function') {
-                showAppointmentsNotification(message, 'error');
-            } else if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification(message, 'error');
-            }
+            alert(message);
         }
     }
 };

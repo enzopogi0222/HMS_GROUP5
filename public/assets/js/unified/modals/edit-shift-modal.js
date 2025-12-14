@@ -280,9 +280,7 @@ window.EditShiftModal = {
         if (window.shiftManager) {
             window.shiftManager.showNotification(message, type);
         } else {
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification(message, 'error');
-            }
+            alert(message);
         }
     }
 };

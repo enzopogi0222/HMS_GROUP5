@@ -55,10 +55,27 @@ $defaultDepts = ['Administration','Emergency','Cardiology','Intensive Care Unit'
     </select>
     <small id="err_department_category" style="color:#dc2626"></small>
 </div>
+<?php else: ?>
+<div>
+    <label class="form-label" for="<?= $prefix ?>department_category">Department Category</label>
+    <select id="<?= $prefix ?>department_category" name="department_category" class="form-select">
+        <option value="">Select category</option>
+        <option value="medical">Medical Department</option>
+        <option value="non_medical">Non-medical Department</option>
+    </select>
+    <small id="<?= $prefix ?>err_department_category" style="color:#dc2626"></small>
+</div>
 <?php endif; ?>
+<?php
+    $deptSelectAttrs = [];
+    if ($prefix === '') {
+        $deptSelectAttrs[] = 'disabled';
+        $deptSelectAttrs[] = 'required';
+    }
+?>
 <div>
     <label class="form-label" for="<?= $prefix ?>department">Department</label>
-    <select id="<?= $prefix ?>department" name="department" class="form-select" <?= $prefix === '' ? 'disabled required' : '' ?>>
+    <select id="<?= $prefix ?>department" name="department" class="form-select" <?= implode(' ', $deptSelectAttrs) ?>>
         <option value="">Select department</option>
         <?php if (!empty($departments) && is_array($departments)): ?>
             <?php foreach ($departments as $dept): ?>
@@ -70,7 +87,7 @@ $defaultDepts = ['Administration','Emergency','Cardiology','Intensive Care Unit'
             <?php endforeach; ?>
         <?php endif; ?>
     </select>
-    <?php if ($prefix === ''): ?><input type="hidden" id="department_id" name="department_id" value=""><?php endif; ?>
+    <?php if ($prefix === ''): ?><input type="hidden" id="department_id" name="department_id" value=""><?php elseif ($prefix === 'e_'): ?><input type="hidden" id="e_department_id" name="department_id" value=""><?php endif; ?>
     <small id="<?= $prefix ?>err_department" style="color:#dc2626"></small>
 </div>
 <div>

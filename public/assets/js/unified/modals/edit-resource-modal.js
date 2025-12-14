@@ -9,7 +9,6 @@
 
     const modal = document.getElementById(modalId);
     const form = document.getElementById(formId);
-    let originalQuantity = 0; // Store original quantity to detect increases
 
     function init() {
         if (!modal || !form) return;
@@ -30,12 +29,6 @@
                 }
             });
         }
-
-        // Show/hide purchase cost field when quantity changes
-        const quantityInput = document.getElementById('er_quantity');
-        if (quantityInput) {
-            quantityInput.addEventListener('input', togglePurchaseCostField);
-        }
     }
 
     function open(resourceId) {
@@ -54,9 +47,7 @@
     async function loadResource(resourceId) {
         const resource = (window.resourcesById || {})[resourceId];
         if (!resource) {
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('Resource not found', 'error');
-            }
+            alert('Resource not found');
             close();
             return;
         }
@@ -78,10 +69,6 @@
         set('er_expiry_date', resource.expiry_date || '');
         set('er_price', resource.price || '');
         set('er_remarks', resource.remarks || '');
-        set('er_purchase_cost', ''); // Reset purchase cost
-
-        // Store original quantity
-        originalQuantity = parseInt(resource.quantity || 0);
 
         // Show/hide medication fields
         const isMedication = resource.category === 'Medications';
@@ -89,30 +76,6 @@
         if (medFields) medFields.style.display = isMedication ? 'flex' : 'none';
         const priceFields = document.getElementById('editMedicationPriceFields');
         if (priceFields) priceFields.style.display = isMedication ? 'flex' : 'none';
-
-        // Check if purchase cost field should be shown
-        togglePurchaseCostField();
-    }
-
-    function togglePurchaseCostField() {
-        const quantityInput = document.getElementById('er_quantity');
-        const purchaseCostFields = document.getElementById('editPurchaseCostFields');
-        
-        if (!quantityInput || !purchaseCostFields) return;
-
-        const newQuantity = parseInt(quantityInput.value || 0);
-        const isIncreasing = newQuantity > originalQuantity;
-        
-        // Show purchase cost field only when quantity is being increased
-        purchaseCostFields.style.display = isIncreasing ? 'flex' : 'none';
-        
-        // Clear purchase cost if quantity is not increasing
-        if (!isIncreasing) {
-            const purchaseCostInput = document.getElementById('er_purchase_cost');
-            if (purchaseCostInput) {
-                purchaseCostInput.value = '';
-            }
-        }
     }
 
     async function handleSubmit(e) {
@@ -180,16 +143,12 @@
                 if (data?.errors) {
                     utils.displayErrors(data.errors, 'err_er_');
                 } else {
-                    if (typeof showUniversalNotification === 'function') {
-                        showUniversalNotification(errorMsg, 'error');
-                    }
+                    alert(errorMsg);
                 }
             }
         } catch (err) {
             console.error('Error:', err);
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification('An error occurred while updating the resource.', 'error');
-            }
+            alert('An error occurred while updating the resource.');
         }
     }
 

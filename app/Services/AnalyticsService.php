@@ -75,6 +75,20 @@ class AnalyticsService
     }
 
     /**
+     * Normalize date range filters for analytics queries
+     */
+    private function getDateRange(array $filters): array
+    {
+        $endDate = $filters['end_date'] ?? date('Y-m-d');
+        $startDate = $filters['start_date'] ?? date('Y-m-d', strtotime('-30 days'));
+
+        return [
+            'start' => $startDate,
+            'end'   => $endDate,
+        ];
+    }
+
+    /**
      * Get doctor-specific analytics
      */
     private function getDoctorAnalytics(int $doctorId, array $filters = []): array
@@ -391,7 +405,13 @@ class AnalyticsService
         try {
             $totalStaff = 0;
             if ($this->db->fieldExists('status', 'staff')) {
-                $totalStaff = $this->db->table('staff')->where('status', 'active')->countAllResults();
+                // Treat both 'active' and 'Active' as active to match existing data
+                $totalStaff = $this->db->table('staff')
+                    ->groupStart()
+                        ->where('status', 'active')
+                        ->orWhere('status', 'Active')
+                    ->groupEnd()
+                    ->countAllResults();
             } else {
                 $totalStaff = $this->db->table('staff')->countAllResults();
             }
@@ -400,7 +420,11 @@ class AnalyticsService
             if ($this->db->fieldExists('role', 'staff')) {
                 $query = $this->db->table('staff')->select('role, COUNT(*) as count');
                 if ($this->db->fieldExists('status', 'staff')) {
-                    $query->where('status', 'active');
+                    // Same case-insensitive handling as above
+                    $query->groupStart()
+                        ->where('status', 'active')
+                        ->orWhere('status', 'Active')
+                    ->groupEnd();
                 }
                 $staffByRole = $query->groupBy('role')
                     ->get()
@@ -411,7 +435,11 @@ class AnalyticsService
             if ($this->db->fieldExists('department', 'staff')) {
                 $query = $this->db->table('staff')->select('department, COUNT(*) as count');
                 if ($this->db->fieldExists('status', 'staff')) {
-                    $query->where('status', 'active');
+                    // Same case-insensitive handling as above
+                    $query->groupStart()
+                        ->where('status', 'active')
+                        ->orWhere('status', 'Active')
+                    ->groupEnd();
                 }
                 $staffByDepartment = $query->groupBy('department')
                     ->get()
@@ -436,593 +464,6 @@ class AnalyticsService
     }
 
     /**
-     * Generate reports
-     */
-    public function generateReport(string $reportType, string $userRole, int $userId = null, array $filters = []): array
-    {
-        try {
-            switch ($reportType) {
-                case 'patient_summary':
-                    return $this->generatePatientSummaryReport($filters);
-                case 'financial_summary':
-                    return $this->generateFinancialSummaryReport($filters);
-                case 'appointment_summary':
-                    return $this->generateAppointmentSummaryReport($filters);
-                case 'staff_performance':
-                    return $this->generateStaffPerformanceReport($filters);
-                case 'doctor_performance':
-                    return $this->generateDoctorPerformanceReport($userId, $filters);
-                case 'lab_summary':
-                    return $this->generateLabSummaryReport($filters);
-                case 'prescription_summary':
-                    return $this->generatePrescriptionSummaryReport($filters);
-                case 'room_utilization':
-                    return $this->generateRoomUtilizationReport($filters);
-                default:
-                    return ['success' => false, 'message' => 'Invalid report type'];
-            }
-        } catch (\Exception $e) {
-            log_message('error', 'AnalyticsService::generateReport error: ' . $e->getMessage());
-            return ['success' => false, 'message' => 'Error generating report'];
-        }
-    }
-
-    /**
-     * Helper methods
-     */
-    private function getDateRange(array $filters): array
-    {
-        $endDate = $filters['end_date'] ?? date('Y-m-d');
-        $startDate = $filters['start_date'] ?? date('Y-m-d', strtotime('-30 days'));
-        
-        return [
-            'start' => $startDate,
-            'end' => $endDate
-        ];
-    }
-
-    private function getBasicAnalytics(): array
-    {
-        return [
-            'message' => 'Limited analytics access for this role'
-        ];
-    }
-
-    private function getDoctorPatientStats(int $doctorId, array $dateRange): array
-    {
-        $patientTable = $this->patientTable;
-        $dateColumn = $this->db->fieldExists('date_registered', $patientTable) ? 'date_registered' : 'created_at';
-        
-        // Check if primary_doctor_id column exists
-        $totalPatients = 0;
-        $newPatients = 0;
-        
-        if ($this->db->fieldExists('primary_doctor_id', $patientTable)) {
-            $totalPatients = $this->db->table($patientTable)
-                ->where('primary_doctor_id', $doctorId)
-                ->countAllResults();
-
-            $newPatients = $this->db->table($patientTable)
-                ->where('primary_doctor_id', $doctorId)
-                ->where($dateColumn . ' >=', $dateRange['start'])
-                ->where($dateColumn . ' <=', $dateRange['end'])
-                ->countAllResults();
-        }
-
-        return [
-            'total_patients' => $totalPatients,
-            'new_patients' => $newPatients
-        ];
-    }
-
-    private function getDoctorAppointmentStats(int $doctorId, array $dateRange): array
-    {
-        if (!$this->db->tableExists('appointments')) {
-            return [
-                'total_appointments' => 0,
-                'completed_appointments' => 0,
-                'completion_rate' => 0
-            ];
-        }
-
-        try {
-            $totalAppointments = $this->db->table('appointments')
-                ->where('doctor_id', $doctorId)
-                ->where('appointment_date >=', $dateRange['start'])
-                ->where('appointment_date <=', $dateRange['end'])
-                ->countAllResults();
-
-            $completedAppointments = 0;
-            if ($this->db->fieldExists('status', 'appointments')) {
-                $completedAppointments = $this->db->table('appointments')
-                    ->where('doctor_id', $doctorId)
-                    ->where('status', 'completed')
-                    ->where('appointment_date >=', $dateRange['start'])
-                    ->where('appointment_date <=', $dateRange['end'])
-                    ->countAllResults();
-            }
-
-            return [
-                'total_appointments' => $totalAppointments,
-                'completed_appointments' => $completedAppointments,
-                'completion_rate' => $totalAppointments > 0 ? round(($completedAppointments / $totalAppointments) * 100, 2) : 0
-            ];
-        } catch (\Exception $e) {
-            log_message('error', 'Error getting doctor appointment stats: ' . $e->getMessage());
-            return [
-                'total_appointments' => 0,
-                'completed_appointments' => 0,
-                'completion_rate' => 0
-            ];
-        }
-    }
-
-    private function getDoctorRevenueStats(int $doctorId, array $dateRange): array
-    {
-        $revenue = 0;
-        
-        if ($this->db->tableExists('payments') && $this->db->tableExists('bills')) {
-            try {
-                if ($this->db->fieldExists('doctor_id', 'bills')) {
-                    $revenue = $this->db->table('payments p')
-                        ->join('bills b', 'b.bill_id = p.bill_id', 'inner')
-                        ->selectSum('p.amount')
-                        ->where('b.doctor_id', $doctorId)
-                        ->where('p.payment_date >=', $dateRange['start'])
-                        ->where('p.payment_date <=', $dateRange['end'])
-                        ->where('p.status', 'completed')
-                        ->get()
-                        ->getRow()
-                        ->amount ?? 0;
-                }
-            } catch (\Exception $e) {
-                log_message('error', 'Error getting doctor revenue: ' . $e->getMessage());
-            }
-        }
-
-        return [
-            'total_revenue' => (float)$revenue
-        ];
-    }
-
-    private function generatePatientSummaryReport(array $filters): array
-    {
-        $dateRange = $this->getDateRange($filters);
-        
-        $data = [
-            'report_title' => 'Patient Summary Report',
-            'date_range' => $dateRange,
-            'generated_at' => date('Y-m-d H:i:s'),
-            'data' => $this->getPatientAnalytics($dateRange)
-        ];
-
-        return ['success' => true, 'report' => $data];
-    }
-
-    private function generateFinancialSummaryReport(array $filters): array
-    {
-        $dateRange = $this->getDateRange($filters);
-        
-        $data = [
-            'report_title' => 'Financial Summary Report',
-            'date_range' => $dateRange,
-            'generated_at' => date('Y-m-d H:i:s'),
-            'data' => $this->getFinancialAnalytics($dateRange)
-        ];
-
-        return ['success' => true, 'report' => $data];
-    }
-
-    private function generateAppointmentSummaryReport(array $filters): array
-    {
-        $dateRange = $this->getDateRange($filters);
-        
-        $data = [
-            'report_title' => 'Appointment Summary Report',
-            'date_range' => $dateRange,
-            'generated_at' => date('Y-m-d H:i:s'),
-            'data' => $this->getAppointmentAnalytics($dateRange)
-        ];
-
-        return ['success' => true, 'report' => $data];
-    }
-
-    private function generateStaffPerformanceReport(array $filters): array
-    {
-        $dateRange = $this->getDateRange($filters);
-        
-        $data = [
-            'report_title' => 'Staff Performance Report',
-            'date_range' => $dateRange,
-            'generated_at' => date('Y-m-d H:i:s'),
-            'data' => $this->getStaffAnalytics($dateRange)
-        ];
-
-        return ['success' => true, 'report' => $data];
-    }
-
-    private function generateDoctorPerformanceReport(int $doctorId, array $filters): array
-    {
-        $dateRange = $this->getDateRange($filters);
-        
-        $data = [
-            'report_title' => 'Doctor Performance Report',
-            'date_range' => $dateRange,
-            'generated_at' => date('Y-m-d H:i:s'),
-            'data' => $this->getDoctorAnalytics($doctorId, $filters)
-        ];
-
-        return ['success' => true, 'report' => $data];
-    }
-
-    private function generateLabSummaryReport(array $filters): array
-    {
-        $dateRange = $this->getDateRange($filters);
-        
-        $data = [
-            'report_title' => 'Lab Test Summary Report',
-            'date_range' => $dateRange,
-            'generated_at' => date('Y-m-d H:i:s'),
-            'data' => $this->getLabAnalytics($dateRange)
-        ];
-
-        return ['success' => true, 'report' => $data];
-    }
-
-    private function generatePrescriptionSummaryReport(array $filters): array
-    {
-        $dateRange = $this->getDateRange($filters);
-        
-        $data = [
-            'report_title' => 'Prescription Summary Report',
-            'date_range' => $dateRange,
-            'generated_at' => date('Y-m-d H:i:s'),
-            'data' => $this->getPrescriptionAnalytics($dateRange)
-        ];
-
-        return ['success' => true, 'report' => $data];
-    }
-
-    private function generateRoomUtilizationReport(array $filters): array
-    {
-        $dateRange = $this->getDateRange($filters);
-        
-        $data = [
-            'report_title' => 'Room Utilization Report',
-            'date_range' => $dateRange,
-            'generated_at' => date('Y-m-d H:i:s'),
-            'data' => $this->getRoomAnalytics($dateRange)
-        ];
-
-        return ['success' => true, 'report' => $data];
-    }
-
-    // Missing methods implementation
-    private function getDoctorSatisfactionStats(int $doctorId, array $dateRange): array
-    {
-        // Placeholder implementation - can be enhanced with actual satisfaction data
-        return [
-            'average_rating' => 4.5,
-            'total_reviews' => 0,
-            'satisfaction_percentage' => 85
-        ];
-    }
-
-    private function getDoctorMonthlyPerformance(int $doctorId, array $dateRange): array
-    {
-        try {
-            // Get appointments per month
-            $appointmentsPerMonth = [];
-            if ($this->db->tableExists('appointments')) {
-                $appointmentsPerMonth = $this->db->table('appointments')
-                    ->select('DATE_FORMAT(appointment_date, "%Y-%m") as month, COUNT(*) as count')
-                    ->where('doctor_id', $doctorId)
-                    ->where('appointment_date >=', $dateRange['start'])
-                    ->where('appointment_date <=', $dateRange['end'])
-                    ->groupBy('month')
-                    ->orderBy('month')
-                    ->get()
-                    ->getResultArray();
-            }
-
-            // Get revenue per month
-            $revenuePerMonth = [];
-            if ($this->db->tableExists('payments') && $this->db->tableExists('bills')) {
-                if ($this->db->fieldExists('doctor_id', 'bills')) {
-                    $revenuePerMonth = $this->db->table('payments p')
-                        ->select('DATE_FORMAT(p.payment_date, "%Y-%m") as month, SUM(p.amount) as revenue')
-                        ->join('bills b', 'b.bill_id = p.bill_id', 'inner')
-                        ->where('b.doctor_id', $doctorId)
-                        ->where('p.payment_date >=', $dateRange['start'])
-                        ->where('p.payment_date <=', $dateRange['end'])
-                        ->where('p.status', 'completed')
-                        ->groupBy('month')
-                        ->orderBy('month')
-                        ->get()
-                        ->getResultArray();
-                }
-            }
-
-            // Calculate patient growth
-            $patientTable = $this->patientTable;
-            $dateColumn = $this->db->fieldExists('date_registered', $patientTable) ? 'date_registered' : 'created_at';
-            
-            $currentPeriodPatients = 0;
-            $previousPeriodPatients = 0;
-            
-            if ($this->db->fieldExists('primary_doctor_id', $patientTable)) {
-                $currentPeriodPatients = $this->db->table($patientTable)
-                    ->where('primary_doctor_id', $doctorId)
-                    ->where($dateColumn . ' >=', $dateRange['start'])
-                    ->where($dateColumn . ' <=', $dateRange['end'])
-                    ->countAllResults();
-
-                $previousPeriodStart = date('Y-m-d', strtotime($dateRange['start'] . ' -' . (strtotime($dateRange['end']) - strtotime($dateRange['start'])) . ' days'));
-                $previousPeriodPatients = $this->db->table($patientTable)
-                    ->where('primary_doctor_id', $doctorId)
-                    ->where($dateColumn . ' >=', $previousPeriodStart)
-                    ->where($dateColumn . ' <', $dateRange['start'])
-                    ->countAllResults();
-            }
-
-            $patientGrowth = $previousPeriodPatients > 0 
-                ? round((($currentPeriodPatients - $previousPeriodPatients) / $previousPeriodPatients) * 100, 2)
-                : ($currentPeriodPatients > 0 ? 100 : 0);
-
-            return [
-                'appointments_per_month' => $appointmentsPerMonth,
-                'revenue_per_month' => $revenuePerMonth,
-                'patient_growth' => $patientGrowth,
-                'current_period_patients' => $currentPeriodPatients,
-                'previous_period_patients' => $previousPeriodPatients
-            ];
-        } catch (\Exception $e) {
-            return [
-                'appointments_per_month' => [],
-                'revenue_per_month' => [],
-                'patient_growth' => 0
-            ];
-        }
-    }
-
-    private function getNursePatientStats(int $nurseId, array $dateRange): array
-    {
-        // Nurses can see all patients (view_all permission)
-        try {
-            $patientTable = $this->patientTable;
-            
-            $totalPatients = $this->db->table($patientTable)->countAllResults();
-
-            $activePatients = 0;
-            if ($this->db->fieldExists('status', $patientTable)) {
-                $activePatients = $this->db->table($patientTable)
-                    ->where('status', 'Active')
-                    ->countAllResults();
-            } else {
-                $activePatients = $totalPatients;
-            }
-
-            return [
-                'total' => $totalPatients,
-                'active' => $activePatients
-            ];
-        } catch (\Exception $e) {
-            return ['total' => 0, 'active' => 0];
-        }
-    }
-
-    private function getMedicationTrackingStats(int $nurseId, array $dateRange): array
-    {
-        try {
-            // Nurses can see all prescriptions (view_all permission)
-            // Count prescriptions by status
-            $administered = 0;
-            $pending = 0;
-            $scheduled = 0;
-
-            if ($this->db->tableExists('prescriptions')) {
-                // Get all prescriptions (no department filtering)
-                $prescriptions = $this->db->table('prescriptions p')
-                    ->where('p.created_at >=', $dateRange['start'])
-                    ->where('p.created_at <=', $dateRange['end'])
-                    ->get()
-                    ->getResultArray();
-
-                foreach ($prescriptions as $prescription) {
-                    $status = strtolower($prescription['status'] ?? '');
-                    if ($status === 'completed' || $status === 'dispensed') {
-                        $administered++;
-                    } elseif ($status === 'pending' || $status === 'active') {
-                        $pending++;
-                    } else {
-                        $scheduled++;
-                    }
-                }
-            }
-
-            return [
-                'administered' => $administered,
-                'pending' => $pending,
-                'scheduled' => $scheduled,
-                'total' => $administered + $pending + $scheduled
-            ];
-        } catch (\Exception $e) {
-            return [
-                'administered' => 0,
-                'pending' => 0,
-                'scheduled' => 0,
-                'total' => 0
-            ];
-        }
-    }
-
-    private function getShiftAnalytics(int $nurseId, array $dateRange): array
-    {
-        try {
-            if (!$this->db->tableExists('shifts')) {
-                return [
-                    'hours_worked' => 0,
-                    'shifts_completed' => 0,
-                    'overtime_hours' => 0
-                ];
-            }
-
-            // Get shifts for the nurse in the date range
-            $shifts = $this->db->table('shifts')
-                ->where('staff_id', $nurseId)
-                ->where('shift_date >=', $dateRange['start'])
-                ->where('shift_date <=', $dateRange['end'])
-                ->get()
-                ->getResultArray();
-
-            $hoursWorked = 0;
-            $shiftsCompleted = 0;
-            $overtimeHours = 0;
-
-            foreach ($shifts as $shift) {
-                if (isset($shift['start_time']) && isset($shift['end_time'])) {
-                    $start = strtotime($shift['start_time']);
-                    $end = strtotime($shift['end_time']);
-                    $hours = ($end - $start) / 3600;
-                    $hoursWorked += $hours;
-                    
-                    if (isset($shift['status']) && $shift['status'] === 'completed') {
-                        $shiftsCompleted++;
-                    }
-
-                    // Calculate overtime (assuming 8 hours is standard)
-                    if ($hours > 8) {
-                        $overtimeHours += ($hours - 8);
-                    }
-                }
-            }
-
-            return [
-                'hours_worked' => round($hoursWorked, 2),
-                'shifts_completed' => $shiftsCompleted,
-                'overtime_hours' => round($overtimeHours, 2),
-                'total_shifts' => count($shifts)
-            ];
-        } catch (\Exception $e) {
-            return [
-                'hours_worked' => 0,
-                'shifts_completed' => 0,
-                'overtime_hours' => 0
-            ];
-        }
-    }
-
-    private function getRegistrationStats(array $dateRange): array
-    {
-        try {
-            $patientTable = $this->patientTable;
-            $dateColumn = $this->db->fieldExists('date_registered', $patientTable) ? 'date_registered' : 'created_at';
-            
-            $newRegistrations = $this->db->table($patientTable)
-                ->where($dateColumn . ' >=', $dateRange['start'])
-                ->where($dateColumn . ' <=', $dateRange['end'])
-                ->countAllResults();
-
-            $todayRegistrations = $this->db->table($patientTable)
-                ->where('DATE(' . $dateColumn . ')', date('Y-m-d'))
-                ->countAllResults();
-
-            return [
-                'new_registrations' => $newRegistrations,
-                'total_today' => $todayRegistrations,
-                'period_total' => $newRegistrations
-            ];
-        } catch (\Exception $e) {
-            return ['new_registrations' => 0, 'total_today' => 0];
-        }
-    }
-
-    private function getBookingStats(array $dateRange): array
-    {
-        try {
-            $bookedToday = $this->db->table('appointments')
-                ->where('DATE(created_at)', date('Y-m-d'))
-                ->countAllResults();
-
-            $cancelledToday = $this->db->table('appointments')
-                ->where('DATE(updated_at)', date('Y-m-d'))
-                ->where('status', 'cancelled')
-                ->countAllResults();
-
-            return [
-                'booked_today' => $bookedToday,
-                'cancelled_today' => $cancelledToday,
-                'net_bookings' => $bookedToday - $cancelledToday
-            ];
-        } catch (\Exception $e) {
-            return ['booked_today' => 0, 'cancelled_today' => 0];
-        }
-    }
-
-    private function getDailyActivityStats(array $dateRange): array
-    {
-        try {
-            // Count various activities
-            $appointments = $this->db->table('appointments')
-                ->where('appointment_date >=', $dateRange['start'])
-                ->where('appointment_date <=', $dateRange['end'])
-                ->countAllResults();
-
-            $patientTable = $this->patientTable;
-            $dateColumn = $this->db->fieldExists('date_registered', $patientTable) ? 'date_registered' : 'created_at';
-            
-            $registrations = $this->db->table($patientTable)
-                ->where($dateColumn . ' >=', $dateRange['start'])
-                ->where($dateColumn . ' <=', $dateRange['end'])
-                ->countAllResults();
-
-            $labOrders = $this->db->tableExists('lab_orders') 
-                ? $this->db->table('lab_orders')
-                    ->where('created_at >=', $dateRange['start'])
-                    ->where('created_at <=', $dateRange['end'])
-                    ->countAllResults()
-                : 0;
-
-            // Get peak hour from appointments
-            $peakHour = '10:00';
-            if ($this->db->tableExists('appointments') && $this->db->fieldExists('appointment_time', 'appointments')) {
-                try {
-                    $hourlyData = $this->db->table('appointments')
-                        ->select('HOUR(appointment_time) as hour, COUNT(*) as count')
-                        ->where('appointment_date >=', $dateRange['start'])
-                        ->where('appointment_date <=', $dateRange['end'])
-                        ->groupBy('HOUR(appointment_time)')
-                        ->orderBy('count', 'DESC')
-                        ->limit(1)
-                        ->get()
-                        ->getRow();
-                    
-                    if ($hourlyData && isset($hourlyData->hour)) {
-                        $peakHour = sprintf('%02d:00', $hourlyData->hour);
-                    }
-                } catch (\Exception $e) {
-                    log_message('error', 'Error getting peak hour: ' . $e->getMessage());
-                }
-            }
-
-            return [
-                'total_activities' => $appointments + $registrations + $labOrders,
-                'peak_hour' => $peakHour,
-                'busiest_day' => date('Y-m-d'),
-                'appointments' => $appointments,
-                'registrations' => $registrations,
-                'lab_orders' => $labOrders
-            ];
-        } catch (\Exception $e) {
-            return [
-                'total_activities' => 0,
-                'peak_hour' => '10:00',
-                'busiest_day' => date('Y-m-d')
-            ];
-        }
-    }
-
-    /**
      * Get lab test analytics
      */
     private function getLabAnalytics(array $dateRange): array
@@ -1037,15 +478,18 @@ class AnalyticsService
         }
 
         try {
+            // Prefer ordered_at if present, otherwise fall back to created_at
+            $dateColumn = $this->db->fieldExists('ordered_at', 'lab_orders') ? 'ordered_at' : 'created_at';
+
             $totalOrders = $this->db->table('lab_orders')
-                ->where('created_at >=', $dateRange['start'])
-                ->where('created_at <=', $dateRange['end'])
+                ->where('DATE(' . $dateColumn . ') >=', $dateRange['start'])
+                ->where('DATE(' . $dateColumn . ') <=', $dateRange['end'])
                 ->countAllResults();
 
             $ordersByStatus = $this->db->table('lab_orders')
                 ->select('status, COUNT(*) as count')
-                ->where('created_at >=', $dateRange['start'])
-                ->where('created_at <=', $dateRange['end'])
+                ->where('DATE(' . $dateColumn . ') >=', $dateRange['start'])
+                ->where('DATE(' . $dateColumn . ') <=', $dateRange['end'])
                 ->groupBy('status')
                 ->get()
                 ->getResultArray();
@@ -1056,8 +500,8 @@ class AnalyticsService
                 $ordersByCategory = $this->db->table('lab_orders lo')
                     ->select('lt.category, COUNT(*) as count')
                     ->join('lab_tests lt', 'lt.test_code = lo.test_code', 'left')
-                    ->where('lo.created_at >=', $dateRange['start'])
-                    ->where('lo.created_at <=', $dateRange['end'])
+                    ->where('DATE(lo.' . $dateColumn . ') >=', $dateRange['start'])
+                    ->where('DATE(lo.' . $dateColumn . ') <=', $dateRange['end'])
                     ->groupBy('lt.category')
                     ->get()
                     ->getResultArray();
@@ -1107,15 +551,18 @@ class AnalyticsService
         }
 
         try {
+            // Use date_issued when available, otherwise fall back to created_at
+            $dateColumn = $this->db->fieldExists('date_issued', 'prescriptions') ? 'date_issued' : 'created_at';
+
             $totalPrescriptions = $this->db->table('prescriptions')
-                ->where('date_issued >=', $dateRange['start'])
-                ->where('date_issued <=', $dateRange['end'])
+                ->where('DATE(' . $dateColumn . ') >=', $dateRange['start'])
+                ->where('DATE(' . $dateColumn . ') <=', $dateRange['end'])
                 ->countAllResults();
 
             $prescriptionsByStatus = $this->db->table('prescriptions')
                 ->select('status, COUNT(*) as count')
-                ->where('date_issued >=', $dateRange['start'])
-                ->where('date_issued <=', $dateRange['end'])
+                ->where('DATE(' . $dateColumn . ') >=', $dateRange['start'])
+                ->where('DATE(' . $dateColumn . ') <=', $dateRange['end'])
                 ->groupBy('status')
                 ->get()
                 ->getResultArray();
@@ -1124,8 +571,8 @@ class AnalyticsService
             if ($this->db->fieldExists('priority', 'prescriptions')) {
                 $prescriptionsByPriority = $this->db->table('prescriptions')
                     ->select('priority, COUNT(*) as count')
-                    ->where('date_issued >=', $dateRange['start'])
-                    ->where('date_issued <=', $dateRange['end'])
+                    ->where('DATE(' . $dateColumn . ') >=', $dateRange['start'])
+                    ->where('DATE(' . $dateColumn . ') <=', $dateRange['end'])
                     ->groupBy('priority')
                     ->get()
                     ->getResultArray();
@@ -1165,7 +612,8 @@ class AnalyticsService
      */
     private function getRoomAnalytics(array $dateRange): array
     {
-        if (!$this->db->tableExists('inpatient_room_assignments')) {
+        // Align with actual room assignment table
+        if (!$this->db->tableExists('room_assignment')) {
             return [
                 'total_rooms' => 0,
                 'occupied_rooms' => 0,
@@ -1179,27 +627,30 @@ class AnalyticsService
             $totalRooms = 0;
             if ($this->db->tableExists('rooms')) {
                 $totalRooms = $this->db->table('rooms')
-                    ->where('status', 'available')
-                    ->orWhere('status', 'occupied')
+                    ->whereIn('status', ['available', 'occupied'])
                     ->countAllResults();
             }
 
-            // Get currently occupied rooms
-            $occupiedRooms = $this->db->table('inpatient_room_assignments ra')
-                ->join('inpatient_admissions a', 'a.admission_id = ra.admission_id', 'inner')
-                ->where('a.discharge_date', null)
+            // Get currently occupied rooms based on active room assignments
+            $occupiedRooms = $this->db->table('room_assignment')
+                ->where('status', 'active')
+                ->where('date_out', null)
                 ->countAllResults();
 
             $occupancyRate = $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 2) : 0;
 
-            // Get rooms by type
-            $roomsByType = $this->db->table('inpatient_room_assignments ra')
-                ->select('ra.room_type, COUNT(*) as count')
-                ->join('inpatient_admissions a', 'a.admission_id = ra.admission_id', 'inner')
-                ->where('a.discharge_date', null)
-                ->groupBy('ra.room_type')
-                ->get()
-                ->getResultArray();
+            // Get rooms by type via join with rooms table
+            $roomsByType = [];
+            if ($this->db->tableExists('rooms')) {
+                $roomsByType = $this->db->table('room_assignment ra')
+                    ->select('r.room_type, COUNT(*) as count')
+                    ->join('rooms r', 'r.room_id = ra.room_id', 'inner')
+                    ->where('ra.status', 'active')
+                    ->where('ra.date_out', null)
+                    ->groupBy('r.room_type')
+                    ->get()
+                    ->getResultArray();
+            }
 
             return [
                 'total_rooms' => $totalRooms,

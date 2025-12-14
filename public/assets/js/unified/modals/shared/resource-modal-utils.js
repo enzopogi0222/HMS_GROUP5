@@ -129,9 +129,7 @@ class ResourceModalUtils {
         const textEl = document.getElementById('resourcesNotificationText');
 
         if (!container || !iconEl || !textEl) {
-            if (typeof showUniversalNotification === 'function') {
-                showUniversalNotification(message, 'error');
-            }
+            alert(message);
             return;
         }
 

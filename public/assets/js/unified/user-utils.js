@@ -166,34 +166,38 @@ window.UserUtils = {
         // Fallback: floating toast notification (for pages that don't include the shared bar)
         const notification = document.createElement('div');
         notification.className = `notification notification-${type}`;
+        const isError = type === 'error';
+        const isSuccess = type === 'success';
+        
         notification.style.cssText = `
             position: fixed;
             top: 20px;
-            right: 20px;
+            left: 20px;
             padding: 1rem 1.5rem;
             border-radius: 8px;
-            color: white;
+            color: ${isError ? '#991b1b' : '#166534'};
             font-weight: 500;
-            z-index: 10000;
+            z-index: 10050;
             max-width: 400px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transform: translateX(100%);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+            border: ${isError ? '1px solid #fecaca' : '1px solid #bbf7d0'};
+            background: ${isError ? '#fee2e2' : '#ecfdf5'};
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transform: translateX(-100%);
             transition: transform 0.3s ease;
         `;
 
-        const colors = {
-            success: '#10b981',
-            error: '#ef4444',
-            warning: '#f59e0b',
-            info: '#3b82f6'
-        };
-        notification.style.backgroundColor = colors[type] || colors.info;
+        const iconClass = isError
+            ? 'fa-exclamation-triangle'
+            : (isSuccess ? 'fa-check-circle' : 'fa-info-circle');
 
         notification.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-triangle' : 'info-circle'}"></i>
-                <span>${this.escapeHtml(message)}</span>
-                <button onclick="this.parentElement.parentElement.remove()" style="background: none; border: none; color: white; margin-left: auto; cursor: pointer;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; width: 100%;">
+                <i class="fas ${iconClass}" style="flex-shrink: 0;"></i>
+                <span style="flex: 1;">${this.escapeHtml(message)}</span>
+                <button onclick="this.parentElement.parentElement.remove()" style="background: none; border: none; color: inherit; margin-left: auto; cursor: pointer; padding: 0.25rem; flex-shrink: 0;">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -206,7 +210,7 @@ window.UserUtils = {
         }, 100);
 
         setTimeout(() => {
-            notification.style.transform = 'translateX(100%)';
+            notification.style.transform = 'translateX(-100%)';
             setTimeout(() => {
                 if (notification.parentElement) {
                     notification.remove();

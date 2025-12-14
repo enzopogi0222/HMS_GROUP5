@@ -3,21 +3,23 @@
      aria-live="polite"
      style="
         display: none;
-        margin: 0.75rem auto 0 auto;
+        position: fixed;
+        top: 20px;
+        left: 20px;
         padding: 0.75rem 1rem;
-        max-width: 1180px;
+        max-width: 400px;
         border-radius: 6px;
         border: 1px solid #bbf7d0;
         background: #ecfdf5;
         color: #166534;
         align-items: center;
         gap: 0.5rem;
-        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
         font-size: 0.95rem;
         font-weight: 500;
-        position: relative;
-        z-index: 1000;
-">
+        z-index: 10050;
+        flex-direction: row;
+    ">
     <i id="<?= esc(($id ?? 'moduleNotification') . 'Icon') ?>"
        class="fas fa-check-circle"
        aria-hidden="true"

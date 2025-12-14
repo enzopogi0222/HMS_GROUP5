@@ -290,7 +290,7 @@
                 } else {
                     transactionsTableBody.innerHTML = `
                         <tr>
-                            <td colspan="8" style="text-align: center; padding: 3rem; color: #6b7280;">
+                            <td colspan="9" style="text-align: center; padding: 3rem; color: #6b7280;">
                                 <i class="fas fa-exchange-alt" style="font-size: 3rem; color: #d1d5db; margin-bottom: 1rem; display: block;"></i>
                                 <p style="margin: 0.5rem 0; font-size: 1rem; font-weight: 500;">No transactions found</p>
                                 <p style="margin: 0; font-size: 0.875rem;">${result.message || 'No transactions match your filters.'}</p>
@@ -312,7 +312,7 @@
         if (!transactions || transactions.length === 0) {
             transactionsTableBody.innerHTML = `
                 <tr>
-                    <td colspan="8" style="text-align: center; padding: 3rem; color: #6b7280;">
+                    <td colspan="9" style="text-align: center; padding: 3rem; color: #6b7280;">
                         <i class="fas fa-exchange-alt" style="font-size: 3rem; color: #d1d5db; margin-bottom: 1rem; display: block;"></i>
                         <p style="margin: 0.5rem 0; font-size: 1rem; font-weight: 500;">No transactions found</p>
                         <p style="margin: 0; font-size: 0.875rem;">No transactions match your filters.</p>
@@ -352,6 +352,9 @@
             
             const paymentMethod = isStockTransaction ? 'N/A' : ((transaction.payment_method || 'N/A').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
 
+            const userRole = document.querySelector('meta[name="user-role"]')?.content || '';
+            const canDelete = ['admin', 'accountant'].includes(userRole);
+            
             return `
                 <tr>
                     <td>${escapeHtml(transaction.transaction_id || 'N/A')}</td>
@@ -373,6 +376,24 @@
                         </span>
                     </td>
                     <td>${escapeHtml(transaction.description || 'N/A')}</td>
+                    <td>
+                        <div class="action-buttons" style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-primary btn-small btn-view-transaction" 
+                                    data-transaction-id="${escapeHtml(transaction.transaction_id || '')}"
+                                    data-transaction-type="${escapeHtml(transaction.type || '')}"
+                                    title="View Details">
+                                <i class="fas fa-eye"></i> View
+                            </button>
+                            ${canDelete ? `
+                                <button class="btn btn-danger btn-small btn-delete-transaction" 
+                                        data-transaction-id="${escapeHtml(transaction.transaction_id || '')}"
+                                        data-transaction-type="${escapeHtml(transaction.type || '')}"
+                                        title="Delete Transaction">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            ` : ''}
+                        </div>
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -451,11 +472,392 @@
         }
     });
 
+    // Billing Accounts Filtering
+    let billingFilters = {
+        date: '',
+        category: '',
+        search: ''
+    };
+
+    function filterBillingTable() {
+        if (!tableBody) return;
+
+        const rows = tableBody.querySelectorAll('tr');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            if (row.querySelector('.empty-state')) {
+                // Skip empty state row
+                return;
+            }
+
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 4) return;
+
+            // Get text content from relevant cells
+            const billingId = cells[0]?.textContent?.trim() || '';
+            const patientCell = cells[1];
+            const patientName = patientCell?.querySelector('strong')?.textContent?.trim() || '';
+            const patientId = patientCell?.querySelector('small')?.textContent?.trim() || '';
+            const admission = cells[2]?.textContent?.trim() || '';
+            const status = cells[3]?.textContent?.trim() || '';
+
+            // Combine all searchable text
+            const searchableText = `${billingId} ${patientName} ${patientId} ${admission} ${status}`.toLowerCase();
+
+            // Apply filters
+            let matches = true;
+
+            // Date filter (if implemented on backend, this would check created_at)
+            // For now, we'll skip date filtering on client side as it requires date parsing
+
+            // Category filter (Income/Expense) - this doesn't directly apply to billing accounts
+            // but we'll keep it for consistency
+
+            // Search filter
+            if (billingFilters.search) {
+                const searchTerm = billingFilters.search.toLowerCase();
+                if (!searchableText.includes(searchTerm)) {
+                    matches = false;
+                }
+            }
+
+            // Show/hide row
+            if (matches) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // Show empty state if no rows visible
+        const existingEmptyState = tableBody.querySelector('.empty-state-row');
+        if (visibleCount === 0 && !existingEmptyState) {
+            const emptyRow = document.createElement('tr');
+            emptyRow.className = 'empty-state-row';
+            emptyRow.innerHTML = `
+                <td colspan="5" style="text-align: center; padding: 3rem; color: #6b7280;">
+                    <i class="fas fa-file-invoice-dollar" style="font-size: 3rem; color: #d1d5db; margin-bottom: 1rem; display: block;"></i>
+                    <p style="margin: 0.5rem 0; font-size: 1rem; font-weight: 500;">No billing accounts found</p>
+                    <p style="margin: 0; font-size: 0.875rem;">No billing accounts match your search criteria.</p>
+                </td>
+            `;
+            tableBody.appendChild(emptyRow);
+        } else if (visibleCount > 0 && existingEmptyState) {
+            existingEmptyState.remove();
+        }
+    }
+
+    function applyBillingFilters() {
+        billingFilters = {
+            date: document.getElementById('dateFilter')?.value || '',
+            category: document.getElementById('categoryFilter')?.value || '',
+            search: document.getElementById('searchFilter')?.value?.trim() || ''
+        };
+        filterBillingTable();
+    }
+
+    function clearBillingFilters() {
+        const dateFilter = document.getElementById('dateFilter');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const searchFilter = document.getElementById('searchFilter');
+
+        if (dateFilter) dateFilter.value = '';
+        if (categoryFilter) categoryFilter.value = '';
+        if (searchFilter) searchFilter.value = '';
+
+        billingFilters = {
+            date: '',
+            category: '',
+            search: ''
+        };
+        filterBillingTable();
+    }
+
+    // Initialize billing filters
+    document.addEventListener('DOMContentLoaded', function() {
+        const dateFilter = document.getElementById('dateFilter');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const searchFilter = document.getElementById('searchFilter');
+        const clearFiltersBtn = document.getElementById('clearFilters');
+
+        if (dateFilter) {
+            dateFilter.addEventListener('change', applyBillingFilters);
+        }
+        if (categoryFilter) {
+            categoryFilter.addEventListener('change', applyBillingFilters);
+        }
+        if (searchFilter) {
+            let searchTimeout;
+            searchFilter.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(applyBillingFilters, 300);
+            });
+        }
+        if (clearFiltersBtn) {
+            clearFiltersBtn.addEventListener('click', clearBillingFilters);
+        }
+    });
+
+    // Tab functionality
+    function initializeTabs() {
+        const tabButtons = document.querySelectorAll('.financial-tab-button');
+        const tabContents = document.querySelectorAll('.financial-tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const tabName = this.dataset.tab;
+
+                // Update button states
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+
+                // Update content visibility
+                tabContents.forEach(content => content.classList.remove('active'));
+                
+                // Show the corresponding tab content
+                let targetContent;
+                if (tabName === 'billing-accounts') {
+                    targetContent = document.getElementById('tabBillingAccounts');
+                } else if (tabName === 'transactions') {
+                    targetContent = document.getElementById('tabTransactions');
+                }
+                
+                if (targetContent) {
+                    targetContent.classList.add('active');
+                }
+            });
+        });
+    }
+
+    // Transaction action handlers - use event delegation for dynamically loaded content
+    function setupTransactionHandlers() {
+        const transactionsTableBody = document.getElementById('transactionsTableBody');
+        if (!transactionsTableBody) return;
+        
+        // Use event delegation to handle clicks on dynamically added buttons
+        transactionsTableBody.addEventListener('click', function(e) {
+            const viewBtn = e.target.closest('.btn-view-transaction');
+            const deleteBtn = e.target.closest('.btn-delete-transaction');
+            
+            if (viewBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const transactionId = viewBtn.dataset.transactionId;
+                if (transactionId) {
+                    viewTransaction(transactionId);
+                }
+            } else if (deleteBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const transactionId = deleteBtn.dataset.transactionId;
+                const transactionType = deleteBtn.dataset.transactionType;
+                if (transactionId) {
+                    deleteTransaction(transactionId, transactionType);
+                }
+            }
+        });
+    }
+
+    function viewTransaction(transactionId) {
+        if (!transactionId) return;
+        
+        // Fetch transaction details
+        fetch(`${baseUrl}/financial-management/transactions/${transactionId}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin'
+        })
+            .then(resp => resp.json())
+            .then(result => {
+                if (result.success && result.data) {
+                    showTransactionDetails(result.data);
+                } else {
+                    if (typeof showUniversalNotification === 'function') {
+                        showUniversalNotification(result.message || 'Failed to load transaction details', 'error');
+                    } else if (typeof showFinancialNotification === 'function') {
+                        showFinancialNotification(result.message || 'Failed to load transaction details', 'error');
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load transaction', err);
+                if (typeof showUniversalNotification === 'function') {
+                    showUniversalNotification('Failed to load transaction details', 'error');
+                } else if (typeof showFinancialNotification === 'function') {
+                    showFinancialNotification('Failed to load transaction details', 'error');
+                }
+            });
+    }
+
+    function showTransactionDetails(transaction) {
+        // Create a modal to show transaction details
+        const isStockTransaction = ['stock_in', 'stock_out'].includes(transaction.type || '');
+        
+        let detailsHtml = `
+            <div style="padding: 1rem;">
+                <h3 style="margin-top: 0; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.5rem;">
+                    <i class="fas fa-exchange-alt"></i> Transaction Details
+                </h3>
+                <div style="margin-top: 1rem;">
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong style="color: #6b7280; display: inline-block; min-width: 150px;">Transaction ID:</strong>
+                        <span>${escapeHtml(transaction.transaction_id || 'N/A')}</span>
+                    </div>
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong style="color: #6b7280; display: inline-block; min-width: 150px;">Date & Time:</strong>
+                        <span>${escapeHtml(transaction.transaction_date || 'N/A')} ${escapeHtml(transaction.transaction_time || '')}</span>
+                    </div>
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong style="color: #6b7280; display: inline-block; min-width: 150px;">Type:</strong>
+                        <span class="status-badge ${(transaction.type || '').toLowerCase()}">
+                            ${escapeHtml((transaction.type || 'N/A').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))}
+                        </span>
+                    </div>
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong style="color: #6b7280; display: inline-block; min-width: 150px;">Status:</strong>
+                        <span class="status-badge ${(transaction.payment_status || 'pending').toLowerCase()}">
+                            ${escapeHtml((transaction.payment_status || 'Pending').charAt(0).toUpperCase() + (transaction.payment_status || 'Pending').slice(1))}
+                        </span>
+                    </div>
+        `;
+        
+        if (isStockTransaction) {
+            detailsHtml += `
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong style="color: #6b7280; display: inline-block; min-width: 150px;">Resource:</strong>
+                        <span>${escapeHtml(transaction.resource_name || 'N/A')}</span>
+                    </div>
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong style="color: #6b7280; display: inline-block; min-width: 150px;">Quantity:</strong>
+                        <span style="color: ${transaction.type === 'stock_out' ? '#ef4444' : '#10b981'}; font-weight: 600;">
+                            ${transaction.type === 'stock_out' ? '-' : '+'}${escapeHtml(transaction.quantity || 0)} unit(s)
+                        </span>
+                    </div>
+            `;
+        } else {
+            const patientName = ((transaction.patient_first_name || '') + ' ' + (transaction.patient_last_name || '')).trim() || 'N/A';
+            detailsHtml += `
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong style="color: #6b7280; display: inline-block; min-width: 150px;">Patient:</strong>
+                        <span>${escapeHtml(patientName)}</span>
+                    </div>
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong style="color: #6b7280; display: inline-block; min-width: 150px;">Amount:</strong>
+                        <span style="color: ${transaction.type === 'expense' ? '#ef4444' : '#10b981'}; font-weight: 600;">
+                            ${transaction.type === 'expense' ? '-' : '+'}₱${parseFloat(transaction.amount || 0).toFixed(2)}
+                        </span>
+                    </div>
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong style="color: #6b7280; display: inline-block; min-width: 150px;">Payment Method:</strong>
+                        <span>${escapeHtml((transaction.payment_method || 'N/A').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))}</span>
+                    </div>
+            `;
+        }
+        
+        detailsHtml += `
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong style="color: #6b7280; display: inline-block; min-width: 150px;">Description:</strong>
+                        <span>${escapeHtml(transaction.description || 'N/A')}</span>
+                    </div>
+        `;
+        
+        if (transaction.notes) {
+            detailsHtml += `
+                    <div style="margin-bottom: 0.75rem;">
+                        <strong style="color: #6b7280; display: inline-block; min-width: 150px;">Notes:</strong>
+                        <span>${escapeHtml(transaction.notes)}</span>
+                    </div>
+            `;
+        }
+        
+        detailsHtml += `
+                </div>
+            </div>
+        `;
+        
+        // Create and show modal
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.cssText = 'display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.55); z-index: 9999; align-items: center; justify-content: center;';
+        modal.innerHTML = `
+            <div class="modal-content" style="background: white; border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                ${detailsHtml}
+                <div style="padding: 1rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">Close</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Close on background click
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }
+
+    function deleteTransaction(transactionId, transactionType) {
+        if (!transactionId) return;
+        
+        const confirmMessage = `Are you sure you want to delete this ${(transactionType || 'transaction').replace(/_/g, ' ')} transaction? This action cannot be undone.`;
+        
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        fetch(`${baseUrl}/financial-management/transactions/${transactionId}/delete`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ transaction_id: transactionId })
+        })
+            .then(resp => resp.json())
+            .then(result => {
+                const success = result.success === true || result.status === 'success';
+                
+                if (typeof showUniversalNotification === 'function') {
+                    showUniversalNotification(
+                        result.message || (success ? 'Transaction deleted successfully' : 'Failed to delete transaction'),
+                        success ? 'success' : 'error'
+                    );
+                } else if (typeof showFinancialNotification === 'function') {
+                    showFinancialNotification(
+                        result.message || (success ? 'Transaction deleted successfully' : 'Failed to delete transaction'),
+                        success ? 'success' : 'error'
+                    );
+                }
+                
+                if (success) {
+                    // Reload transactions
+                    applyTransactionFilters();
+                }
+            })
+            .catch(err => {
+                console.error('Failed to delete transaction', err);
+                if (typeof showUniversalNotification === 'function') {
+                    showUniversalNotification('Failed to delete transaction', 'error');
+                } else if (typeof showFinancialNotification === 'function') {
+                    showFinancialNotification('Failed to delete transaction', 'error');
+                }
+            });
+    }
+
     // Initialize
     if (tableBody) {
         tableBody.addEventListener('click', handleTableClick);
     }
     
-    // Check URL params on page load
-    document.addEventListener('DOMContentLoaded', checkUrlParams);
+    // Initialize transaction click handlers
+    document.addEventListener('DOMContentLoaded', function() {
+        checkUrlParams();
+        initializeTabs();
+        setupTransactionHandlers();
+    });
 })();

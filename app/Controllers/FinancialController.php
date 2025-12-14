@@ -535,4 +535,147 @@ class FinancialController extends BaseController
             ]);
         }
     }
+
+    /**
+     * API: Get transaction by ID
+     */
+    public function getTransaction($transactionId = null)
+    {
+        $session = session();
+        $userRole = $session->get('role') ?? 'accountant';
+        
+        if (!in_array($userRole, ['admin', 'accountant', 'it_staff'], true)) {
+            return $this->response->setStatusCode(403)->setJSON([
+                'success' => false,
+                'message' => 'Insufficient permissions',
+            ]);
+        }
+
+        if (!$transactionId) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'success' => false,
+                'message' => 'Transaction ID is required',
+            ]);
+        }
+
+        try {
+            // Find transaction by transaction_id (the unique identifier, not the primary key id)
+            $transaction = $this->transactionsModel->where('transaction_id', $transactionId)->first();
+            
+            if (!$transaction) {
+                return $this->response->setStatusCode(404)->setJSON([
+                    'success' => false,
+                    'message' => 'Transaction not found',
+                ]);
+            }
+
+            // Get related data
+            $db = \Config\Database::connect();
+            
+            if ($transaction['patient_id']) {
+                $patient = $db->table('patients')
+                    ->select('first_name, last_name')
+                    ->where('patient_id', $transaction['patient_id'])
+                    ->get()
+                    ->getRowArray();
+                if ($patient) {
+                    $transaction['patient_first_name'] = $patient['first_name'];
+                    $transaction['patient_last_name'] = $patient['last_name'];
+                }
+            }
+            
+            if ($transaction['resource_id']) {
+                $resource = $db->table('resources')
+                    ->select('equipment_name')
+                    ->where('id', $transaction['resource_id'])
+                    ->get()
+                    ->getRowArray();
+                if ($resource) {
+                    $transaction['resource_name'] = $resource['equipment_name'];
+                }
+            }
+            
+            return $this->response->setJSON([
+                'success' => true,
+                'data' => $transaction,
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', 'FinancialController::getTransaction - ' . $e->getMessage());
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => 'Failed to fetch transaction',
+            ]);
+        }
+    }
+
+    /**
+     * API: Delete transaction
+     */
+    public function deleteTransaction($transactionId = null)
+    {
+        $session = session();
+        $userRole = $session->get('role') ?? 'accountant';
+        
+        if (!in_array($userRole, ['admin', 'accountant'], true)) {
+            return $this->response->setStatusCode(403)->setJSON([
+                'success' => false,
+                'message' => 'Insufficient permissions. Only administrators and accountants can delete transactions.',
+            ]);
+        }
+
+        // Get transaction ID from route parameter or request body
+        if (!$transactionId) {
+            $data = $this->request->getJSON(true) ?? $this->request->getPost();
+            $transactionId = $data['transaction_id'] ?? null;
+        }
+
+        if (!$transactionId) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'success' => false,
+                'message' => 'Transaction ID is required',
+            ]);
+        }
+
+        try {
+            // Find transaction by transaction_id (not id)
+            $transaction = $this->transactionsModel->where('transaction_id', $transactionId)->first();
+            
+            if (!$transaction) {
+                return $this->response->setStatusCode(404)->setJSON([
+                    'success' => false,
+                    'message' => 'Transaction not found',
+                ]);
+            }
+
+            // Get the primary key (id) to delete
+            $id = $transaction['id'] ?? null;
+            if (!$id) {
+                return $this->response->setStatusCode(500)->setJSON([
+                    'success' => false,
+                    'message' => 'Transaction record is missing ID',
+                ]);
+            }
+
+            // Delete the transaction using primary key
+            $deleted = $this->transactionsModel->delete($id);
+            
+            if ($deleted) {
+                return $this->response->setJSON([
+                    'success' => true,
+                    'message' => 'Transaction deleted successfully',
+                ]);
+            } else {
+                return $this->response->setStatusCode(500)->setJSON([
+                    'success' => false,
+                    'message' => 'Failed to delete transaction',
+                ]);
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'FinancialController::deleteTransaction - ' . $e->getMessage());
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => 'Failed to delete transaction: ' . $e->getMessage(),
+            ]);
+        }
+    }
 }

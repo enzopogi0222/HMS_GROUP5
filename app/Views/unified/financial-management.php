@@ -65,6 +65,18 @@
 
             <br>
 
+            <!-- Tabs -->
+            <div class="financial-tabs" style="display: flex; border-bottom: 2px solid #e5e7eb; margin-bottom: 1.5rem; gap: 0;">
+                <button class="financial-tab-button active" data-tab="billing-accounts">
+                    <i class="fas fa-file-invoice-dollar"></i> Billing Accounts
+                </button>
+                <button class="financial-tab-button" data-tab="transactions">
+                    <i class="fas fa-exchange-alt"></i> Transactions
+                </button>
+            </div>
+
+            <!-- Billing Accounts Tab Content -->
+            <div id="tabBillingAccounts" class="financial-tab-content active">
             <?php if (in_array($userRole ?? '', ['admin', 'it_staff', 'accountant', 'doctor', 'receptionist'])): ?>
             <!-- ============================
                  DASHBOARD CARDS 
@@ -234,7 +246,7 @@
 
                     <div class="filter-group">
                         <label>Search:</label>
-                        <input type="text" id="searchFilter" class="form-input" placeholder="Search transactions...">
+                        <input type="text" id="searchFilter" class="form-input" placeholder="Search billing accounts...">
                     </div>
 
                     <button type="button" id="clearFilters" class="btn btn-secondary">
@@ -320,13 +332,10 @@
                     </tbody>
                 </table>
             </div>
+            </div>
 
-            <!-- Transactions Section -->
-            <div class="transactions-section" style="margin-top: 2rem;">
-                <h2 class="section-title" style="margin-bottom: 1rem; font-size: 1.5rem; font-weight: 600; color: #1f2937;">
-                    <i class="fas fa-exchange-alt"></i> Transactions
-                </h2>
-
+            <!-- Transactions Tab Content -->
+            <div id="tabTransactions" class="financial-tab-content">
                 <!-- Transaction Filters -->
                 <div class="controls-section" style="margin-bottom: 1rem;">
                     <div class="filters-section">
@@ -334,10 +343,6 @@
                             <label>Transaction Type:</label>
                             <select id="transactionTypeFilter" class="form-select">
                                 <option value="">All Types</option>
-                                <option value="payment">Payment</option>
-                                <option value="expense">Expense</option>
-                                <option value="refund">Refund</option>
-                                <option value="adjustment">Adjustment</option>
                                 <option value="stock_in">Stock In</option>
                                 <option value="stock_out">Stock Out</option>
                             </select>
@@ -389,6 +394,7 @@
                                 <th>Payment Method</th>
                                 <th>Status</th>
                                 <th>Description</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="transactionsTableBody">
@@ -442,11 +448,29 @@
                                             </span>
                                         </td>
                                         <td><?= esc($transaction['description'] ?? 'N/A') ?></td>
+                                        <td>
+                                            <div class="action-buttons" style="display: flex; gap: 0.5rem;">
+                                                <button class="btn btn-primary btn-small btn-view-transaction" 
+                                                        data-transaction-id="<?= esc($transaction['transaction_id'] ?? '') ?>"
+                                                        data-transaction-type="<?= esc($transaction['type'] ?? '') ?>"
+                                                        title="View Details">
+                                                    <i class="fas fa-eye"></i> View
+                                                </button>
+                                                <?php if (in_array($userRole, ['admin', 'accountant'])): ?>
+                                                    <button class="btn btn-danger btn-small btn-delete-transaction" 
+                                                            data-transaction-id="<?= esc($transaction['transaction_id'] ?? '') ?>"
+                                                            data-transaction-type="<?= esc($transaction['type'] ?? '') ?>"
+                                                            title="Delete Transaction">
+                                                        <i class="fas fa-trash"></i> Delete
+                                                    </button>
+                                                <?php endif; ?>
+                                            </div>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="8" style="text-align: center; padding: 3rem; color: #6b7280;">
+                                    <td colspan="9" style="text-align: center; padding: 3rem; color: #6b7280;">
                                         <i class="fas fa-exchange-alt" style="font-size: 3rem; color: #d1d5db; margin-bottom: 1rem; display: block;"></i>
                                         <p style="margin: 0.5rem 0; font-size: 1rem; font-weight: 500;">No transactions found</p>
                                         <p style="margin: 0; font-size: 0.875rem;">Transactions will appear here when payments, expenses, adjustments, or stock movements are recorded.</p>

@@ -16,13 +16,19 @@ class AddPriceToResourcesTable extends Migration
 
         // Ensure expiry_date exists before attempting to place price after it.
         if (! $db->fieldExists('expiry_date', 'resources')) {
-            $this->forge->addColumn('resources', [
-                'expiry_date' => [
-                    'type'  => 'DATE',
-                    'null'  => true,
-                    'after' => $db->fieldExists('batch_number', 'resources') ? 'batch_number' : 'location',
-                ],
-            ]);
+            try {
+                $this->forge->addColumn('resources', [
+                    'expiry_date' => [
+                        'type'  => 'DATE',
+                        'null'  => true,
+                        'after' => $db->fieldExists('batch_number', 'resources') ? 'batch_number' : 'location',
+                    ],
+                ]);
+            } catch (\Throwable $e) {
+                if (! $db->fieldExists('expiry_date', 'resources')) {
+                    throw $e;
+                }
+            }
         }
 
         // Add price field for medications

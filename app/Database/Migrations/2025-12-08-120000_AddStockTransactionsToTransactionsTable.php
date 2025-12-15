@@ -80,3 +80,4 @@ class AddStockTransactionsToTransactionsTable extends Migration
 
 
 
+

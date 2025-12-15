@@ -147,35 +147,6 @@
                         </div>
                     </div>
                     
-                    <!-- Total Revenue Card -->
-                    <div class="overview-card enhanced-card">
-                        <div class="card-header-modern">
-                            <div class="card-icon-modern green"><i class="fas fa-dollar-sign"></i></div>
-                            <div class="card-info">
-                                <h3 class="card-title-modern">Total Revenue</h3>
-                                <p class="card-subtitle">This period</p>
-                            </div>
-                        </div>
-                        <div class="card-metrics">
-                            <div class="metric">
-                                <div class="metric-value">₱<?= number_format($analytics['financial_analytics']['total_revenue'] ?? 0, 2) ?></div>
-                                <div class="metric-trend">
-                                    <span class="trend-indicator positive">
-                                        <i class="fas fa-arrow-up"></i> Net: ₱<?= number_format($analytics['financial_analytics']['net_profit'] ?? 0, 2) ?>
-                                    </span>
-                                </div>
-                            </div>
-                            <?php if (isset($analytics['financial_analytics']['outstanding_bills']) && $analytics['financial_analytics']['outstanding_bills'] > 0): ?>
-                            <div class="metric-breakdown">
-                                <div class="breakdown-item warning">
-                                    <span class="breakdown-label">Outstanding</span>
-                                    <span class="breakdown-value">₱<?= number_format($analytics['financial_analytics']['outstanding_bills'], 2) ?></span>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                    
                     <!-- Active Staff Card -->
                     <div class="overview-card enhanced-card">
                         <div class="card-header-modern">
@@ -192,116 +163,7 @@
                         </div>
                     </div>
 
-                    <!-- Lab Tests Card -->
-                    <?php if (isset($analytics['lab_analytics'])): ?>
-                    <div class="overview-card enhanced-card">
-                        <div class="card-header-modern">
-                            <div class="card-icon-modern blue"><i class="fas fa-flask"></i></div>
-                            <div class="card-info">
-                                <h3 class="card-title-modern">Lab Tests</h3>
-                                <p class="card-subtitle">Orders this period</p>
-                            </div>
-                        </div>
-                        <div class="card-metrics">
-                            <div class="metric">
-                                <div class="metric-value"><?= number_format($analytics['lab_analytics']['total_orders'] ?? 0) ?></div>
-                                <?php 
-                                $labStatus = $analytics['lab_analytics']['orders_by_status'] ?? [];
-                                $completedLab = 0;
-                                foreach ($labStatus as $status) {
-                                    if (strtolower($status['status'] ?? '') === 'completed') {
-                                        $completedLab = $status['count'] ?? 0;
-                                        break;
-                                    }
-                                }
-                                ?>
-                                <div class="metric-trend">
-                                    <span class="trend-indicator positive">
-                                        <i class="fas fa-check"></i> <?= $completedLab ?> completed
-                                    </span>
-                                </div>
-                            </div>
-                            <?php if (isset($analytics['lab_analytics']['revenue']) && $analytics['lab_analytics']['revenue'] > 0): ?>
-                            <div class="metric-breakdown">
-                                <div class="breakdown-item">
-                                    <span class="breakdown-label">Revenue</span>
-                                    <span class="breakdown-value">₱<?= number_format($analytics['lab_analytics']['revenue'], 2) ?></span>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-
-                    <!-- Prescriptions Card -->
-                    <?php if (isset($analytics['prescription_analytics'])): ?>
-                    <div class="overview-card enhanced-card">
-                        <div class="card-header-modern">
-                            <div class="card-icon-modern green"><i class="fas fa-pills"></i></div>
-                            <div class="card-info">
-                                <h3 class="card-title-modern">Prescriptions</h3>
-                                <p class="card-subtitle">Issued this period</p>
-                            </div>
-                        </div>
-                        <div class="card-metrics">
-                            <div class="metric">
-                                <div class="metric-value"><?= number_format($analytics['prescription_analytics']['total_prescriptions'] ?? 0) ?></div>
-                            </div>
-                            <?php if (isset($analytics['prescription_analytics']['revenue']) && $analytics['prescription_analytics']['revenue'] > 0): ?>
-                            <div class="metric-breakdown">
-                                <div class="breakdown-item">
-                                    <span class="breakdown-label">Revenue</span>
-                                    <span class="breakdown-value">₱<?= number_format($analytics['prescription_analytics']['revenue'], 2) ?></span>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-
-                    <!-- Room Occupancy Card -->
-                    <?php if (isset($analytics['room_analytics'])): ?>
-                    <div class="overview-card enhanced-card">
-                        <div class="card-header-modern">
-                            <div class="card-icon-modern purple"><i class="fas fa-bed"></i></div>
-                            <div class="card-info">
-                                <h3 class="card-title-modern">Room Occupancy</h3>
-                                <p class="card-subtitle">Current status</p>
-                            </div>
-                        </div>
-                        <div class="card-metrics">
-                            <div class="metric">
-                                <div class="metric-value"><?= number_format($analytics['room_analytics']['occupancy_rate'] ?? 0, 1) ?>%</div>
-                                <div class="metric-trend">
-                                    <span class="trend-indicator">
-                                        <?= number_format($analytics['room_analytics']['occupied_rooms'] ?? 0) ?> / <?= number_format($analytics['room_analytics']['total_rooms'] ?? 0) ?> rooms
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="occupancy-bar">
-                                <div class="occupancy-fill" style="width: <?= min(100, $analytics['room_analytics']['occupancy_rate'] ?? 0) ?>%"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-
-                    <!-- Total Expenses Card -->
-                    <?php if (isset($analytics['financial_analytics']['total_expenses'])): ?>
-                    <div class="overview-card enhanced-card">
-                        <div class="card-header-modern">
-                            <div class="card-icon-modern red"><i class="fas fa-arrow-down"></i></div>
-                            <div class="card-info">
-                                <h3 class="card-title-modern">Total Expenses</h3>
-                                <p class="card-subtitle">This period</p>
-                            </div>
-                        </div>
-                        <div class="card-metrics">
-                            <div class="metric">
-                                <div class="metric-value">₱<?= number_format($analytics['financial_analytics']['total_expenses'] ?? 0, 2) ?></div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
+                    <!-- Lab, prescription, room, and expense cards removed as requested -->
 
                     <!-- Resources Card -->
                     <?php if (isset($analytics['resource_analytics'])): ?>
@@ -467,6 +329,17 @@
             <!-- Charts Section -->
                 <?php if ($userRole === 'admin' || $userRole === 'accountant' || $userRole === 'it_staff'): ?>
                 <div class="charts-section">
+                    <?php
+                        $financial = $analytics['financial_analytics'] ?? [];
+                        $patientAnalytics = $analytics['patient_analytics'] ?? [];
+                        $staffAnalytics = $analytics['staff_analytics'] ?? [];
+                        $labAnalytics = $analytics['lab_analytics'] ?? [];
+                        $prescriptionAnalytics = $analytics['prescription_analytics'] ?? [];
+                        $resourceAnalytics = $analytics['resource_analytics'] ?? [];
+                        $roomAnalytics = $analytics['room_analytics'] ?? [];
+                    ?>
+
+                    <?php if (!empty($financial['revenue_by_month'])): ?>
                     <!-- Revenue Trend Chart -->
                     <div class="chart-container full-width">
                         <div class="chart-header">
@@ -480,8 +353,10 @@
                             <canvas id="revenueTrendChart"></canvas>
                         </div>
                     </div>
+                    <?php endif; ?>
 
-                    <!-- Two Column Charts -->
+                    <?php if (!empty($patientAnalytics['patients_by_type'] ?? [])): ?>
+                    <!-- Patient Distribution Chart -->
                     <div class="charts-row">
                         <div class="chart-container">
                             <div class="chart-header">
@@ -495,7 +370,9 @@
                             </div>
                         </div>
                     </div>
+                    <?php endif; ?>
 
+                    <?php if (!empty($financial['expenses_by_category'] ?? [])): ?>
                     <!-- Financial Overview Charts -->
                     <div class="charts-row">
                         <div class="chart-container">
@@ -509,6 +386,7 @@
                                 <canvas id="expensesChart"></canvas>
                             </div>
                         </div>
+                        <?php if (!empty($financial['revenue_by_payment_method'] ?? [])): ?>
                         <div class="chart-container">
                             <div class="chart-header">
                                 <div>
@@ -520,9 +398,12 @@
                                 <canvas id="paymentMethodsChart"></canvas>
                             </div>
                         </div>
+                        <?php endif; ?>
                     </div>
+                    <?php endif; ?>
 
-                    <!-- Additional Analytics Charts -->
+                    <?php if (!empty($patientAnalytics['patients_by_age'] ?? [])): ?>
+                    <!-- Patient Age Distribution Chart -->
                     <div class="charts-row">
                         <div class="chart-container">
                             <div class="chart-header">
@@ -536,9 +417,12 @@
                             </div>
                         </div>
                     </div>
+                    <?php endif; ?>
 
+                    <?php if (!empty($staffAnalytics['staff_by_role'] ?? []) || !empty($labAnalytics['orders_by_category'] ?? [])): ?>
                     <!-- Staff & Lab Charts -->
                     <div class="charts-row">
+                        <?php if (!empty($staffAnalytics['staff_by_role'] ?? [])): ?>
                         <div class="chart-container">
                             <div class="chart-header">
                                 <div>
@@ -550,6 +434,9 @@
                                 <canvas id="staffRoleChart"></canvas>
                             </div>
                         </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($labAnalytics['orders_by_category'] ?? [])): ?>
                         <div class="chart-container">
                             <div class="chart-header">
                                 <div>
@@ -561,10 +448,14 @@
                                 <canvas id="labCategoryChart"></canvas>
                             </div>
                         </div>
+                        <?php endif; ?>
                     </div>
+                    <?php endif; ?>
 
+                    <?php if (!empty($prescriptionAnalytics['prescriptions_by_status'] ?? []) || !empty($resourceAnalytics['resources_by_category'] ?? [])): ?>
                     <!-- Prescription & Resource Charts -->
                     <div class="charts-row">
+                        <?php if (!empty($prescriptionAnalytics['prescriptions_by_status'] ?? [])): ?>
                         <div class="chart-container">
                             <div class="chart-header">
                                 <div>
@@ -576,6 +467,9 @@
                                 <canvas id="prescriptionStatusChart"></canvas>
                             </div>
                         </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($resourceAnalytics['resources_by_category'] ?? [])): ?>
                         <div class="chart-container">
                             <div class="chart-header">
                                 <div>
@@ -587,10 +481,12 @@
                                 <canvas id="resourceCategoryChart"></canvas>
                             </div>
                         </div>
+                        <?php endif; ?>
                     </div>
+                    <?php endif; ?>
 
+                    <?php if (!empty($roomAnalytics['rooms_by_type'] ?? [])): ?>
                     <!-- Room Type Chart -->
-                    <?php if (isset($analytics['room_analytics']['rooms_by_type']) && !empty($analytics['room_analytics']['rooms_by_type'])): ?>
                     <div class="chart-container full-width">
                         <div class="chart-header">
                             <div>
@@ -603,8 +499,6 @@
                         </div>
                     </div>
                     <?php endif; ?>
-
-                    <!-- Peak Hours Chart removed -->
 
                 </div>
                 <?php elseif ($userRole === 'doctor'): ?>

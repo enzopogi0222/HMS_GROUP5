@@ -154,16 +154,14 @@ window.EditStaffModal = {
             StaffModalUtils.clearErrors(this.form, 'e_');
             
             try {
+                // loadStaffDetails -> populateForm will handle setting category,
+                // loading departments, and selecting the correct department.
                 await this.loadStaffDetails(staffId);
 
-                // After staff details are loaded, if category already has a value
-                const deptCategoryEl =
-                    document.getElementById('e_department_category') ||
-                    document.getElementById('department_category');
+                const deptCategoryEl = this.form
+                    ? this.form.querySelector('#e_department_category, #department_category, [name="department_category"]')
+                    : null;
                 console.log('[EditStaffModal] open: deptCategoryEl value after loadStaffDetails =', deptCategoryEl?.value);
-                if (deptCategoryEl && deptCategoryEl.value) {
-                    await this.loadDepartmentsForCategory(deptCategoryEl.value);
-                }
             } catch (error) {
                 console.error('Error loading staff details:', error);
                 StaffUtils.showNotification('Failed to load staff details', 'error');
@@ -286,33 +284,78 @@ window.EditStaffModal = {
             'e_pharmacist_license_no': staff.pharmacist_license_no || '',
             'e_pharmacist_specialization': staff.pharmacist_specialization || ''
         };
-        
+
+        // Support both prefixed (e_*) and unprefixed field IDs for backward compatibility
         for (const [fieldId, value] of Object.entries(fields)) {
-            const element = document.getElementById(fieldId);
+            let element = document.getElementById(fieldId);
+            if (!element && fieldId.startsWith('e_')) {
+                const unprefixedId = fieldId.substring(2);
+                element = document.getElementById(unprefixedId);
+            }
             if (element) {
                 element.value = value;
             }
         }
 
+        // Also populate by form field names for better compatibility with existing markup
+        if (this.form) {
+            const nameFields = {
+                staff_id: staff.staff_id || '',
+                employee_id: staff.employee_id || '',
+                first_name: staff.first_name || '',
+                last_name: staff.last_name || '',
+                gender: staff.gender || '',
+                date_of_birth: staff.date_of_birth || staff.dob || '',
+                contact_no: staff.contact_no || staff.phone || '',
+                email: staff.email || '',
+                department: normalizeDepartment(staff.department, staff.department_name),
+                designation: resolvedRole,
+                date_joined: staff.date_joined || '',
+                status: staff.status || 'active',
+                address: staff.address || '',
+            };
+
+            Object.entries(nameFields).forEach(([name, value]) => {
+                const field = this.form.querySelector(`[name="${name}"]`);
+                if (field) {
+                    field.value = value;
+                }
+            });
+        }
+
         // Handle department category and department loading
         const deptId = staff.department_id || null;
         const deptName = normalizeDepartment(staff.department, staff.department_name);
-        const deptCategoryEl = document.getElementById('e_department_category');
-        const deptEl = document.getElementById('e_department');
-        const deptIdEl = document.getElementById('e_department_id');
+
+        // Support both prefixed and unprefixed IDs/names for department fields,
+        // but always scoped to the edit form to avoid touching the Add Staff modal.
+        const deptCategoryEl = this.form
+            ? this.form.querySelector('#e_department_category, #department_category, [name="department_category"]')
+            : null;
+
+        const deptEl = this.form
+            ? this.form.querySelector('#e_department, #department, [name="department"]')
+            : null;
+
+        const deptIdEl = this.form
+            ? this.form.querySelector('#e_department_id, #department_id, [name="department_id"]')
+            : null;
 
         // Prefer API-provided category fields before falling back to heuristics
-        const categorySources = [
-            staff.department_category,
-            staff.department_category_slug,
-            staff.dept_category,
-            staff.dept_category_slug,
-            staff.department_type,
-        ];
-        let category = '';
-        for (const source of categorySources) {
-            category = normalizeCategoryValue(source);
-            if (category) break;
+        let category = normalizeCategoryValue(
+            staff.department_category ?? staff.department_category_slug ?? ''
+        );
+
+        if (!category) {
+            const categorySources = [
+                staff.dept_category,
+                staff.dept_category_slug,
+                staff.department_type,
+            ];
+            for (const source of categorySources) {
+                category = normalizeCategoryValue(source);
+                if (category) break;
+            }
         }
 
         if (!category && deptName) {

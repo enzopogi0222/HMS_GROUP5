@@ -90,10 +90,7 @@
         resetBedState();
         if (dailyRateInput) dailyRateInput.value = 'Auto-calculated';
 
-        // If roomId is provided, pre-select that room
-        if (roomId && roomSelect) {
-            // This will be handled after rooms are loaded
-        }
+        // If roomId is provided, pre-select that room (handled after rooms are loaded)
 
         utils.open(modalId);
         loadPatients();

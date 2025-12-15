@@ -32,6 +32,7 @@ window.AddAppointmentModal = {
                     this.loadDoctorSlots();
                 });
             }
+
         }
         
         AppointmentModalUtils.setupModalCloseHandlers(this.modal, () => this.close());

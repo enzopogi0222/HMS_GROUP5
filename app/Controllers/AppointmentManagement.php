@@ -5,6 +5,8 @@ namespace App\Controllers;
 use App\Controllers\BaseController;
 use App\Services\AppointmentService;
 use App\Services\FinancialService;
+use App\Services\RoomService;
+
 use App\Libraries\PermissionManager;
 
 class AppointmentManagement extends BaseController
@@ -12,6 +14,9 @@ class AppointmentManagement extends BaseController
     protected $db;
     protected $appointmentService;
     protected $financialService;
+
+    /** @var RoomService */
+    protected $roomService;
 
     protected $userRole;
     protected $staffId;
@@ -21,6 +26,8 @@ class AppointmentManagement extends BaseController
         $this->db = \Config\Database::connect();
         $this->appointmentService = new AppointmentService();
         $this->financialService = new FinancialService();
+        $this->roomService = new RoomService();
+
         $session = session();
         $this->userRole = $session->get('role');
         $this->staffId = $session->get('staff_id');
@@ -32,6 +39,43 @@ class AppointmentManagement extends BaseController
     public function index()
     {
         try {
+            $roomTypes = [];
+            $departments = [];
+            $roomInventory = [];
+
+            if ($this->db->tableExists('room')) {
+                $rooms = $this->roomService->getRooms();
+
+                foreach ($rooms as $room) {
+                    $typeId = (int) ($room['room_type_id'] ?? 0);
+                    if (!$typeId) {
+                        continue;
+                    }
+
+                    $bedNames = [];
+                    if (!empty($room['bed_names'])) {
+                        $decoded = json_decode((string) $room['bed_names'], true);
+                        if (is_array($decoded)) {
+                            $bedNames = array_values($decoded);
+                        }
+                    }
+
+                    $roomInventory[$typeId][] = [
+                        'room_id'       => (int) ($room['room_id'] ?? 0),
+                        'room_number'   => (string) ($room['room_number'] ?? ''),
+                        'room_name'     => (string) ($room['type_name'] ?? ''),
+                        'floor_number'  => (string) ($room['floor_number'] ?? ''),
+                        'department_id' => (int) ($room['department_id'] ?? 0),
+                        'status'        => (string) ($room['status'] ?? ''),
+                        'bed_capacity'  => (int) ($room['bed_capacity'] ?? 0),
+                        'bed_names'     => $bedNames,
+                    ];
+                }
+
+                $roomTypes = $this->getRoomTypesForAssignments();
+                $departments = $this->getDepartmentsForAssignments();
+            }
+
             $data = [
                 'title' => $this->getPageTitle(),
                 'appointmentStats' => $this->getAppointmentStats(),
@@ -39,8 +83,12 @@ class AppointmentManagement extends BaseController
                 'doctors' => $this->getDoctorsListData(),
                 'availablePatients' => $this->getAvailablePatients(),
                 'userRole' => $this->userRole,
-                'permissions' => $this->getUserPermissions()
+                'permissions' => $this->getUserPermissions(),
+                'roomTypes' => $roomTypes,
+                'departments' => $departments,
+                'roomInventory' => $roomInventory,
             ];
+
             return view('unified/appointments', $data);
         } catch (\Exception $e) {
             log_message('error', 'AppointmentManagement index error: ' . $e->getMessage());
@@ -402,6 +450,7 @@ class AppointmentManagement extends BaseController
         }
     }
 
+
     // ===================================================================
     // PRIVATE HELPER METHODS
     // ===================================================================
@@ -420,6 +469,59 @@ class AppointmentManagement extends BaseController
         
         $result = $this->appointmentService->getAppointments($filters);
         return $result['data'] ?? [];
+    }
+
+    /**
+     * Room types for assign-room modal on appointments page
+     */
+    private function getRoomTypesForAssignments(): array
+    {
+        if (! $this->db->tableExists('room_type')) {
+            return [];
+        }
+
+        $builder = $this->db->table('room_type')
+            ->select('room_type_id, type_name');
+
+        if ($this->db->fieldExists('base_daily_rate', 'room_type')) {
+            $builder->select('base_daily_rate');
+        }
+
+        return $builder->orderBy('type_name', 'ASC')
+            ->get()
+            ->getResultArray();
+    }
+
+    /**
+     * Departments for assign-room modal on appointments page
+     */
+    private function getDepartmentsForAssignments(): array
+    {
+        if (! $this->db->tableExists('department')) {
+            return [];
+        }
+
+        // Prefer medical departments if medical_department table exists
+        if ($this->db->tableExists('medical_department')) {
+            return $this->db->table('department d')
+                ->select('d.department_id, d.name, d.floor')
+                ->join('medical_department md', 'md.department_id = d.department_id', 'inner')
+                ->orderBy('d.name', 'ASC')
+                ->get()
+                ->getResultArray();
+        }
+
+        $builder = $this->db->table('department')
+            ->select('department_id, name, floor');
+
+        if ($this->db->fieldExists('type', 'department')) {
+            $builder->whereIn('type', ['Medical', 'medical', 'MEDICAL']);
+        }
+
+        return $builder
+            ->orderBy('name', 'ASC')
+            ->get()
+            ->getResultArray();
     }
 
     /**

@@ -518,10 +518,36 @@ class AppointmentService
 
     private function buildAppointmentQuery()
     {
-        return $this->db->table('appointments a')
+        $builder = $this->db->table('appointments a')
             ->select('a.*, p.patient_id, p.first_name as patient_first_name, p.last_name as patient_last_name, p.email as patient_email, p.date_of_birth, TIMESTAMPDIFF(YEAR, p.date_of_birth, CURDATE()) as patient_age, CONCAT(p.first_name, " ", p.last_name) as patient_full_name, s.staff_id as doctor_id, s.first_name as doctor_first_name, s.last_name as doctor_last_name, CONCAT(s.first_name, " ", s.last_name) as doctor_name, DATE_FORMAT(a.appointment_date, "%W, %M %d, %Y") as formatted_date, TIME_FORMAT(a.appointment_time, "%h:%i %p") as formatted_time')
             ->join('patients p', 'p.patient_id = a.patient_id', 'left')
             ->join('staff s', 's.staff_id = a.doctor_id', 'left');
+
+        if ($this->db->tableExists('inpatient_admissions') && $this->db->tableExists('inpatient_room_assignments')) {
+            $roomSubquery = 'SELECT ira.room_number FROM inpatient_room_assignments ira JOIN inpatient_admissions ia2 ON ia2.admission_id = ira.admission_id WHERE ia2.patient_id = a.patient_id';
+            $bedSubquery = 'SELECT ira.bed_number FROM inpatient_room_assignments ira JOIN inpatient_admissions ia2 ON ia2.admission_id = ira.admission_id WHERE ia2.patient_id = a.patient_id';
+            $floorSubquery = 'SELECT ira.floor_number FROM inpatient_room_assignments ira JOIN inpatient_admissions ia2 ON ia2.admission_id = ira.admission_id WHERE ia2.patient_id = a.patient_id';
+
+            if ($this->db->fieldExists('discharge_date', 'inpatient_admissions')) {
+                $condition = ' AND (ia2.discharge_date IS NULL OR ia2.discharge_date = "")';
+                $roomSubquery .= $condition;
+                $bedSubquery .= $condition;
+                $floorSubquery .= $condition;
+            } elseif ($this->db->fieldExists('status', 'inpatient_admissions')) {
+                $condition = ' AND ia2.status = "active"';
+                $roomSubquery .= $condition;
+                $bedSubquery .= $condition;
+                $floorSubquery .= $condition;
+            }
+
+            $roomSubquery .= ' ORDER BY ira.assigned_at DESC LIMIT 1';
+            $bedSubquery .= ' ORDER BY ira.assigned_at DESC LIMIT 1';
+            $floorSubquery .= ' ORDER BY ira.assigned_at DESC LIMIT 1';
+
+            $builder->select('(' . $roomSubquery . ') as current_room_number, (' . $bedSubquery . ') as current_bed_number, (' . $floorSubquery . ') as current_floor_number', false);
+        }
+
+        return $builder;
     }
 
     /**

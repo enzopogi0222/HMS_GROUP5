@@ -65,6 +65,7 @@ window.ViewAppointmentModal = {
         const dateInput = document.getElementById('view_appointment_date');
         const typeSelect = document.getElementById('view_appointment_type');
         const notesTextarea = document.getElementById('view_appointment_notes');
+        const roomInput = document.getElementById('view_appointment_room');
         
         if (patientSelect) {
             patientSelect.innerHTML = '';
@@ -98,13 +99,33 @@ window.ViewAppointmentModal = {
             typeSelect.value = appointment.appointment_type || appointment.type || '';
         }
         
+        if (roomInput) {
+            const roomNumber = appointment.current_room_number || '';
+            const bedNumber = appointment.current_bed_number || '';
+            const floorNumber = appointment.current_floor_number || '';
+
+            let roomParts = [];
+            if (roomNumber) {
+                roomParts.push('Room ' + roomNumber);
+            }
+            if (bedNumber) {
+                roomParts.push('Bed ' + bedNumber.replace(/^Bed\s*/i, ''));
+            }
+            if (floorNumber) {
+                roomParts.push('Floor ' + floorNumber);
+            }
+
+            roomInput.value = roomParts.length ? roomParts.join(' • ') : '';
+        }
+
         if (notesTextarea) {
-            notesTextarea.value = appointment.notes || appointment.reason || '';
+            const baseNotes = appointment.notes || appointment.reason || '';
+            notesTextarea.value = baseNotes;
         }
     },
     
     clearForm() {
-        ['view_appointment_patient', 'view_appointment_doctor', 'view_appointment_date', 'view_appointment_type', 'view_appointment_notes'].forEach(id => {
+        ['view_appointment_patient', 'view_appointment_doctor', 'view_appointment_date', 'view_appointment_type', 'view_appointment_notes', 'view_appointment_room'].forEach(id => {
             const el = document.getElementById(id);
             if (el) {
                 if (el.tagName === 'SELECT') el.innerHTML = '<option value="">Select...</option>';

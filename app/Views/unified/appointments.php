@@ -203,6 +203,10 @@
     <?= $this->include('unified/modals/new-appointment-modal') ?>
     <?= $this->include('unified/modals/edit-appointment-modal') ?>
     <?= $this->include('unified/modals/view-appointment-modal') ?>
+    <?= $this->include('unified/modals/assign-room-modal', [
+        'roomTypes' => $roomTypes ?? [],
+        'departments' => $departments ?? [],
+    ]) ?>
 
     <!-- Billing modal for adding appointment charges -->
     <div id="billingModal" class="modal" aria-hidden="true" hidden>
@@ -241,6 +245,13 @@
     <script src="<?= base_url('assets/js/unified/modals/add-appointment-modal.js') ?>"></script>
     <script src="<?= base_url('assets/js/unified/modals/edit-appointment-modal.js') ?>"></script>
     <script src="<?= base_url('assets/js/unified/modals/view-appointment-modal.js') ?>"></script>
+
+    <script>
+    window.RoomInventory = <?= json_encode($roomInventory ?? [], JSON_HEX_TAG) ?>;
+    </script>
+    <script src="<?= base_url('assets/js/unified/modals/shared/room-modal-utils.js') ?>"></script>
+    <script src="<?= base_url('assets/js/unified/modals/assign-room-modal.js') ?>"></script>
+
     <script src="<?= base_url('assets/js/unified/appointments.js') ?>"></script>
 </body>
 </html>

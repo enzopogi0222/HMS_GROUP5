@@ -38,6 +38,10 @@
                         </select>
                     </div>
                     <div class="full">
+                        <label class="form-label" for="view_appointment_room">Current Room / Bed</label>
+                        <input type="text" id="view_appointment_room" class="form-input" disabled>
+                    </div>
+                    <div class="full">
                         <label class="form-label" for="view_appointment_notes">Additional Notes</label>
                         <textarea id="view_appointment_notes" class="form-input" rows="2" placeholder="Any additional notes or instructions..." disabled></textarea>
                     </div>

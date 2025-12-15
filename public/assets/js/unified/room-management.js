@@ -3,6 +3,7 @@
  */
 (function() {
     const baseUrl = document.querySelector('meta[name="base-url"]')?.content?.replace(/\/+$/, '') || '';
+    const userRole = document.querySelector('meta[name="user-role"]')?.content || '';
     const roomsTableBody = document.getElementById('roomsTableBody');
     const addRoomBtn = document.getElementById('addRoomBtn');
     let roomsData = [];
@@ -156,18 +157,17 @@
                         <button class="btn btn-sm btn-outline" data-action="view" data-room-id="${room.room_id}" aria-label="View room ${escapeHtml(room.room_number)}">
                             <i class="fas fa-eye"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline" data-action="edit" data-room-id="${room.room_id}" aria-label="Edit room ${escapeHtml(room.room_number)}">
-                            <i class="fas fa-pen"></i>
-                        </button>
-                        ${!isOccupied ? `<button class="btn btn-sm btn-primary" data-action="assign" data-room-id="${room.room_id}" aria-label="Assign room ${escapeHtml(room.room_number)}">
-                            <i class="fas fa-user-plus"></i> Assign
-                        </button>` : ''}
-                        ${isOccupied ? `<button class="btn btn-sm btn-outline" data-action="discharge" data-room-id="${room.room_id}" aria-label="Discharge room ${escapeHtml(room.room_number)}">
+                        ${userRole === 'admin' ? `
+                            <button class="btn btn-sm btn-outline" data-action="edit" data-room-id="${room.room_id}" aria-label="Edit room ${escapeHtml(room.room_number)}">
+                                <i class="fas fa-pen"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline btn-danger" data-action="delete" data-room-id="${room.room_id}" aria-label="Delete room ${escapeHtml(room.room_number)}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        ` : ''}
+                        ${(isOccupied && (userRole === 'receptionist' || userRole === 'admin')) ? `<button class="btn btn-sm btn-outline" data-action="discharge" data-room-id="${room.room_id}" aria-label="Discharge room ${escapeHtml(room.room_number)}">
                             <i class="fas fa-door-open"></i>
                         </button>` : ''}
-                        <button class="btn btn-sm btn-outline btn-danger" data-action="delete" data-room-id="${room.room_id}" aria-label="Delete room ${escapeHtml(room.room_number)}">
-                            <i class="fas fa-trash"></i>
-                        </button>
                     </div>
                 </td>
             </tr>`;

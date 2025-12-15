@@ -38,7 +38,9 @@
         </h1>
 
         <div class="page-actions">
-            <button type="button" class="btn btn-primary" id="addRoomBtn" aria-label="Add New Room"><i class="fas fa-plus" aria-hidden="true"></i> Add New Room</button>
+            <?php if ((session()->get('role') ?? '') === 'admin'): ?>
+                <button type="button" class="btn btn-primary" id="addRoomBtn" aria-label="Add New Room"><i class="fas fa-plus" aria-hidden="true"></i> Add New Room</button>
+            <?php endif; ?>
             <button type="button" class="btn btn-success" id="assignRoomBtn" aria-label="Assign Room to Patient"><i class="fas fa-user-plus" aria-hidden="true"></i> Assign Room</button>
         </div>
 
@@ -175,7 +177,9 @@
     </main>
 </div>
 
+<?php if ((session()->get('role') ?? '') === 'admin'): ?>
 <?= $this->include('unified/modals/add-room-modal', ['roomTypes' => $roomTypes ?? [], 'departments' => $departments ?? []]) ?>
+<?php endif; ?>
 <?= $this->include('unified/modals/view-room-modal') ?>
 <?= $this->include('unified/modals/assign-room-modal', [
     'roomTypes' => $roomTypes ?? [],
@@ -189,7 +193,9 @@ window.RoomInventory = <?= json_encode($roomInventory ?? [], JSON_HEX_TAG) ?>;
 </script>
 
 <script src="<?= base_url('assets/js/unified/modals/shared/room-modal-utils.js') ?>"></script>
+<?php if ((session()->get('role') ?? '') === 'admin'): ?>
 <script src="<?= base_url('assets/js/unified/modals/add-room-modal.js') ?>"></script>
+<?php endif; ?>
 <script src="<?= base_url('assets/js/unified/modals/view-room-modal.js') ?>"></script>
 <script src="<?= base_url('assets/js/unified/modals/assign-room-modal.js') ?>"></script>
 <script src="<?= base_url('assets/js/unified/room-management.js') ?>"></script>

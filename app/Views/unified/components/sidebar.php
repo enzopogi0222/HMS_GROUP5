@@ -80,6 +80,7 @@ $additionalModules = [
     ],
     'rooms' => [
         'admin' => ['url' => 'admin/room-management', 'icon' => 'fas fa-bed', 'label' => 'Room Management'],
+        'receptionist' => ['url' => 'receptionist/room-management', 'icon' => 'fas fa-bed', 'label' => 'Room Management'],
     ],
     'financial' => [
         'accountant' => ['url' => 'accountant/financial', 'icon' => 'fas fa-dollar-sign', 'label' => 'Billing Reports'],

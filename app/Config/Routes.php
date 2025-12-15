@@ -120,13 +120,14 @@ $routes->post('laboratorist/resource-management/delete', 'ResourceManagement::de
 // ===================================================================
 
 $routes->get('admin/room-management', 'RoomManagement::index', ['filter' => 'roleauth:admin']);
-$routes->get('rooms/api', 'RoomManagement::getRoomsAPI', ['filter' => 'roleauth:admin']);
-$routes->get('room-types/api', 'RoomManagement::getRoomTypesAPI', ['filter' => 'roleauth:admin']);
-$routes->get('rooms/(:num)', 'RoomManagement::getRoom/$1', ['filter' => 'roleauth:admin']);
-$routes->get('rooms/patients', 'RoomManagement::getPatientsForAssignment', ['filter' => 'roleauth:admin']);
+$routes->get('receptionist/room-management', 'RoomManagement::index', ['filter' => 'roleauth:receptionist']);
+$routes->get('rooms/api', 'RoomManagement::getRoomsAPI', ['filter' => 'roleauth:admin,receptionist']);
+$routes->get('room-types/api', 'RoomManagement::getRoomTypesAPI', ['filter' => 'roleauth:admin,receptionist']);
+$routes->get('rooms/(:num)', 'RoomManagement::getRoom/$1', ['filter' => 'roleauth:admin,receptionist']);
+$routes->get('rooms/patients', 'RoomManagement::getPatientsForAssignment', ['filter' => 'roleauth:admin,receptionist']);
 $routes->post('rooms/create', 'RoomManagement::createRoom', ['filter' => 'roleauth:admin']);
-$routes->post('rooms/assign', 'RoomManagement::assignRoom', ['filter' => 'roleauth:admin']);
-$routes->post('rooms/discharge', 'RoomManagement::dischargeRoom', ['filter' => 'roleauth:admin']);
+$routes->post('rooms/assign', 'RoomManagement::assignRoom', ['filter' => 'roleauth:admin,receptionist']);
+$routes->post('rooms/discharge', 'RoomManagement::dischargeRoom', ['filter' => 'roleauth:admin,receptionist']);
 $routes->post('rooms/(:num)/update', 'RoomManagement::updateRoom/$1', ['filter' => 'roleauth:admin']);
 $routes->post('rooms/(:num)/delete', 'RoomManagement::deleteRoom/$1', ['filter' => 'roleauth:admin']);
 

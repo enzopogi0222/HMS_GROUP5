@@ -48,6 +48,7 @@ class RoomManagement extends BaseController
                 'room_number'   => (string) ($room['room_number'] ?? ''),
                 'room_name'     => (string) ($room['type_name'] ?? ''),
                 'floor_number'  => (string) ($room['floor_number'] ?? ''),
+                'department_id' => (int) ($room['department_id'] ?? 0),
                 'status'        => (string) ($room['status'] ?? ''),
                 'bed_capacity'  => (int) ($room['bed_capacity'] ?? 0),
                 'bed_names'     => $bedNames,
@@ -70,7 +71,7 @@ class RoomManagement extends BaseController
             return [];
         }
         $builder = $this->db->table('room_type')
-            ->select('room_type_id, type_name, accommodation_type');
+            ->select('room_type_id, type_name');
         
         if ($this->db->fieldExists('base_daily_rate', 'room_type')) {
             $builder->select('base_daily_rate');
@@ -95,8 +96,14 @@ class RoomManagement extends BaseController
                 ->getResultArray();
         }
 
-        return $this->db->table('department')
-            ->select('department_id, name, floor')
+        $builder = $this->db->table('department')
+            ->select('department_id, name, floor');
+
+        if ($this->db->fieldExists('type', 'department')) {
+            $builder->whereIn('type', ['Medical', 'medical', 'MEDICAL']);
+        }
+
+        return $builder
             ->orderBy('name', 'ASC')
             ->get()
             ->getResultArray();
@@ -301,6 +308,7 @@ class RoomManagement extends BaseController
         }
 
         $patientId = (int) ($input['patient_id'] ?? 0);
+        $departmentId = (int) ($input['department_id'] ?? 0);
         $roomType = $input['room_type'] ?? null;
         $floorNumber = $input['floor_number'] ?? null;
         $roomNumber = $input['room_number'] ?? null;
@@ -310,6 +318,13 @@ class RoomManagement extends BaseController
 
         if (!$patientId) {
             return $this->jsonResponse($this->appendCsrfHash(['success' => false, 'message' => 'Patient ID is required']), 400);
+        }
+
+        if (!$departmentId) {
+            return $this->jsonResponse($this->appendCsrfHash([
+                'success' => false,
+                'message' => 'Department is required'
+            ]), 400);
         }
 
         if (!$roomType || !$floorNumber || !$roomNumber || !$bedNumber) {

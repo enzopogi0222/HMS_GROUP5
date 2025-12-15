@@ -1442,6 +1442,20 @@ class PatientService
             return;
         }
 
+        $roomNumber = $input['room_number'] ?? null;
+        $floorNumber = $input['floor_number'] ?? null;
+        $bedNumber = $input['bed_number'] ?? null;
+        $roomType = $input['room_type'] ?? null;
+
+        $hasSelection = ($roomNumber !== null && $roomNumber !== '')
+            || ($floorNumber !== null && $floorNumber !== '')
+            || ($bedNumber !== null && $bedNumber !== '')
+            || ($roomType !== null && $roomType !== '');
+
+        if (!$hasSelection) {
+            return;
+        }
+
         // Normalize daily_rate: the UI may submit a placeholder like 'Auto-calculated'
         // which is not a valid DECIMAL value for the DB schema.
         $rawDailyRate = $input['daily_rate'] ?? null;
@@ -1455,8 +1469,38 @@ class PatientService
             }
         }
 
+        // If UI submitted room_type as numeric room_type_id, map it to enum-friendly type_name.
+        // Also, if daily_rate wasn't provided, try to derive it from room_type.base_daily_rate.
+        if ($roomType !== null && $roomType !== '' && is_numeric($roomType) && $this->db->tableExists('room_type')) {
+            try {
+                $builder = $this->db->table('room_type')
+                    ->select('type_name');
+
+                if ($this->db->fieldExists('base_daily_rate', 'room_type')) {
+                    $builder->select('base_daily_rate');
+                }
+
+                $row = $builder
+                    ->where('room_type_id', (int) $roomType)
+                    ->get()
+                    ->getRowArray();
+
+                if ($row) {
+                    $typeName = trim((string) ($row['type_name'] ?? ''));
+                    if ($typeName !== '') {
+                        $roomType = $typeName;
+                    }
+
+                    if ($normalizedDailyRate === null && isset($row['base_daily_rate']) && is_numeric($row['base_daily_rate'])) {
+                        $normalizedDailyRate = (float) $row['base_daily_rate'];
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Best-effort mapping only
+            }
+        }
+
         // Get room_type from input, handling both text and enum values
-        $roomType = $input['room_type'] ?? null;
         if ($roomType && !in_array($roomType, ['Ward', 'Semi-Private', 'Private', 'Isolation', 'ICU'], true)) {
             // Try to map common variations
             $roomTypeMap = [
@@ -1470,9 +1514,11 @@ class PatientService
             $roomType = $roomTypeMap[strtolower($roomType)] ?? null;
         }
 
-        $roomNumber = $input['room_number'] ?? null;
-        $floorNumber = $input['floor_number'] ?? null;
-        $bedNumber = $input['bed_number'] ?? null;
+        $assignedAt = $input['assigned_at'] ?? null;
+        if ($assignedAt === null && $this->db->fieldExists('assigned_at', 'inpatient_room_assignments')) {
+            $assignedAt = date('Y-m-d H:i:s');
+        }
+
         $roomId = null;
 
         // Look up room_id from room table if room_number is provided
@@ -1520,6 +1566,7 @@ class PatientService
             'room_number' => $roomNumber,
             'bed_number' => $bedNumber,
             'daily_rate' => $normalizedDailyRate,
+            'assigned_at' => $assignedAt,
         ];
 
         try {

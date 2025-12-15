@@ -118,6 +118,7 @@ const AddPatientModal = {
     activeFormKey: 'outpatient',
     saveBtn: null,
     roomInventory: window.PatientRoomInventory || {},
+    departmentSelect: null,
     roomTypeSelect: null,
     roomNumberSelect: null,
     floorInput: null,
@@ -138,11 +139,12 @@ const AddPatientModal = {
         this.formWrapper = document.querySelector('[data-form-wrapper]');
         this.tabButtons = document.querySelectorAll('.patient-tabs__btn');
         this.saveBtn = document.getElementById('savePatientBtn');
-        this.roomTypeSelect = document.getElementById('room_type');
-        this.roomNumberSelect = document.getElementById('room_number');
-        this.floorInput = document.getElementById('floor_number');
-        this.dailyRateInput = document.getElementById('daily_rate');
-        this.bedNumberSelect = document.getElementById('bed_number');
+        this.departmentSelect = document.getElementById('assign_department_id');
+        this.roomTypeSelect = document.getElementById('assign_room_type');
+        this.floorInput = document.getElementById('assign_floor_number');
+        this.roomNumberSelect = document.getElementById('assign_room_number');
+        this.bedNumberSelect = document.getElementById('assign_bed_number');
+        this.dailyRateInput = document.getElementById('assign_daily_rate');
         this.addressControls = {
             outpatient: this.buildAddressControls('outpatient'),
             inpatient: this.buildAddressControls('inpatient')
@@ -453,6 +455,16 @@ const AddPatientModal = {
             return;
         }
 
+        const handleRoomContextChange = () => {
+            this.resetFloorState('Select a room type...');
+            this.resetRoomNumberState('Select a room...');
+            this.resetBedState('Select a room first');
+        };
+
+        if (this.departmentSelect) {
+            this.departmentSelect.addEventListener('change', handleRoomContextChange);
+        }
+
         this.roomTypeSelect.addEventListener('change', () => this.handleRoomTypeChange());
         this.floorInput.addEventListener('change', () => this.handleFloorChange());
         this.roomNumberSelect.addEventListener('change', () => {
@@ -482,11 +494,8 @@ const AddPatientModal = {
 
         this.bedNumberSelect.innerHTML = `<option value="">${message}</option>`;
 
-        // Keep the control enabled in normal flows so the user can always open it.
-        // We will only explicitly disable it when there is a hard error state.
-        const lower = (message || '').toLowerCase();
-        const shouldDisable = lower.includes('no beds') || lower.includes('unavailable');
-        this.bedNumberSelect.disabled = shouldDisable;
+        // Match Assign Room modal behavior: bed list remains disabled until a room is selected.
+        this.bedNumberSelect.disabled = true;
     },
 
     buildAddressControls(prefix) {
@@ -697,9 +706,19 @@ const AddPatientModal = {
 
         const selectedOption = this.roomTypeSelect.options[this.roomTypeSelect.selectedIndex];
         const typeId = this.roomTypeSelect.value || '';
-        const rooms = (this.roomInventory?.[typeId]) ?? (this.roomInventory?.[Number(typeId)]) ?? [];
-        const hasRooms = Array.isArray(rooms) && rooms.length > 0;
-        this.currentRoomTypeRooms = rooms;
+        const roomsByType = (this.roomInventory?.[typeId]) ?? (this.roomInventory?.[Number(typeId)]) ?? [];
+
+        const selectedDepartmentId = (this.departmentSelect?.value || '').toString().trim();
+
+        const filteredRooms = (Array.isArray(roomsByType) ? roomsByType : []).filter(room => {
+            const roomDeptId = (room.department_id ?? '').toString().trim();
+
+            if (selectedDepartmentId && roomDeptId !== selectedDepartmentId) return false;
+            return true;
+        });
+
+        const hasRooms = filteredRooms.length > 0;
+        this.currentRoomTypeRooms = filteredRooms;
 
         this.updateDailyRateDisplay(selectedOption);
         this.resetRoomNumberState(hasRooms ? 'Select a room...' : 'No rooms available');
@@ -709,7 +728,7 @@ const AddPatientModal = {
             return;
         }
 
-        const uniqueFloors = Array.from(new Set(rooms.map(room => (room.floor_number ?? '').toString().trim()).filter(Boolean)));
+        const uniqueFloors = Array.from(new Set(filteredRooms.map(room => (room.floor_number ?? '').toString().trim()).filter(Boolean)));
         const floorFragment = document.createDocumentFragment();
         uniqueFloors.forEach(floor => {
             const opt = document.createElement('option');

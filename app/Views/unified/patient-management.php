@@ -149,6 +149,7 @@
     'userRole' => $userRole,
     'roomTypes' => $roomTypes ?? [],
     'roomInventory' => $roomInventory ?? [],
+    'departments' => $departments ?? [],
 ]) ?>
 <?= $this->include('unified/modals/view-patient-modal') ?>
 <?= $this->include('unified/modals/edit-patient-modal') ?>

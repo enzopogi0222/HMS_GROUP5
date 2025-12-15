@@ -11,6 +11,7 @@
     const form = document.getElementById(formId);
     const submitBtn = document.getElementById('saveAssignRoomBtn');
     const patientSelect = document.getElementById('assign_patient_id');
+    const departmentSelect = document.getElementById('assign_department_id');
     const roomTypeSelect = document.getElementById('assign_room_type');
     const floorSelect = document.getElementById('assign_floor_number');
     const roomSelect = document.getElementById('assign_room_number');
@@ -48,6 +49,11 @@
         // Setup room type change handler
         if (roomTypeSelect) {
             roomTypeSelect.addEventListener('change', handleRoomTypeChange);
+        }
+
+        // Reset dependent room selection when department/accommodation changes
+        if (departmentSelect) {
+            departmentSelect.addEventListener('change', handleRoomContextChange);
         }
 
         // Setup floor change handler
@@ -101,6 +107,13 @@
         resetBedState();
         if (patientSelect) patientSelect.innerHTML = '<option value="">Select patient...</option>';
         if (dailyRateInput) dailyRateInput.value = 'Auto-calculated';
+    }
+
+    function handleRoomContextChange() {
+        // If user changes department/accommodation, the current room list may no longer be valid.
+        resetFloorState('Select a room type...');
+        resetRoomState('Select a room...');
+        resetBedState('Select a room first');
     }
 
     function resetFloorState(message = 'Select a floor...') {
@@ -167,9 +180,19 @@
 
         const selectedOption = roomTypeSelect.options[roomTypeSelect.selectedIndex];
         const typeId = roomTypeSelect.value || '';
-        const rooms = (roomInventory?.[typeId]) ?? (roomInventory?.[Number(typeId)]) ?? [];
-        const hasRooms = Array.isArray(rooms) && rooms.length > 0;
-        currentRooms = rooms;
+        const roomsByType = (roomInventory?.[typeId]) ?? (roomInventory?.[Number(typeId)]) ?? [];
+
+        const selectedDepartmentId = (departmentSelect?.value || '').toString().trim();
+
+        const filteredRooms = (Array.isArray(roomsByType) ? roomsByType : []).filter(room => {
+            const roomDeptId = (room.department_id ?? '').toString().trim();
+
+            if (selectedDepartmentId && roomDeptId !== selectedDepartmentId) return false;
+            return true;
+        });
+
+        const hasRooms = filteredRooms.length > 0;
+        currentRooms = filteredRooms;
 
         // Update daily rate
         if (dailyRateInput && selectedOption) {
@@ -190,7 +213,7 @@
         }
 
         // Get unique floors for this room type
-        const uniqueFloors = Array.from(new Set(rooms.map(room => (room.floor_number ?? '').toString().trim()).filter(Boolean)));
+        const uniqueFloors = Array.from(new Set(filteredRooms.map(room => (room.floor_number ?? '').toString().trim()).filter(Boolean)));
         
         if (uniqueFloors.length === 0) {
             resetFloorState('No floors available');
@@ -238,7 +261,11 @@
             const opt = document.createElement('option');
             const roomNumber = room.room_number || '';
             opt.value = roomNumber;
-            opt.textContent = roomNumber;
+            const roomName = (room.room_name || '').toString().trim();
+            const floorNumber = (room.floor_number || '').toString().trim();
+            const nameSuffix = roomName ? ` - ${roomName}` : '';
+            const floorSuffix = floorNumber ? ` (Floor ${floorNumber})` : '';
+            opt.textContent = `${roomNumber}${nameSuffix}${floorSuffix}`;
             if (room.room_id) opt.dataset.roomId = room.room_id;
             if (room.bed_capacity) opt.dataset.bedCapacity = room.bed_capacity;
             if (room.bed_names) opt.dataset.bedNames = JSON.stringify(room.bed_names);
@@ -297,6 +324,7 @@
         if (!form || !patientSelect) return;
 
         const patientId = (patientSelect.value || '').trim();
+        const departmentId = (departmentSelect?.value || '').trim();
         const roomType = (roomTypeSelect?.value || '').trim();
         const floorNumber = (floorSelect?.value || '').trim();
         const roomNumber = (roomSelect?.value || '').trim();
@@ -307,6 +335,12 @@
         if (!patientId) {
             utils.showNotification('Please select a patient.', 'error');
             patientSelect.focus();
+            return;
+        }
+
+        if (!departmentId) {
+            utils.showNotification('Please select a department.', 'error');
+            if (departmentSelect) departmentSelect.focus();
             return;
         }
 
@@ -348,6 +382,7 @@
         try {
             const formData = new FormData(form);
             formData.set('patient_id', patientId);
+            formData.set('department_id', departmentId);
             formData.set('room_type', roomType);
             formData.set('floor_number', floorNumber);
             formData.set('room_number', roomNumber);

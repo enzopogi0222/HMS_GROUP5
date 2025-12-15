@@ -620,6 +620,65 @@
                             <div class="form-section">
                                 <div class="section-header">
                                     <div>
+                                        <h4>4. Room Assignment (Optional)</h4>
+                                        <p class="section-subtitle">Assign a room now or leave blank to assign later in Room Management.</p>
+                                    </div>
+                                </div>
+                                <div class="form-grid">
+                                    <div>
+                                        <label class="form-label" for="assign_department_id">Department</label>
+                                        <select id="assign_department_id" name="department_id" class="form-select">
+                                            <option value="">Select department...</option>
+                                            <?php if (!empty($departments)): ?>
+                                                <?php foreach ($departments as $dept): ?>
+                                                    <option value="<?= esc($dept['department_id']) ?>">
+                                                        <?= esc($dept['name'] ?? '') ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label" for="assign_room_type">Room Type</label>
+                                        <select id="assign_room_type" name="room_type" class="form-select">
+                                            <option value="">Select room type...</option>
+                                            <?php if (!empty($roomTypes)): ?>
+                                                <?php foreach ($roomTypes as $type): ?>
+                                                    <option value="<?= esc($type['room_type_id'] ?? '') ?>" data-rate="<?= esc($type['base_daily_rate'] ?? '') ?>">
+                                                        <?= esc($type['type_name'] ?? '') ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label" for="assign_floor_number">Floor Number</label>
+                                        <select id="assign_floor_number" name="floor_number" class="form-select" disabled>
+                                            <option value="">Select a floor...</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label" for="assign_room_number">Room Number</label>
+                                        <select id="assign_room_number" name="room_number" class="form-select" disabled>
+                                            <option value="">Select a room...</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label" for="assign_bed_number">Bed Number</label>
+                                        <select id="assign_bed_number" name="bed_number" class="form-select" disabled>
+                                            <option value="">Select a bed...</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label" for="assign_daily_rate">Daily Room Rate</label>
+                                        <input type="text" id="assign_daily_rate" name="daily_rate" class="form-input" readonly value="Auto-calculated">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-section">
+                                <div class="section-header">
+                                    <div>
                                         <h4>5. Medical History</h4>
                                     </div>
                                 </div>

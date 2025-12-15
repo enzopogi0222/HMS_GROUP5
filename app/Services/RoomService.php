@@ -37,7 +37,7 @@ class RoomService
         $builder = $this->db->table('room r')
             ->select([
                 'r.room_id', 'r.room_number', 'r.room_type', 'r.room_type_id',
-                'r.floor_number', 'r.department_id', 'r.accommodation_type',
+                'r.floor_number', 'r.department_id',
                 'r.status', 'r.bed_capacity', 'r.bed_names',
             ])
             ->orderBy('r.room_number', 'ASC');
@@ -75,7 +75,7 @@ class RoomService
         $builder = $this->db->table('room r')
             ->select([
                 'r.room_id', 'r.room_number', 'r.room_type', 'r.room_type_id',
-                'r.floor_number', 'r.department_id', 'r.accommodation_type',
+                'r.floor_number', 'r.department_id',
                 'r.status', 'r.bed_capacity', 'r.bed_names',
                 'r.created_at', 'r.updated_at',
             ])
@@ -226,9 +226,6 @@ class RoomService
 
             $roomTypeId = $this->resolveRoomTypeId($input);
             $data       = $this->mapRoomPayload($input, $roomTypeId);
-
-            $this->ensureAccommodationTypeExists($data['accommodation_type'] ?? null);
-            $this->syncRoomTypeAccommodationTypeId($roomTypeId, $data['accommodation_type'] ?? null);
 
             // Validate room_number is not empty after mapping
             if (empty($data['room_number'] ?? '')) {
@@ -494,9 +491,6 @@ class RoomService
             $roomTypeId = $this->resolveRoomTypeId($input);
             $data       = $this->mapRoomPayload($input, $roomTypeId);
 
-            $this->ensureAccommodationTypeExists($data['accommodation_type'] ?? null);
-            $this->syncRoomTypeAccommodationTypeId($roomTypeId, $data['accommodation_type'] ?? null);
-
             $this->db->transStart();
 
             $updated = $this->db->table('room')
@@ -564,7 +558,6 @@ class RoomService
             'room_type_id' => $roomTypeId,
             'floor_number' => trim($input['floor_number'] ?? ''),
             'department_id' => !empty($input['department_id']) ? (int) $input['department_id'] : null,
-            'accommodation_type' => $this->sanitizeString($input['accommodation_type'] ?? null),
             'bed_capacity' => !empty($input['bed_capacity']) ? (int) $input['bed_capacity'] : 1,
             'bed_names' => $bedNamesValue,
             'status' => $input['status'] ?? 'available',
@@ -680,12 +673,10 @@ class RoomService
     private function buildRoomTypePayload(string $typeName, array $input): array
     {
         $notes = trim($input['notes'] ?? '');
-        $accommodationType = $this->sanitizeString($input['accommodation_type'] ?? null, 100);
 
         return [
             'type_name' => $typeName,
             'description' => $notes ?: null,
-            'accommodation_type' => $accommodationType,
         ];
     }
 
@@ -716,67 +707,5 @@ class RoomService
         return $clean;
     }
 
-    private function ensureAccommodationTypeExists(?string $accommodationType): void
-    {
-        $name = trim((string) ($accommodationType ?? ''));
-        if ($name === '') {
-            return;
-        }
 
-        if (! $this->db->tableExists('accommodation_types')) {
-            return;
-        }
-
-        try {
-            $exists = $this->db->table('accommodation_types')
-                ->select('id')
-                ->where('name', $name)
-                ->get()
-                ->getRowArray();
-
-            if (! $exists) {
-                $this->db->table('accommodation_types')->insert(['name' => $name]);
-            }
-        } catch (\Throwable $e) {
-            // best effort
-        }
-    }
-
-    private function syncRoomTypeAccommodationTypeId(?int $roomTypeId, ?string $accommodationType): void
-    {
-        if (! $roomTypeId || $roomTypeId <= 0) {
-            return;
-        }
-
-        $name = trim((string) ($accommodationType ?? ''));
-        if ($name === '') {
-            return;
-        }
-
-        if (! $this->db->tableExists('room_type') || ! $this->db->tableExists('accommodation_types')) {
-            return;
-        }
-
-        if (! $this->db->fieldExists('accommodation_type_id', 'room_type')) {
-            return;
-        }
-
-        try {
-            $row = $this->db->table('accommodation_types')
-                ->select('id')
-                ->where('name', $name)
-                ->get()
-                ->getRowArray();
-
-            if (! $row) {
-                return;
-            }
-
-            $this->db->table('room_type')
-                ->where('room_type_id', $roomTypeId)
-                ->update(['accommodation_type_id' => (int) $row['id']]);
-        } catch (\Throwable $e) {
-            // best effort
-        }
-    }
 }

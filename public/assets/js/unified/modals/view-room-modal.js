@@ -132,10 +132,6 @@
                         <div class="detail-value">${utils.escapeHtml(room.department_name || '—')}</div>
                     </div>
                     <div>
-                        <label class="form-label">Accommodation Type</label>
-                        <div class="detail-value">${utils.escapeHtml(room.accommodation_type || '—')}</div>
-                    </div>
-                    <div>
                         <label class="form-label">Status</label>
                         <div class="detail-value">${statusBadge}</div>
                     </div>

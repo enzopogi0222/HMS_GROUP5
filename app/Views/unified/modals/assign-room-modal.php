@@ -33,6 +33,20 @@
                     <h4 style="margin-bottom: 1rem; color: #1e293b; font-size: 1.1rem;">Room Assignment</h4>
                     <div class="form-grid">
                         <div>
+                            <label class="form-label" for="assign_department_id">Department*</label>
+                            <select id="assign_department_id" name="department_id" class="form-select" required>
+                                <option value="">Select department...</option>
+                                <?php if (!empty($departments)): ?>
+                                    <?php foreach ($departments as $dept): ?>
+                                        <option value="<?= esc($dept['department_id']) ?>">
+                                            <?= esc($dept['name'] ?? '') ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                            <small id="err_assign_department_id" class="form-error"></small>
+                        </div>
+                        <div>
                             <label class="form-label" for="assign_room_type">Room Type*</label>
                             <select id="assign_room_type" name="room_type" class="form-select" required>
                                 <option value="">Select room type...</option>

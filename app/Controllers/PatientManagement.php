@@ -77,6 +77,7 @@ class PatientManagement extends BaseController
                 'room_number'   => (string) ($room['room_number'] ?? ''),
                 'room_name'     => (string) ($room['room_name'] ?? ''),
                 'floor_number'  => (string) ($room['floor_number'] ?? ''),
+                'department_id' => (int) ($room['department_id'] ?? 0),
                 'status'        => (string) ($room['status'] ?? ''),
                 'bed_capacity'  => (int) ($room['bed_capacity'] ?? 0),
                 'bed_names'     => $bedNames,
@@ -86,11 +87,36 @@ class PatientManagement extends BaseController
 
         $departments = [];
         if ($this->db->tableExists('department')) {
-            $departments = $this->db->table('department')
-                ->select('department_id, name')
-                ->orderBy('name','ASC')
-                ->get()
-                ->getResultArray();
+            if ($this->db->tableExists('medical_department')) {
+                $departments = $this->db->table('department d')
+                    ->select('d.department_id, d.name')
+                    ->join('medical_department md', 'md.department_id = d.department_id', 'inner')
+                    ->orderBy('d.name', 'ASC')
+                    ->get()
+                    ->getResultArray();
+            }
+
+            if (empty($departments)) {
+                $builder = $this->db->table('department')
+                    ->select('department_id, name');
+
+                if ($this->db->fieldExists('type', 'department')) {
+                    $builder->whereIn('type', ['Medical', 'medical', 'MEDICAL']);
+                }
+
+                $departments = $builder
+                    ->orderBy('name','ASC')
+                    ->get()
+                    ->getResultArray();
+            }
+
+            if (empty($departments)) {
+                $departments = $this->db->table('department')
+                    ->select('department_id, name')
+                    ->orderBy('name', 'ASC')
+                    ->get()
+                    ->getResultArray();
+            }
         }
 
         $data = [

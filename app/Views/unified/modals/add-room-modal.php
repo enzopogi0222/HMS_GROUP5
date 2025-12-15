@@ -17,19 +17,6 @@
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div>
-                        <label class="form-label" for="modal_accommodation_type">Accommodation Type</label>
-                        <select id="modal_accommodation_type" name="accommodation_type" class="form-input">
-                            <option value="">Select accommodation type</option>
-                            <option value="General Ward / General Accommodation">General Ward / General Accommodation</option>
-                            <option value="Intensive / Critical Care Units">Intensive / Critical Care Units</option>
-                            <option value="Maternity / Obstetrics Accommodation">Maternity / Obstetrics Accommodation</option>
-                            <option value="Pediatric Accommodation">Pediatric Accommodation</option>
-                            <option value="Isolation Accommodation">Isolation Accommodation</option>
-                            <option value="Surgical / Post-Operative Accommodation">Surgical / Post-Operative Accommodation</option>
-                            <option value="Specialty Units">Specialty Units</option>
-                        </select>
-                    </div>
                 </div>
                 <div class="form-grid">
                     <div>
@@ -40,7 +27,6 @@
                                 <?php foreach ($roomTypes as $type): ?>
                                     <option
                                         value="<?= esc($type['room_type_id']) ?>"
-                                        data-accommodation="<?= esc($type['accommodation_type'] ?? '') ?>"
                                     >
                                         <?= esc($type['type_name']) ?>
                                     </option>

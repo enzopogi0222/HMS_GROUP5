@@ -14,13 +14,19 @@ class AddExpiryDateToResources extends Migration
         }
 
         if (! $db->fieldExists('expiry_date', 'resources')) {
-            $this->forge->addColumn('resources', [
-                'expiry_date' => [
-                    'type' => 'DATE',
-                    'null' => true,
-                    'after' => $db->fieldExists('batch_number', 'resources') ? 'batch_number' : 'location',
-                ],
-            ]);
+            try {
+                $this->forge->addColumn('resources', [
+                    'expiry_date' => [
+                        'type' => 'DATE',
+                        'null' => true,
+                        'after' => $db->fieldExists('batch_number', 'resources') ? 'batch_number' : 'location',
+                    ],
+                ]);
+            } catch (\Throwable $e) {
+                if (! $db->fieldExists('expiry_date', 'resources')) {
+                    throw $e;
+                }
+            }
         }
     }
 

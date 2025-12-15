@@ -174,8 +174,18 @@ window.StaffModalUtils = {
         };
 
         const validation = roleValidations[formData.designation];
-        if (validation && (!formData[validation.field] || String(formData[validation.field]).trim().length < 2)) {
-            errors[validation.field] = validation.msg;
+
+        // Make license numbers optional: only validate if the field is present and non-empty.
+        // This avoids blocking updates where the user does not have or does not want to record
+        // the license number, while still catching obviously invalid short values.
+        if (validation) {
+            const raw = formData[validation.field];
+            if (raw !== undefined && raw !== null) {
+                const value = String(raw).trim();
+                if (value.length > 0 && value.length < 2) {
+                    errors[validation.field] = validation.msg;
+                }
+            }
         }
     },
 

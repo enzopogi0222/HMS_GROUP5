@@ -6,6 +6,108 @@
     const utils = new BillingModalUtils(baseUrl);
     const tableBody = document.getElementById('financialTableBody');
 
+    // Transaction details modal helpers
+    function openTransactionDetails(transactionId) {
+        if (!transactionId) return;
+
+        const modal = document.getElementById('transactionDetailsModal');
+        const content = document.getElementById('transactionDetailsContent');
+        if (!modal || !content) return;
+
+        content.innerHTML = `
+            <div class="loading-row">
+                <i class="fas fa-spinner"></i> Loading transaction details...
+            </div>
+        `;
+
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+
+        fetch(`${baseUrl}/financial-management/transactions/${encodeURIComponent(transactionId)}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin'
+        })
+            .then(resp => resp.json())
+            .then(result => {
+                if (!result.success || !result.data) {
+                    content.innerHTML = `
+                        <div class="loading-row">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            ${escapeHtml(result.message || 'Failed to load transaction details.')}
+                        </div>
+                    `;
+                    return;
+                }
+
+                const t = result.data;
+                const isStockTransaction = ['stock_in', 'stock_out'].includes(t.type || '');
+
+                const patientOrResource = isStockTransaction
+                    ? (t.resource_name || 'N/A')
+                    : (((t.patient_first_name || '') + ' ' + (t.patient_last_name || '')).trim() || (t.patient_id ? `Patient #${t.patient_id}` : 'N/A'));
+
+                const amountQuantity = isStockTransaction
+                    ? `${t.type === 'stock_out' ? '-' : '+'}${t.quantity || 0} unit(s)`
+                    : `${t.type === 'expense' ? '-' : '+'}₱${parseFloat(t.amount || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+
+                const paymentMethod = isStockTransaction
+                    ? 'N/A'
+                    : ((t.payment_method || 'N/A').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
+
+                content.innerHTML = `
+                    <div>
+                        <strong>Transaction ID</strong>
+                        <div>${escapeHtml(t.transaction_id || 'N/A')}</div>
+                    </div>
+                    <div>
+                        <strong>Date & Time</strong>
+                        <div>${escapeHtml(t.transaction_date || 'N/A')} ${t.transaction_time ? '(' + escapeHtml(t.transaction_time) + ')' : ''}</div>
+                    </div>
+                    <div>
+                        <strong>Type</strong>
+                        <div>${escapeHtml((t.type || 'N/A').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))}</div>
+                    </div>
+                    <div>
+                        <strong>Patient / Resource</strong>
+                        <div>${escapeHtml(patientOrResource)}</div>
+                    </div>
+                    <div>
+                        <strong>Amount / Quantity</strong>
+                        <div>${escapeHtml(amountQuantity)}</div>
+                    </div>
+                    <div>
+                        <strong>Payment Method</strong>
+                        <div>${escapeHtml(paymentMethod)}</div>
+                    </div>
+                    <div>
+                        <strong>Status</strong>
+                        <div>${escapeHtml((t.payment_status || 'Pending').charAt(0).toUpperCase() + (t.payment_status || 'Pending').slice(1))}</div>
+                    </div>
+                    <div>
+                        <strong>Description</strong>
+                        <div>${escapeHtml(t.description || 'N/A')}</div>
+                    </div>
+                `;
+            })
+            .catch(err => {
+                console.error('Failed to load transaction details', err);
+                content.innerHTML = `
+                    <div class="loading-row">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Failed to load transaction details.
+                    </div>
+                `;
+            });
+    }
+
+    window.closeTransactionDetailsModal = function() {
+        const modal = document.getElementById('transactionDetailsModal');
+        if (!modal) return;
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+    };
+
     // Notification functions
     window.showFinancialNotification = function(message, type = 'success') {
         // Wait for DOM to be ready
@@ -17,7 +119,7 @@
         let container = document.getElementById('financialNotification');
         let iconEl = document.getElementById('financialNotificationIcon');
         let textEl = document.getElementById('financialNotificationText');
-        
+
         // If container doesn't exist, create it
         if (!container) {
             const mainContainer = document.querySelector('.main-container');
@@ -290,7 +392,7 @@
                 } else {
                     transactionsTableBody.innerHTML = `
                         <tr>
-                            <td colspan="8" style="text-align: center; padding: 3rem; color: #6b7280;">
+                            <td colspan="9" style="text-align: center; padding: 3rem; color: #6b7280;">
                                 <i class="fas fa-exchange-alt" style="font-size: 3rem; color: #d1d5db; margin-bottom: 1rem; display: block;"></i>
                                 <p style="margin: 0.5rem 0; font-size: 1rem; font-weight: 500;">No transactions found</p>
                                 <p style="margin: 0; font-size: 0.875rem;">${result.message || 'No transactions match your filters.'}</p>
@@ -312,7 +414,7 @@
         if (!transactions || transactions.length === 0) {
             transactionsTableBody.innerHTML = `
                 <tr>
-                    <td colspan="8" style="text-align: center; padding: 3rem; color: #6b7280;">
+                    <td colspan="9" style="text-align: center; padding: 3rem; color: #6b7280;">
                         <i class="fas fa-exchange-alt" style="font-size: 3rem; color: #d1d5db; margin-bottom: 1rem; display: block;"></i>
                         <p style="margin: 0.5rem 0; font-size: 1rem; font-weight: 500;">No transactions found</p>
                         <p style="margin: 0; font-size: 0.875rem;">No transactions match your filters.</p>
@@ -373,6 +475,14 @@
                         </span>
                     </td>
                     <td>${escapeHtml(transaction.description || 'N/A')}</td>
+                    <td>
+                        <button
+                            class="btn btn-primary btn-small"
+                            data-action="view-transaction"
+                            data-transaction-id="${escapeHtml(transaction.transaction_id || '')}">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -418,7 +528,7 @@
         loadTransactions({});
     }
 
-    // Initialize transaction filters
+    // Initialize transaction filters & tabs
     document.addEventListener('DOMContentLoaded', function() {
         const transactionTypeFilter = document.getElementById('transactionTypeFilter');
         const transactionStatusFilter = document.getElementById('transactionStatusFilter');
@@ -426,6 +536,9 @@
         const transactionDateTo = document.getElementById('transactionDateTo');
         const transactionSearch = document.getElementById('transactionSearch');
         const clearTransactionFiltersBtn = document.getElementById('clearTransactionFilters');
+        const tabButtons = document.querySelectorAll('.financial-tab-button');
+        const tabContents = document.querySelectorAll('.financial-tab-content');
+        const transactionsTableBody = document.getElementById('transactionsTableBody');
 
         if (transactionTypeFilter) {
             transactionTypeFilter.addEventListener('change', applyTransactionFilters);
@@ -448,6 +561,38 @@
         }
         if (clearTransactionFiltersBtn) {
             clearTransactionFiltersBtn.addEventListener('click', clearTransactionFilters);
+        }
+
+        if (transactionsTableBody) {
+            transactionsTableBody.addEventListener('click', function (event) {
+                const btn = event.target.closest('button[data-action="view-transaction"]');
+                if (!btn) return;
+                const transactionId = btn.getAttribute('data-transaction-id');
+                openTransactionDetails(transactionId);
+            });
+        }
+
+        // Tab switching behavior
+        if (tabButtons.length && tabContents.length) {
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const targetId = button.getAttribute('data-tab');
+                    if (!targetId) return;
+
+                    // Toggle active class on buttons
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+
+                    // Toggle active class on contents
+                    tabContents.forEach(content => {
+                        if (content.id === targetId) {
+                            content.classList.add('active');
+                        } else {
+                            content.classList.remove('active');
+                        }
+                    });
+                });
+            });
         }
     });
 

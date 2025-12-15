@@ -50,6 +50,15 @@
                 <?php endif; ?>
             </div>
 
+            <div class="financial-tabs">
+                <button type="button" class="financial-tab-button active" data-tab="billingTab">
+                    <i class="fas fa-file-invoice-dollar"></i> Billing Accounts
+                </button>
+                <button type="button" class="financial-tab-button" data-tab="transactionsTab">
+                    <i class="fas fa-exchange-alt"></i> Transactions
+                </button>
+            </div>
+
             <!-- Validation Errors -->
             <?php $errors = session()->get('errors'); ?>
             <?php if (!empty($errors) && is_array($errors)): ?>
@@ -214,38 +223,39 @@
             </div>
             <?php endif; ?>
 
-            <!-- Search + Filters -->
-            <div class="controls-section">
-                <div class="filters-section">
+            <div id="billingTab" class="financial-tab-content active">
+                <!-- Search + Filters -->
+                <div class="controls-section">
+                    <div class="filters-section">
 
-                    <div class="filter-group">
-                        <label>Date:</label>
-                        <input type="date" id="dateFilter" class="form-input">
+                        <div class="filter-group">
+                            <label>Date:</label>
+                            <input type="date" id="dateFilter" class="form-input">
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Category:</label>
+                            <select id="categoryFilter" class="form-select">
+                                <option value="">All Categories</option>
+                                <option value="Income">Income</option>
+                                <option value="Expense">Expense</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label>Search:</label>
+                            <input type="text" id="searchFilter" class="form-input" placeholder="Search transactions...">
+                        </div>
+
+                        <button type="button" id="clearFilters" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+
                     </div>
-
-                    <div class="filter-group">
-                        <label>Category:</label>
-                        <select id="categoryFilter" class="form-select">
-                            <option value="">All Categories</option>
-                            <option value="Income">Income</option>
-                            <option value="Expense">Expense</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label>Search:</label>
-                        <input type="text" id="searchFilter" class="form-input" placeholder="Search transactions...">
-                    </div>
-
-                    <button type="button" id="clearFilters" class="btn btn-secondary">
-                        <i class="fas fa-times"></i> Clear
-                    </button>
-
                 </div>
-            </div>
 
-            <!-- Billing Accounts Table -->
-            <div class="financial-table-container">
+                <!-- Billing Accounts Table -->
+                <div class="financial-table-container">
                 <table class="financial-table">
                     <thead>
                         <tr>
@@ -320,9 +330,10 @@
                     </tbody>
                 </table>
             </div>
+            </div>
 
             <!-- Transactions Section -->
-            <div class="transactions-section" style="margin-top: 2rem;">
+            <div id="transactionsTab" class="financial-tab-content transactions-section" style="margin-top: 2rem;">
                 <h2 class="section-title" style="margin-bottom: 1rem; font-size: 1.5rem; font-weight: 600; color: #1f2937;">
                     <i class="fas fa-exchange-alt"></i> Transactions
                 </h2>
@@ -389,6 +400,7 @@
                                 <th>Payment Method</th>
                                 <th>Status</th>
                                 <th>Description</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="transactionsTableBody">
@@ -442,11 +454,19 @@
                                             </span>
                                         </td>
                                         <td><?= esc($transaction['description'] ?? 'N/A') ?></td>
+                                        <td>
+                                            <button
+                                                class="btn btn-primary btn-small"
+                                                data-action="view-transaction"
+                                                data-transaction-id="<?= esc($transaction['transaction_id'] ?? '') ?>">
+                                                <i class="fas fa-eye"></i> View
+                                            </button>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="8" style="text-align: center; padding: 3rem; color: #6b7280;">
+                                    <td colspan="9" style="text-align: center; padding: 3rem; color: #6b7280;">
                                         <i class="fas fa-exchange-alt" style="font-size: 3rem; color: #d1d5db; margin-bottom: 1rem; display: block;"></i>
                                         <p style="margin: 0.5rem 0; font-size: 1rem; font-weight: 500;">No transactions found</p>
                                         <p style="margin: 0; font-size: 0.875rem;">Transactions will appear here when payments, expenses, adjustments, or stock movements are recorded.</p>
@@ -459,6 +479,23 @@
             </div>
 
         </main>
+    </div>
+
+    <div id="transactionDetailsModal" class="modal" aria-hidden="true">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h3><i class="fas fa-receipt"></i> Transaction Details</h3>
+                <button type="button" class="modal-close" onclick="closeTransactionDetailsModal()" aria-label="Close">
+                    &times;
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="transactionDetailsContent" class="billing-info-grid"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeTransactionDetailsModal()">Close</button>
+            </div>
+        </div>
     </div>
 
     <?= $this->include('unified/modals/view-billing-account-modal') ?>

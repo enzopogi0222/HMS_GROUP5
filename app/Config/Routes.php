@@ -226,6 +226,7 @@ $routes->get('appointments/api', 'AppointmentManagement::getAppointmentsAPI', ['
 $routes->get('appointments/patients', 'AppointmentManagement::getPatientsList', ['filter' => 'roleauth:admin,doctor,receptionist']);
 $routes->get('appointments/doctors', 'AppointmentManagement::getDoctorsList', ['filter' => 'roleauth:admin,doctor,receptionist']);
 $routes->get('appointments/available-doctors', 'AppointmentManagement::getAvailableDoctorsByDate', ['filter' => 'roleauth:admin,doctor,receptionist']);
+$routes->get('appointments/doctor-slots', 'AppointmentManagement::getDoctorSlotsByDate', ['filter' => 'roleauth:admin,doctor,receptionist']);
 $routes->get('appointments/(:num)', 'AppointmentManagement::getAppointment/$1', ['filter' => 'roleauth:admin,doctor,receptionist,accountant']);
 $routes->post('appointments/create', 'AppointmentManagement::createAppointment', ['filter' => 'roleauth:admin,doctor,receptionist']);
 $routes->put('appointments/(:num)', 'AppointmentManagement::updateAppointment/$1', ['filter' => 'roleauth:admin,doctor,receptionist']);

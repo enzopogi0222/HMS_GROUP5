@@ -19,8 +19,17 @@ window.AddAppointmentModal = {
             if (dateInput) {
                 dateInput.addEventListener('change', () => {
                     if (dateInput.value) {
+                        this.loadPatients(dateInput.value);
                         this.loadAvailableDoctors(dateInput.value);
+                        this.loadDoctorSlots();
                     }
+                });
+            }
+
+            const doctorSelect = document.getElementById('appointment_doctor');
+            if (doctorSelect) {
+                doctorSelect.addEventListener('change', () => {
+                    this.loadDoctorSlots();
                 });
             }
         }
@@ -56,12 +65,13 @@ window.AddAppointmentModal = {
         if (this.modal) {
             this.resetForm();
             AppointmentModalUtils.openModal('newAppointmentModal');
-            this.loadPatients();
             
             const dateInput = document.getElementById('appointment_date');
             const dateValue = dateInput?.value || new Date().toISOString().split('T')[0];
             if (dateInput && !dateInput.value) dateInput.value = dateValue;
+            this.loadPatients(dateValue);
             this.loadAvailableDoctors(dateValue);
+            this.loadDoctorSlots();
         }
     },
     
@@ -79,12 +89,15 @@ window.AddAppointmentModal = {
         }
     },
     
-    async loadPatients() {
+    async loadPatients(date = null) {
         const patientSelect = document.getElementById('appointment_patient');
         if (!patientSelect) return;
         
         try {
-            const response = await fetch(`${this.config.baseUrl}/appointments/patients`);
+            const url = date
+                ? `${this.config.baseUrl}/appointments/patients?date=${encodeURIComponent(date)}`
+                : `${this.config.baseUrl}/appointments/patients`;
+            const response = await fetch(url);
             const data = await response.json();
             if (data.status === 'success') {
                 patientSelect.innerHTML = '<option value="">Select Patient...</option>';
@@ -140,6 +153,93 @@ window.AddAppointmentModal = {
                 if (dateHelp) dateHelp.textContent = 'Failed to load doctor availability.';
             });
     },
+
+    async loadDoctorSlots() {
+        const slotsEl = document.getElementById('appointment_slots');
+        const dateInput = document.getElementById('appointment_date');
+        const doctorSelect = document.getElementById('appointment_doctor');
+
+        if (!slotsEl) return;
+        if (!dateInput || !dateInput.value) {
+            slotsEl.textContent = '';
+            return;
+        }
+
+        // Only admins/receptionists select doctor; for doctors, we don't have doctor_id in this modal.
+        if (!doctorSelect) {
+            slotsEl.textContent = '';
+            return;
+        }
+
+        const doctorId = doctorSelect.value;
+        const date = dateInput.value;
+        if (!doctorId) {
+            slotsEl.textContent = '';
+            return;
+        }
+
+        slotsEl.textContent = 'Loading available slots...';
+
+        try {
+            const url = `${this.config.baseUrl}/appointments/doctor-slots?doctor_id=${encodeURIComponent(doctorId)}&date=${encodeURIComponent(date)}`;
+            const response = await fetch(url);
+            const result = await response.json();
+
+            if (!result || result.status !== 'success') {
+                slotsEl.textContent = '';
+                return;
+            }
+
+            const duty = result.data?.duty || null;
+            const slots = Array.isArray(result.data?.slots) ? result.data.slots : [];
+
+            if (!duty) {
+                slotsEl.textContent = 'No duty schedule for this doctor on the selected date.';
+                return;
+            }
+
+            if (!slots.length) {
+                slotsEl.textContent = `No available slots (${duty.start} - ${duty.end}).`;
+                return;
+            }
+
+            const timeInput = document.getElementById('appointment_time');
+            const makeBtn = (hm) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-secondary btn-small';
+                btn.style.marginRight = '6px';
+                btn.style.marginBottom = '6px';
+                btn.textContent = hm;
+                btn.addEventListener('click', () => {
+                    if (timeInput) timeInput.value = hm;
+                });
+                return btn;
+            };
+
+            slotsEl.innerHTML = '';
+            const header = document.createElement('div');
+            header.textContent = `Available slots (${duty.start} - ${duty.end}):`;
+            header.style.marginBottom = '6px';
+            slotsEl.appendChild(header);
+
+            const wrap = document.createElement('div');
+            slots.slice(0, 40).forEach(hm => wrap.appendChild(makeBtn(hm)));
+
+            // If there are a lot of slots, don't flood the UI.
+            if (slots.length > 40) {
+                const more = document.createElement('div');
+                more.textContent = `Showing first 40 of ${slots.length} slots.`;
+                more.style.marginTop = '6px';
+                wrap.appendChild(more);
+            }
+
+            slotsEl.appendChild(wrap);
+        } catch (e) {
+            console.error('Error loading doctor slots:', e);
+            slotsEl.textContent = '';
+        }
+    },
     
     getWeekdayName(dateStr) {
         const d = new Date(dateStr);
@@ -152,16 +252,18 @@ window.AddAppointmentModal = {
         const form = e.target;
         let data = AppointmentModalUtils.collectFormData(form);
         
-        // Map fields for doctor role (backend expects different field names, with defaults like admin)
+        // Map fields for doctor role (backend expects different field names)
         if (this.config.userRole === 'doctor') {
             data = {
                 patient_id: data.patient_id,
                 date: data.appointment_date || data.date,
-                time: '09:00:00', // Default time like admin/receptionist
+                time: data.appointment_time || data.time,
                 type: data.appointment_type || data.type,
-                duration: 30, // Default duration like admin/receptionist
                 reason: data.notes || data.reason || ''
             };
+        } else {
+            // Duration removed from UI; ensure we don't send it.
+            if ('duration' in data) delete data.duration;
         }
         
         try {
@@ -194,8 +296,8 @@ window.AddAppointmentModal = {
                             // Map backend field names to form field names
                             if (field === 'date') formField = 'appointment_date';
                             else if (field === 'type') formField = 'appointment_type';
-                            // time and duration are no longer in the form, so skip those errors
-                            else if (field === 'time' || field === 'duration') continue;
+                            else if (field === 'time') formField = 'appointment_time';
+                            else if (field === 'duration') continue;
                         }
                         mappedErrors[formField] = message;
                     }

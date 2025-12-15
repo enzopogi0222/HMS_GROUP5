@@ -830,8 +830,8 @@
 
             const statusLower = (appt.status || 'scheduled').toLowerCase();
 
-            // Complete (status) for admin/doctor when not already completed
-            if ((userRole === 'admin' || userRole === 'doctor') && statusLower !== 'completed') {
+            // Complete (status) only for doctors when not already completed
+            if (userRole === 'doctor' && statusLower !== 'completed') {
                 const completeBtn = document.createElement('button');
                 completeBtn.className = 'btn btn-success';
                 completeBtn.style.padding = '0.3rem 0.6rem';

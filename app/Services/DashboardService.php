@@ -1118,10 +1118,15 @@ class DashboardService
     public function getTodaySchedule($userRole, $staffId)
     {
         $today = date('Y-m-d');
-        
+
+        $patientTable = $this->db->tableExists('patients') ? 'patients' : ($this->db->tableExists('patient') ? 'patient' : null);
+        if (!$patientTable) {
+            return [];
+        }
+
         return $this->db->table('appointments a')
             ->select('a.*, p.first_name, p.last_name')
-            ->join('patient p', 'p.patient_id = a.patient_id')
+            ->join($patientTable . ' p', 'p.patient_id = a.patient_id', 'left')
             ->where('a.doctor_id', $staffId)
             ->where('a.appointment_date', $today)
             ->orderBy('a.appointment_time')

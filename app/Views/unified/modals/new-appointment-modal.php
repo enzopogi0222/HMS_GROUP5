@@ -40,6 +40,12 @@
                         <small id="err_appointment_date" style="color:#dc2626"></small>
                     </div>
                     <div>
+                        <label class="form-label" for="appointment_time">Time*</label>
+                        <input type="time" id="appointment_time" name="appointment_time" class="form-input" required>
+                        <small id="err_appointment_time" style="color:#dc2626"></small>
+                        <div id="appointment_slots" class="form-text" style="color:#6b7280; margin-top:6px;"></div>
+                    </div>
+                    <div>
                         <label class="form-label" for="appointment_type">Appointment Type*</label>
                         <select id="appointment_type" name="appointment_type" class="form-select" required>
                             <option value="">Select Type...</option>

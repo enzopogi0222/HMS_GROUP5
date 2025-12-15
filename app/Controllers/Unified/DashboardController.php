@@ -31,12 +31,18 @@ class DashboardController extends BaseController
             $recentActivities = $this->dashboardService->getRecentActivities($this->userRole, $this->staffId);
             $upcomingEvents = $this->dashboardService->getUpcomingEvents($this->userRole, $this->staffId);
 
+            $todaySchedule = [];
+            if ($this->userRole === 'doctor') {
+                $todaySchedule = $this->dashboardService->getTodaySchedule($this->userRole, $this->staffId);
+            }
+
             $data = [
                 'title' => $this->getDashboardTitle(),
                 'userRole' => $this->userRole,
                 'dashboardStats' => $dashboardStats,
                 'recentActivities' => $recentActivities,
-                'upcomingEvents' => $upcomingEvents
+                'upcomingEvents' => $upcomingEvents,
+                'todaySchedule' => $todaySchedule
             ];
 
             return view('unified/dashboard', $data);

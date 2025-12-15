@@ -356,6 +356,57 @@
                     </div>
                 </div>
 
+                <div class="patient-table" style="margin-top: 1.5rem;">
+                    <div class="table-header">
+                        <h3>Today's Schedule - <?= date('F j, Y') ?></h3>
+                    </div>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Patient</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php $todaySchedule = $todaySchedule ?? []; ?>
+                            <?php if (!empty($todaySchedule) && is_array($todaySchedule)): ?>
+                                <?php foreach ($todaySchedule as $appointment): ?>
+                                    <?php $status = strtolower($appointment['status'] ?? 'scheduled'); $statusLower = $status; $badgeClass = match($status) { 'completed' => 'badge-success', 'in-progress' => 'badge-info', 'cancelled' => 'badge-danger', 'no-show' => 'badge-warning', default => 'badge-info' }; ?>
+                                    <tr>
+                                        <td>
+                                            <strong><?= esc(($appointment['first_name'] ?? '') . ' ' . ($appointment['last_name'] ?? '')) ?></strong>
+                                        </td>
+                                        <td><?= esc($appointment['appointment_type'] ?? 'N/A') ?></td>
+                                        <td><span class="badge <?= $badgeClass ?>"><?= esc(ucfirst($status)) ?></span></td>
+                                        <td>
+                                            <?php $apptId = esc($appointment['id'] ?? 0); ?>
+                                            <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
+                                                <a class="btn btn-primary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; text-decoration:none;" href="<?= base_url('doctor/appointments') ?>"><i class="fas fa-eye"></i> View</a>
+                                                <?php if ($statusLower !== 'completed'): ?>
+                                                    <a class="btn btn-success" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; text-decoration:none;" href="<?= base_url('doctor/appointments') ?>"><i class="fas fa-check"></i> Complete</a>
+                                                <?php endif; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="4" style="text-align: center; padding: 1.5rem; color: #6b7280;">
+                                        No appointments scheduled for today.
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                    <div style="padding: 0.75rem; border-top: 1px solid #e5e7eb;">
+                        <a href="<?= base_url('doctor/appointments') ?>" class="btn btn-primary btn-small" style="text-decoration:none;">
+                            <i class="fas fa-calendar"></i> Open Appointments
+                        </a>
+                    </div>
+                </div>
+
             <?php elseif ($userRole === 'nurse'): ?>
                 <!-- Nurse Dashboard Cards -->
                 <div class="overview-card" tabindex="0">

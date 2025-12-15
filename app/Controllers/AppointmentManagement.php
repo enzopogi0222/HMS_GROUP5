@@ -176,6 +176,16 @@ class AppointmentManagement extends BaseController
                     'csrf' => ['name' => csrf_token(), 'value' => csrf_hash()]
                 ]);
             }
+
+            // Only doctors can mark appointments as completed
+            if (strtolower((string) $status) === 'completed' && $this->userRole !== 'doctor') {
+                return $this->response->setStatusCode(403)->setJSON([
+                    'status' => 'error',
+                    'success' => false,
+                    'message' => 'Only the doctor can mark the appointment as completed.',
+                    'csrf' => ['name' => csrf_token(), 'value' => csrf_hash()]
+                ]);
+            }
             
             $result = $this->appointmentService->updateAppointmentStatus($appointmentId, $status, $this->userRole, $this->staffId);
             
@@ -578,6 +588,7 @@ class AppointmentManagement extends BaseController
     private function getAvailablePatients()
     {
         try {
+            $dateFilter = $this->request->getGet('date');
             // Determine which table name to use
             $tableName = $this->db->tableExists('patients') ? 'patients' : ($this->db->tableExists('patient') ? 'patient' : 'patients');
             
@@ -612,6 +623,16 @@ class AppointmentManagement extends BaseController
                         $builder->where('1=0');
                     }
                 }
+            }
+
+            // Exclude patients that already have an appointment on the selected date
+            if (!empty($dateFilter) && $this->db->tableExists('appointments')) {
+                $builder->whereNotIn('p.patient_id', function ($sub) use ($dateFilter) {
+                    return $sub->select('patient_id')
+                        ->from('appointments')
+                        ->where('appointment_date', $dateFilter)
+                        ->whereIn('status', ['scheduled', 'in-progress']);
+                });
             }
             
             $patients = $builder->orderBy('p.first_name', 'ASC')
@@ -707,6 +728,132 @@ class AppointmentManagement extends BaseController
         } catch (\Throwable $e) {
             log_message('error', 'Get available doctors by date error: ' . $e->getMessage());
             return $this->jsonResponse('error', 'Failed to load available doctors');
+        }
+    }
+
+    public function getDoctorSlotsByDate()
+    {
+        try {
+            $doctorId = (int) ($this->request->getGet('doctor_id') ?? 0);
+            $date = $this->request->getGet('date') ?: date('Y-m-d');
+            if ($doctorId <= 0) {
+                return $this->jsonResponse('error', 'Doctor is required');
+            }
+            if (!($timestamp = strtotime($date))) {
+                return $this->jsonResponse('error', 'Invalid date');
+            }
+
+            $weekday = (int) date('N', $timestamp);
+
+            if (!$this->db->tableExists('staff_schedule')) {
+                return $this->response->setJSON(['status' => 'success', 'data' => ['duty' => null, 'slots' => [], 'booked' => []]]);
+            }
+
+            $scheduleBuilder = $this->db->table('staff_schedule')
+                ->where('staff_id', $doctorId)
+                ->where('weekday', $weekday)
+                ->where('status', 'active');
+
+            if ($this->db->fieldExists('effective_from', 'staff_schedule')) {
+                $scheduleBuilder->groupStart()
+                    ->where('effective_from', null)
+                    ->orWhere('effective_from <=', $date)
+                ->groupEnd();
+            }
+
+            if ($this->db->fieldExists('effective_to', 'staff_schedule')) {
+                $scheduleBuilder->groupStart()
+                    ->where('effective_to', null)
+                    ->orWhere('effective_to >=', $date)
+                ->groupEnd();
+            }
+
+            $rows = $scheduleBuilder->get()->getResultArray();
+            if (empty($rows)) {
+                return $this->response->setJSON(['status' => 'success', 'data' => ['duty' => null, 'slots' => [], 'booked' => []]]);
+            }
+
+            $starts = [];
+            $ends = [];
+            foreach ($rows as $row) {
+                $start = $row['start_time'] ?? null;
+                $end = $row['end_time'] ?? null;
+
+                if ((!$start || !$end) && !empty($row['slot'])) {
+                    $slot = strtolower((string) $row['slot']);
+                    if ($slot === 'morning') {
+                        $start = '08:00:00';
+                        $end = '12:00:00';
+                    } elseif ($slot === 'afternoon') {
+                        $start = '13:00:00';
+                        $end = '17:00:00';
+                    } elseif ($slot === 'night') {
+                        $start = '18:00:00';
+                        $end = '22:00:00';
+                    } elseif ($slot === 'all_day') {
+                        $start = '00:00:00';
+                        $end = '23:59:59';
+                    }
+                }
+
+                if ($start && $end) {
+                    $starts[] = $start;
+                    $ends[] = $end;
+                }
+            }
+
+            if (empty($starts) || empty($ends)) {
+                return $this->response->setJSON(['status' => 'success', 'data' => ['duty' => null, 'slots' => [], 'booked' => []]]);
+            }
+
+            sort($starts);
+            rsort($ends);
+            $dutyStart = $starts[0];
+            $dutyEnd = $ends[0];
+
+            $bookedTimes = [];
+            if ($this->db->tableExists('appointments')) {
+                $bookedRows = $this->db->table('appointments')
+                    ->select('appointment_time')
+                    ->where('doctor_id', $doctorId)
+                    ->where('appointment_date', $date)
+                    ->whereIn('status', ['scheduled', 'in-progress'])
+                    ->get()
+                    ->getResultArray();
+
+                foreach ($bookedRows as $r) {
+                    if (!empty($r['appointment_time'])) {
+                        $bookedTimes[] = date('H:i', strtotime($r['appointment_time']));
+                    }
+                }
+            }
+            $bookedLookup = array_flip($bookedTimes);
+
+            $slotMinutes = 15;
+            $slots = [];
+            $t = strtotime('1970-01-01 ' . $dutyStart);
+            $endT = strtotime('1970-01-01 ' . $dutyEnd);
+            if ($t !== false && $endT !== false) {
+                while ($t <= $endT) {
+                    $hm = date('H:i', $t);
+                    if (!isset($bookedLookup[$hm])) {
+                        $slots[] = $hm;
+                    }
+                    $t += $slotMinutes * 60;
+                }
+            }
+
+            return $this->response->setJSON([
+                'status' => 'success',
+                'data' => [
+                    'duty' => ['start' => $dutyStart, 'end' => $dutyEnd],
+                    'slots' => $slots,
+                    'booked' => $bookedTimes
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', 'Get doctor slots by date error: ' . $e->getMessage());
+            return $this->jsonResponse('error', 'Failed to load doctor slots');
         }
     }
 

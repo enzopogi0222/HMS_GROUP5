@@ -44,13 +44,27 @@ class AppointmentService
             return ['success' => false, 'message' => 'Invalid appointment date'];
         }
 
-        $weekdayName = date('N', $timestamp);
-        if (!$this->db->table('staff_schedule')->where('staff_id', $doctorId)->where('weekday', $weekdayName)->where('status', 'active')->countAllResults()) {
+        $appointmentTime = $data['appointment_time'] ?? null;
+        if (!$appointmentTime) {
+            return ['success' => false, 'message' => 'Invalid appointment time'];
+        }
+
+        $weekdayName = (int) date('N', $timestamp);
+        $dutyWindow = $this->getStaffDutyWindow((int) $doctorId, $weekdayName, $appointmentDate);
+        if (!$dutyWindow) {
             return ['success' => false, 'message' => 'Selected doctor has no shift on this day'];
         }
 
-        if ($this->db->table('appointments')->where('doctor_id', $doctorId)->where('appointment_date', $appointmentDate)->whereIn('status', ['scheduled', 'in-progress'])->countAllResults() > 0) {
-            return ['success' => false, 'message' => 'Doctor already has an active appointment on this date'];
+        [$dutyStart, $dutyEnd] = $dutyWindow;
+
+        // Duration is no longer collected; only ensure the start time is within duty window.
+        if (!$this->isTimeWithin($appointmentTime, $dutyStart, $dutyEnd)) {
+            return ['success' => false, 'message' => 'Appointment time is outside the doctor\'s duty schedule'];
+        }
+
+        // Without duration, treat appointments as a fixed point in time: no duplicate times for the doctor on that date.
+        if ($this->hasAppointmentAtSameTime((int) $doctorId, $appointmentDate, $appointmentTime)) {
+            return ['success' => false, 'message' => 'Appointment time conflicts with another patient\'s appointment'];
         }
 
         try {
@@ -356,6 +370,7 @@ class AppointmentService
         $baseRules = [
             'patient_id' => 'required|numeric',
             'appointment_date' => 'required|valid_date',
+            'appointment_time' => 'required',
             'appointment_type' => 'required|in_list[Consultation,Follow-up,Check-up]',
         ];
 
@@ -363,7 +378,7 @@ class AppointmentService
             // Doctor-specific validation - same as admin/receptionist (time and duration have defaults)
             $baseRules['date'] = 'required|valid_date';
             $baseRules['type'] = 'required|in_list[Consultation,Follow-up,Check-up,Emergency]';
-            // time and duration are optional (will use defaults)
+            $baseRules['time'] = 'required';
             // Unset admin/receptionist field names since doctors use different field names
             unset($baseRules['appointment_date'], $baseRules['appointment_time'], $baseRules['appointment_type']);
         } else {
@@ -379,18 +394,126 @@ class AppointmentService
         $baseData = ['patient_id' => $input['patient_id'], 'doctor_id' => $doctorId, 'status' => 'scheduled', 'created_at' => date('Y-m-d H:i:s')];
         if ($userRole === 'doctor') {
             $baseData['appointment_date'] = $input['date'];
-            $baseData['appointment_time'] = $input['time'] ?? '09:00:00'; // Default time like admin/receptionist
+            $baseData['appointment_time'] = $input['time'] ?? $input['appointment_time'] ?? '09:00:00';
             $baseData['appointment_type'] = $input['type'];
             $baseData['reason'] = $input['reason'] ?? null;
-            $baseData['duration'] = $input['duration'] ?? 30; // Default duration like admin/receptionist
         } else {
             $baseData['appointment_date'] = $input['appointment_date'];
-            $baseData['appointment_time'] = '09:00:00';
+            $baseData['appointment_time'] = $input['appointment_time'] ?? '09:00:00';
             $baseData['appointment_type'] = $input['appointment_type'];
             $baseData['reason'] = $input['notes'] ?? null;
-            $baseData['duration'] = 30;
         }
         return $baseData;
+    }
+
+    private function getStaffDutyWindow(int $staffId, int $weekday, string $date): ?array
+    {
+        if (!$this->db->tableExists('staff_schedule')) {
+            return null;
+        }
+
+        $builder = $this->db->table('staff_schedule')
+            ->where('staff_id', $staffId)
+            ->where('weekday', $weekday)
+            ->where('status', 'active');
+
+        if ($this->db->fieldExists('effective_from', 'staff_schedule')) {
+            $builder->groupStart()
+                ->where('effective_from', null)
+                ->orWhere('effective_from <=', $date)
+            ->groupEnd();
+        }
+
+        if ($this->db->fieldExists('effective_to', 'staff_schedule')) {
+            $builder->groupStart()
+                ->where('effective_to', null)
+                ->orWhere('effective_to >=', $date)
+            ->groupEnd();
+        }
+
+        $rows = $builder->get()->getResultArray();
+        if (empty($rows)) {
+            return null;
+        }
+
+        $starts = [];
+        $ends = [];
+        foreach ($rows as $row) {
+            $start = $row['start_time'] ?? null;
+            $end = $row['end_time'] ?? null;
+
+            if (!$start || !$end) {
+                [$start, $end] = $this->slotToTimeRange($row['slot'] ?? null);
+            }
+
+            if ($start && $end) {
+                $starts[] = $start;
+                $ends[] = $end;
+            }
+        }
+
+        if (empty($starts) || empty($ends)) {
+            return null;
+        }
+
+        sort($starts);
+        rsort($ends);
+
+        return [$starts[0], $ends[0]];
+    }
+
+    private function slotToTimeRange(?string $slot): array
+    {
+        return match (strtolower((string) $slot)) {
+            'morning' => ['08:00:00', '12:00:00'],
+            'afternoon' => ['13:00:00', '17:00:00'],
+            'night' => ['18:00:00', '22:00:00'],
+            'all_day' => ['00:00:00', '23:59:59'],
+            default => [null, null],
+        };
+    }
+
+    private function addMinutesToTime(string $time, int $minutes): ?string
+    {
+        $time = trim($time);
+        if ($time === '') {
+            return null;
+        }
+
+        $t = strtotime('1970-01-01 ' . $time);
+        if ($t === false) {
+            return null;
+        }
+
+        $end = $t + ($minutes * 60);
+        return date('H:i:s', $end);
+    }
+
+    private function isTimeWithin(string $time, string $windowStart, string $windowEnd): bool
+    {
+        $t = strtotime('1970-01-01 ' . $time);
+        $ws = strtotime('1970-01-01 ' . $windowStart);
+        $we = strtotime('1970-01-01 ' . $windowEnd);
+
+        if ($t === false || $ws === false || $we === false) {
+            return false;
+        }
+
+        return $t >= $ws && $t <= $we;
+    }
+
+    private function hasAppointmentAtSameTime(int $doctorId, string $date, string $time): bool
+    {
+        if (!$this->db->tableExists('appointments')) {
+            return false;
+        }
+
+        return $this->db->table('appointments')
+            ->where('doctor_id', $doctorId)
+            ->where('appointment_date', $date)
+            ->where('appointment_time', $time)
+            ->whereIn('status', ['scheduled', 'in-progress'])
+            ->countAllResults() > 0;
     }
 
     private function buildAppointmentQuery()

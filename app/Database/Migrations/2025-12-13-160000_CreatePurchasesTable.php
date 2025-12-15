@@ -87,7 +87,6 @@ class CreatePurchasesTable extends Migration
         ]);
 
         $this->forge->addKey('purchase_id', true);
-        $this->forge->addKey('purchase_number');
         $this->forge->addKey('purchase_date');
         $this->forge->addKey('supplier_name');
         $this->forge->addKey('created_by');

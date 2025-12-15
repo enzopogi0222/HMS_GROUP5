@@ -37,12 +37,6 @@ class CreateRoomAssignmentTable extends Migration
                     'unsigned' => true,
                     'null'     => true,
                 ],
-                'assigned_by' => [
-                    'type'     => 'INT',
-                    'unsigned' => true,
-                    'null'     => true,
-                    'comment'  => 'staff_id of assigning staff',
-                ],
                 'date_in' => [
                     'type' => 'DATETIME',
                     'null' => false,
@@ -55,34 +49,6 @@ class CreateRoomAssignmentTable extends Migration
                     'type'     => 'INT',
                     'unsigned' => true,
                     'null'     => true,
-                ],
-                'total_hours' => [
-                    'type'       => 'DECIMAL',
-                    'constraint' => '10,2',
-                    'null'       => true,
-                ],
-                'room_rate_at_time' => [
-                    'type'       => 'DECIMAL',
-                    'constraint' => '10,2',
-                    'null'       => false,
-                    'default'    => 0.00,
-                ],
-                'bed_rate_at_time' => [
-                    'type'       => 'DECIMAL',
-                    'constraint' => '10,2',
-                    'null'       => true,
-                ],
-                'discount' => [
-                    'type'       => 'DECIMAL',
-                    'constraint' => '10,2',
-                    'null'       => true,
-                    'comment'    => 'manual or insurance-based discount',
-                ],
-                'billing_amount' => [
-                    'type'       => 'DECIMAL',
-                    'constraint' => '10,2',
-                    'null'       => false,
-                    'default'    => 0.00,
                 ],
                 'status' => [
                     'type'       => 'VARCHAR',
@@ -109,7 +75,6 @@ class CreateRoomAssignmentTable extends Migration
             $this->forge->addKey('room_id');
             $this->forge->addKey('bed_id');
             $this->forge->addKey('admission_id');
-            $this->forge->addKey('assigned_by');
             $this->forge->addKey('status');
 
             $this->forge->createTable('room_assignment', true);

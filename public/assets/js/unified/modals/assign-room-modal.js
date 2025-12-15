@@ -344,12 +344,6 @@
             return;
         }
 
-        if (!roomType) {
-            utils.showNotification('Please select a room type.', 'error');
-            if (roomTypeSelect) roomTypeSelect.focus();
-            return;
-        }
-
         if (!floorNumber) {
             utils.showNotification('Please select a floor.', 'error');
             if (floorSelect) floorSelect.focus();
@@ -383,7 +377,9 @@
             const formData = new FormData(form);
             formData.set('patient_id', patientId);
             formData.set('department_id', departmentId);
-            formData.set('room_type', roomType);
+            if (roomType) {
+                formData.set('room_type', roomType);
+            }
             formData.set('floor_number', floorNumber);
             formData.set('room_number', roomNumber);
             formData.set('bed_number', bedNumber);

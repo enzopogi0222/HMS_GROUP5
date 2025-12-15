@@ -352,12 +352,10 @@ class RoomService
 
             $interval = $dateIn->diff($now);
             $totalDays = max(1, (int) $interval->days);
-            $totalHours = $totalDays * 24 + (int) $interval->h + (int) floor($interval->i / 60);
 
             $updatePayload = [
                 'date_out'    => $now->format('Y-m-d H:i:s'),
                 'total_days'  => $totalDays,
-                'total_hours' => $totalHours,
                 'status'      => 'completed',
             ];
 

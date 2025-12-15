@@ -54,17 +54,6 @@ class AssignPatientToRoomSeeder extends Seeder
             return;
         }
 
-        // Get staff IDs for assigned_by field
-        $staffIds = [];
-        if ($db->tableExists('staff')) {
-            $staffIds = $db->table('staff')
-                ->select('staff_id')
-                ->limit(5)
-                ->get()
-                ->getResultArray();
-            $staffIds = array_column($staffIds, 'staff_id');
-        }
-
         // Get admission IDs if available (for linking to admissions)
         $admissionIds = [];
         if ($db->tableExists('inpatient_admissions')) {
@@ -170,22 +159,15 @@ class AssignPatientToRoomSeeder extends Seeder
             // Get admission ID for this patient if available
             $admissionId = $admissionIds[$patientId] ?? null;
 
-            // Get staff ID for assigned_by
-            $assignedBy = !empty($staffIds) ? $staffIds[array_rand($staffIds)] : null;
-
             // Create room assignment
             $assignmentData = [
                 'patient_id' => $patientId,
                 'room_id' => $roomId,
                 'bed_id' => $bedId,
                 'admission_id' => $admissionId,
-                'assigned_by' => $assignedBy,
                 'date_in' => date('Y-m-d H:i:s', strtotime('-' . rand(0, 3) . ' days')), // Random date within last 3 days
                 'date_out' => null,
-                'total_days' => 0,
-                'total_hours' => 0,
-                'room_rate_at_time' => $roomRate,
-                'bed_rate_at_time' => null,
+                'total_days' => rand(1, 3),
                 'status' => 'active',
             ];
 

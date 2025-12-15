@@ -1531,10 +1531,30 @@ class FinancialService
                 }
             }
 
-            $totalDays = max(1, (int)($assignment['total_days'] ?? 0) ?: ((int)($assignment['total_hours'] ?? 0) > 0 ? 1 : 1));
-            $dailyRate = $unitPricePerDay ?? (float)($assignment['room_rate_at_time'] ?? $assignment['bed_rate_at_time'] ?? 0);
+            $totalDays = max(1, (int) ($assignment['total_days'] ?? 0));
 
-            if ($dailyRate <= 0) {
+            $dailyRate = null;
+            if ($unitPricePerDay !== null) {
+                $dailyRate = (float) $unitPricePerDay;
+            }
+
+            if (($dailyRate === null || $dailyRate <= 0) && $this->db->tableExists('room')) {
+                $roomId = (int) ($assignment['room_id'] ?? 0);
+                if ($roomId > 0) {
+                    $room = $this->db->table('room')->where('room_id', $roomId)->get()->getRowArray();
+                    if ($room && $this->db->tableExists('room_type') && $this->db->fieldExists('base_daily_rate', 'room_type')) {
+                        $roomTypeId = (int) ($room['room_type_id'] ?? 0);
+                        if ($roomTypeId > 0) {
+                            $roomType = $this->db->table('room_type')->where('room_type_id', $roomTypeId)->get()->getRowArray();
+                            if ($roomType && isset($roomType['base_daily_rate'])) {
+                                $dailyRate = (float) $roomType['base_daily_rate'];
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ($dailyRate === null || $dailyRate <= 0) {
                 return ['success' => false, 'message' => 'No valid room rate available for this assignment'];
             }
 

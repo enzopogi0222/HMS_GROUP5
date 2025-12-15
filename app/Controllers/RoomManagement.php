@@ -327,8 +327,8 @@ class RoomManagement extends BaseController
             ]), 400);
         }
 
-        if (!$roomType || !$floorNumber || !$roomNumber || !$bedNumber) {
-            return $this->jsonResponse($this->appendCsrfHash(['success' => false, 'message' => 'Room type, floor, room number, and bed number are required']), 400);
+        if (!$floorNumber || !$roomNumber || !$bedNumber) {
+            return $this->jsonResponse($this->appendCsrfHash(['success' => false, 'message' => 'Floor, room number, and bed number are required']), 400);
         }
 
         try {
@@ -532,7 +532,7 @@ class RoomManagement extends BaseController
                         'emergency' => 2000.00,
                         'consultation' => 0.00,
                     ];
-                    
+
                     $roomTypeLower = strtolower($roomTypeName);
                     foreach ($defaultRates as $type => $rate) {
                         if (strpos($roomTypeLower, $type) !== false) {
@@ -541,16 +541,44 @@ class RoomManagement extends BaseController
                         }
                     }
                 }
-                
-                // Final validation - if still no rate, return error
+
+                // If still no rate, allow NULL and proceed (consistent with inpatient registration flow)
                 if (!$dailyRate || $dailyRate <= 0) {
-                    return $this->jsonResponse($this->appendCsrfHash([
-                        'success' => false,
-                        'message' => 'No valid room rate available. Please set daily rate for this room type in room management settings.'
-                    ]), 400);
+                    $dailyRate = null;
                 }
             } else {
-                $dailyRate = (float)$dailyRate;
+                $dailyRate = (float) $dailyRate;
+            }
+
+            // Normalize room_type to the inpatient_room_assignments ENUM values.
+            // Room types like Emergency/Consultation should not break the insert.
+            $resolvedRoomTypeName = null;
+            if ($roomType) {
+                $resolvedRoomTypeName = is_numeric($roomType)
+                    ? $this->getRoomTypeName((int) $roomType)
+                    : (string) $roomType;
+            }
+
+            if (!$resolvedRoomTypeName && isset($room['room_type_id'])) {
+                $resolvedRoomTypeName = $this->getRoomTypeName((int) $room['room_type_id']);
+            }
+
+            $normalizedRoomType = null;
+            if ($resolvedRoomTypeName) {
+                $resolvedRoomTypeName = trim((string) $resolvedRoomTypeName);
+                if (in_array($resolvedRoomTypeName, ['Ward', 'Semi-Private', 'Private', 'Isolation', 'ICU'], true)) {
+                    $normalizedRoomType = $resolvedRoomTypeName;
+                } else {
+                    $roomTypeMap = [
+                        'ward' => 'Ward',
+                        'semi-private' => 'Semi-Private',
+                        'semi_private' => 'Semi-Private',
+                        'private' => 'Private',
+                        'isolation' => 'Isolation',
+                        'icu' => 'ICU',
+                    ];
+                    $normalizedRoomType = $roomTypeMap[strtolower($resolvedRoomTypeName)] ?? null;
+                }
             }
 
             // Create room assignment
@@ -558,7 +586,7 @@ class RoomManagement extends BaseController
                 $assignmentData = [
                     'admission_id' => $admissionId,
                     'room_id' => $roomId,
-                    'room_type' => $this->getRoomTypeName($roomType),
+                    'room_type' => $normalizedRoomType,
                     'floor_number' => $floorNumber,
                     'room_number' => $roomNumber,
                     'bed_number' => $bedNumber,
@@ -567,6 +595,50 @@ class RoomManagement extends BaseController
                 ];
 
                 $this->db->table('inpatient_room_assignments')->insert($assignmentData);
+
+                // Also store in legacy room_assignment table (for reporting/compat)
+                if ($this->db->tableExists('room_assignment')) {
+                    $legacyBedId = null;
+                    if ($this->db->tableExists('bed')) {
+                        $bedRow = $this->db->table('bed')
+                            ->select('bed_id')
+                            ->where('room_id', $roomId)
+                            ->where('bed_number', $bedNumber)
+                            ->get()
+                            ->getRowArray();
+                        if ($bedRow && isset($bedRow['bed_id'])) {
+                            $legacyBedId = (int) $bedRow['bed_id'];
+                        }
+                    }
+
+                    $legacyPayload = [
+                        'patient_id' => $patientId,
+                        'room_id' => $roomId,
+                        'bed_id' => $legacyBedId,
+                        'admission_id' => $admissionId,
+                        'date_in' => $assignedAt,
+                        'date_out' => null,
+                        'total_days' => null,
+                        'status' => 'active',
+                    ];
+
+                    // 1 active row per admission_id (update if exists; insert otherwise)
+                    $existingLegacyRow = $this->db->table('room_assignment')
+                        ->select('assignment_id')
+                        ->where('admission_id', $admissionId)
+                        ->where('status', 'active')
+                        ->orderBy('assignment_id', 'DESC')
+                        ->get()
+                        ->getRowArray();
+
+                    if ($existingLegacyRow && isset($existingLegacyRow['assignment_id'])) {
+                        $this->db->table('room_assignment')
+                            ->where('assignment_id', (int) $existingLegacyRow['assignment_id'])
+                            ->update($legacyPayload);
+                    } else {
+                        $this->db->table('room_assignment')->insert($legacyPayload);
+                    }
+                }
             }
 
             // Update room status to occupied

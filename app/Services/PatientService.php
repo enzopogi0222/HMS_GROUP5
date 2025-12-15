@@ -1573,6 +1573,64 @@ class PatientService
             $this->db->table('inpatient_room_assignments')->insert($roomData);
             $roomAssignmentId = (int) $this->db->insertID();
 
+            // Also store in legacy room_assignment table (for reporting/compat)
+            if ($roomAssignmentId > 0 && $this->db->tableExists('room_assignment')) {
+                $patientId = null;
+                if ($this->db->tableExists('inpatient_admissions')) {
+                    $admissionRow = $this->db->table('inpatient_admissions')
+                        ->select('patient_id')
+                        ->where('admission_id', $admissionId)
+                        ->get()
+                        ->getRowArray();
+                    if ($admissionRow && isset($admissionRow['patient_id'])) {
+                        $patientId = (int) $admissionRow['patient_id'];
+                    }
+                }
+
+                if ($patientId) {
+                    $legacyBedId = null;
+                    if ($roomId && $bedNumber && $this->db->tableExists('bed')) {
+                        $bedRow = $this->db->table('bed')
+                            ->select('bed_id')
+                            ->where('room_id', $roomId)
+                            ->where('bed_number', $bedNumber)
+                            ->get()
+                            ->getRowArray();
+                        if ($bedRow && isset($bedRow['bed_id'])) {
+                            $legacyBedId = (int) $bedRow['bed_id'];
+                        }
+                    }
+
+                    $legacyDateIn = $assignedAt ?: date('Y-m-d H:i:s');
+                    $legacyPayload = [
+                        'patient_id' => $patientId,
+                        'room_id' => $roomId,
+                        'bed_id' => $legacyBedId,
+                        'admission_id' => $admissionId,
+                        'date_in' => $legacyDateIn,
+                        'date_out' => null,
+                        'total_days' => null,
+                        'status' => 'active',
+                    ];
+
+                    $existingLegacyRow = $this->db->table('room_assignment')
+                        ->select('assignment_id')
+                        ->where('admission_id', $admissionId)
+                        ->where('status', 'active')
+                        ->orderBy('assignment_id', 'DESC')
+                        ->get()
+                        ->getRowArray();
+
+                    if ($existingLegacyRow && isset($existingLegacyRow['assignment_id'])) {
+                        $this->db->table('room_assignment')
+                            ->where('assignment_id', (int) $existingLegacyRow['assignment_id'])
+                            ->update($legacyPayload);
+                    } else {
+                        $this->db->table('room_assignment')->insert($legacyPayload);
+                    }
+                }
+            }
+
             // Auto-add room charge to billing if room assignment was created successfully
             if ($roomAssignmentId > 0 && (!empty($roomNumber) || !empty($roomType))) {
                 $this->addRoomChargeToBilling($admissionId, $roomAssignmentId, $normalizedDailyRate);

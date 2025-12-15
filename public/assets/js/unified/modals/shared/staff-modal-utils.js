@@ -2,6 +2,60 @@
  * Shared utilities for staff modals
  */
 window.StaffModalUtils = {
+    departmentSpecializations: {
+        'Internal Medicine / General Medicine': ['General Internist', 'Endocrinology', 'Infectious Disease'],
+        'Pediatrics': ['General Pediatrician', 'Neonatology'],
+        'Surgery': ['General Surgery', 'Laparoscopic Surgery'],
+        'Orthopedics': ['Trauma Orthopedics', 'Joint & Bone Specialist'],
+        'Obstetrics & Gynecology (OB/GYN)': ['Obstetrics', 'Gynecology'],
+        'Ophthalmology': ['General Ophthalmology', 'Cataract Specialist'],
+        'ENT (Ear, Nose, Throat)': ['Otology', 'Rhinology', 'Laryngology'],
+        'Cardiology': ['Interventional Cardiology', 'Non-Invasive Cardiology'],
+        'Neurology': ['General Neurology', 'Stroke Specialist'],
+        'Dermatology': ['Clinical Dermatology', 'Cosmetic Dermatology'],
+        'Psychiatry / Mental Health': ['General Psychiatry', 'Child Psychiatry'],
+        'Radiology / Imaging': ['Diagnostic Radiology', 'Interventional Radiology'],
+        'Pathology / Laboratory': ['Clinical Pathology', 'Anatomic Pathology'],
+        'Anesthesiology': ['General Anesthesia', 'Pain Management'],
+        'Emergency / Accident & Trauma': ['Emergency Medicine', 'Trauma Care'],
+        'Oncology': ['Medical Oncology', 'Radiation Oncology'],
+        'Urology': ['General Urology', 'Endo-Urology'],
+        'Gastroenterology': ['General Gastroenterology', 'Hepatology'],
+        'Nephrology': ['General Nephrology', 'Dialysis Specialist'],
+        'Pulmonology / Respiratory Medicine': ['General Pulmonology', 'Critical Care']
+    },
+
+    normalizeDepartmentKey(department) {
+        return String(department || '').trim();
+    },
+
+    populateDoctorSpecializations(prefix = '', selectedDepartment = '', selectedValue = '') {
+        const deptKey = StaffModalUtils.normalizeDepartmentKey(selectedDepartment);
+        const selectEl = document.getElementById(`${prefix}doctor_specialization`);
+        if (!selectEl) return;
+
+        const currentValue = selectedValue !== undefined && selectedValue !== null
+            ? String(selectedValue)
+            : (selectEl.value || '');
+
+        const specs = StaffModalUtils.departmentSpecializations[deptKey] || [];
+
+        selectEl.innerHTML = '<option value="">Select specialization</option>';
+        specs.forEach((spec) => {
+            const opt = document.createElement('option');
+            opt.value = spec;
+            opt.textContent = spec;
+            selectEl.appendChild(opt);
+        });
+
+        // Preserve current selection if it still exists; otherwise clear.
+        if (currentValue && specs.includes(currentValue)) {
+            selectEl.value = currentValue;
+        } else {
+            selectEl.value = '';
+        }
+    },
+
     /**
      * Toggle role-specific fields visibility
      */
@@ -12,6 +66,11 @@ window.StaffModalUtils = {
             const field = document.getElementById(`${prefix}${role}Fields`);
             if (field) field.style.display = designation === role ? 'block' : 'none';
         });
+
+        if (designation === 'doctor') {
+            const deptEl = document.getElementById(`${prefix}department`);
+            StaffModalUtils.populateDoctorSpecializations(prefix, deptEl?.value || '');
+        }
     },
 
     /**

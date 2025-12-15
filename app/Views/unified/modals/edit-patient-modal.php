@@ -397,14 +397,6 @@
                                 </div>
                             </div>
                             <div>
-                                <label class="form-label" for="edit_inpatient_mbl">MBL</label>
-                                <input type="number" min="0" step="0.01" id="edit_inpatient_mbl" name="mbl" class="form-input" placeholder="Maximum Benefit Limit">
-                            </div>
-                            <div class="full">
-                                <label class="form-label" for="edit_inpatient_preexisting">Pre-existing Coverage</label>
-                                <textarea id="edit_inpatient_preexisting" name="pre_existing_coverage" class="form-input" rows="2"></textarea>
-                            </div>
-                            <div>
                                 <label class="form-label" for="edit_inpatient_validity_start">Start Date</label>
                                 <input type="date" id="edit_inpatient_validity_start" name="coverage_start_date" class="form-input">
                             </div>

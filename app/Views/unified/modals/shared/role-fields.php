@@ -4,6 +4,7 @@ $prefix = $prefix ?? '';
 $specializations = ['Pediatrics', 'Cardiology', 'Internal Medicine', 'General Practice', 'Obstetrics and Gynecology', 'Surgery', 'Orthopedics', 'Neurology', 'Psychiatry', 'Dermatology', 'Ophthalmology', 'Otolaryngology', 'Emergency Medicine', 'Radiology', 'Anesthesiology'];
 ?>
 <!-- Doctor-specific fields -->
+<?php if (false): ?>
 <div id="<?= $prefix ?>doctorFields" class="full" style="display:none; grid-column: 1 / -1;">
     <div class="form-grid">
         <div>
@@ -28,6 +29,7 @@ $specializations = ['Pediatrics', 'Cardiology', 'Internal Medicine', 'General Pr
         <?php endif; ?>
     </div>
 </div>
+<?php endif; ?>
 <!-- Accountant-specific fields -->
 <div id="<?= $prefix ?>accountantFields" class="full" style="display:none; grid-column: 1 / -1;">
     <div class="form-grid">

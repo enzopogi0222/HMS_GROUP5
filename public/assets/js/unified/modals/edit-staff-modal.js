@@ -57,6 +57,11 @@ window.EditStaffModal = {
                 deptEl.addEventListener('change', () => {
                     const deptIdEl = this.form.querySelector('#e_department_id, #department_id');
                     if (deptIdEl) deptIdEl.value = deptEl.selectedOptions[0]?.getAttribute('data-id') || '';
+
+                    const designation = document.getElementById('e_designation')?.value || '';
+                    if (designation === 'doctor') {
+                        StaffModalUtils.populateDoctorSpecializations('e_', deptEl.value);
+                    }
                 });
             }
         }
@@ -367,6 +372,10 @@ window.EditStaffModal = {
         }
 
         StaffModalUtils.toggleRoleFields('e_');
+        if (resolvedRole === 'doctor') {
+            const selectedDept = document.getElementById('e_department')?.value || '';
+            StaffModalUtils.populateDoctorSpecializations('e_', selectedDept, fields.e_doctor_specialization);
+        }
     },
     
     async handleSubmit(e) {

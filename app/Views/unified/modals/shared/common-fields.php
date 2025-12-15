@@ -90,6 +90,7 @@ $defaultDepts = ['Administration','Emergency','Cardiology','Intensive Care Unit'
     <?php if ($prefix === ''): ?><input type="hidden" id="department_id" name="department_id" value=""><?php elseif ($prefix === 'e_'): ?><input type="hidden" id="e_department_id" name="department_id" value=""><?php endif; ?>
     <small id="<?= $prefix ?>err_department" style="color:#dc2626"></small>
 </div>
+<?= $this->include('unified/modals/shared/doctor-fields', ['prefix' => $prefix]) ?>
 <div>
     <label class="form-label" for="<?= $prefix ?>date_joined">Date Joined</label>
     <input type="date" id="<?= $prefix ?>date_joined" name="date_joined" class="form-input">

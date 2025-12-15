@@ -344,8 +344,6 @@ const EditPatientModal = {
                 member_type: patientData.member_type,
                 relationship: patientData.relationship,
                 plan_name: patientData.plan_name,
-                mbl: patientData.mbl,
-                pre_existing_coverage: patientData.pre_existing_coverage,
                 coverage_start_date: patientData.coverage_start_date,
                 coverage_end_date: patientData.coverage_end_date,
                 card_status: patientData.card_status,
@@ -526,9 +524,6 @@ const EditPatientModal = {
             'member_type': patient.member_type || patient.hmo_member_type,
             'relationship': patient.relationship || patient.hmo_relationship,
             'plan_name': patient.plan_name || patient.hmo_plan_name,
-            'mbl': patient.mbl || patient.maximum_benefit_limit || patient.max_benefit_limit,
-            'pre_existing_coverage': patient.pre_existing_coverage || patient.preexisting || patient.pre_existing,
-            'preexisting': patient.pre_existing_coverage || patient.preexisting || patient.pre_existing,
             'coverage_start_date': patient.coverage_start_date || patient.validity_start || patient.start_date || patient.insurance_valid_from,
             'validity_start': patient.coverage_start_date || patient.validity_start || patient.start_date || patient.insurance_valid_from,
             'coverage_end_date': patient.coverage_end_date || patient.validity_end || patient.end_date || patient.insurance_valid_to,
@@ -540,21 +535,12 @@ const EditPatientModal = {
         const hmoFieldsWithValues = Object.entries(hmoFields).filter(([k, v]) => v !== null && v !== undefined && v !== '');
         console.log('HMO/Insurance fields found:', hmoFieldsWithValues.map(([k, v]) => `${k}: ${v}`));
         console.log('Relationship value:', patient.relationship, '| hmo_relationship:', patient.hmo_relationship, '| insurance_relationship:', patient.insurance_relationship);
-        console.log('MBL value:', patient.mbl, '| maximum_benefit_limit:', patient.maximum_benefit_limit, '| hmo_mbl:', patient.hmo_mbl);
         console.log('Coverage types in patient data:', patient.plan_coverage_types, '| coverage_types:', patient.coverage_types, '| coverage_type:', patient.coverage_type);
         
         // Try to get relationship from alternative sources
         if (!hmoFields.relationship && (patient.hmo_relationship || patient.insurance_relationship)) {
             hmoFields.relationship = patient.hmo_relationship || patient.insurance_relationship;
             console.log('Found relationship in alternative field:', hmoFields.relationship);
-        }
-        
-        // Try to get MBL from alternative sources
-        if (!hmoFields.mbl && (patient.hmo_mbl || patient.hmo_maximum_benefit_limit)) {
-            hmoFields.mbl = patient.hmo_mbl || patient.hmo_maximum_benefit_limit;
-            hmoFields.maximum_benefit_limit = hmoFields.mbl;
-            hmoFields.max_benefit_limit = hmoFields.mbl;
-            console.log('Found MBL in alternative field:', hmoFields.mbl);
         }
         
         Object.assign(fieldNameToPatientData, hmoFields);
@@ -689,16 +675,6 @@ const EditPatientModal = {
                     value = patient.relationship || patient.hmo_relationship || patient.insurance_relationship || 
                             patient.hmo_contact_relationship || null;
                     if (value === '') value = null; // Empty string should be treated as null
-                } else if (fieldName === 'mbl') {
-                    // Try multiple variations for MBL - check all possible sources
-                    value = patient.mbl || patient.maximum_benefit_limit || patient.max_benefit_limit || 
-                            patient.hmo_mbl || patient.hmo_maximum_benefit_limit || null;
-                    // Convert to number if it's a valid numeric string
-                    if (value !== null && value !== '' && !isNaN(value) && value !== '0' && value !== '0.00') {
-                        value = parseFloat(value);
-                    } else if (value === '0' || value === '0.00' || value === 0) {
-                        value = null; // Treat zero as null/empty
-                    }
                 } else {
                     // Try direct patient object lookup
                     value = patient[fieldName];
@@ -721,10 +697,10 @@ const EditPatientModal = {
             }
 
             // For certain fields, allow null/empty values to be set (to clear the field)
-            const allowEmptyFields = ['relationship', 'mbl', 'pre_existing_coverage', 'consent_uploaded', 
+            const allowEmptyFields = ['relationship', 'consent_uploaded', 
                                      'secondary_contact', 'subdivision', 'zip_code', 'email',
                                      'insurance_provider', 'membership_number', 'hmo_cardholder_name', 
-                                     'member_type', 'plan_name', 'pre_existing_coverage', 
+                                     'member_type', 'plan_name', 
                                      'coverage_start_date', 'coverage_end_date', 'card_status'];
             const shouldSkip = value === null || value === undefined || value === '';
             

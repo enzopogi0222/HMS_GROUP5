@@ -259,10 +259,6 @@ class PatientService
             $patient['member_type'] = $patient['member_type'] ?? null;
             $patient['relationship'] = $patient['relationship'] ?? null;
             $patient['plan_name'] = $patient['plan_name'] ?? null;
-            $patient['mbl'] = $patient['mbl'] ?? null;
-            $patient['maximum_benefit_limit'] = $patient['maximum_benefit_limit'] ?? null;
-            $patient['max_benefit_limit'] = $patient['max_benefit_limit'] ?? null;
-            $patient['pre_existing_coverage'] = $patient['pre_existing_coverage'] ?? null;
             $patient['coverage_start_date'] = $patient['coverage_start_date'] ?? null;
             $patient['coverage_end_date'] = $patient['coverage_end_date'] ?? null;
             $patient['card_status'] = $patient['card_status'] ?? null;
@@ -277,8 +273,7 @@ class PatientService
                     $expectedColumns = [
                         'insurance_detail_id', 'patient_id', 'provider', 'membership_number', 
                         'card_holder_name', 'cardholder_name', 'member_type', 'relationship', 
-                        'plan_name', 'coverage_type', 'mbl', 'maximum_benefit_limit', 
-                        'pre_existing_coverage', 'start_date', 'end_date', 'coverage_start_date', 
+                        'plan_name', 'coverage_type', 'start_date', 'end_date', 'coverage_start_date', 
                         'coverage_end_date', 'card_status', 'created_at', 'updated_at'
                     ];
                     
@@ -311,9 +306,6 @@ class PatientService
                     if ($insuranceDetails) {
                         log_message('debug', 'Loaded insurance_details for patient ' . $id . ': ' . json_encode($insuranceDetails));
                         log_message('debug', 'Raw relationship value: ' . var_export($insuranceDetails['relationship'] ?? 'NOT SET', true));
-                        log_message('debug', 'Raw mbl value: ' . var_export($insuranceDetails['mbl'] ?? 'NOT SET', true));
-                        log_message('debug', 'Raw coverage_type value: ' . var_export($insuranceDetails['coverage_type'] ?? 'NOT SET', true));
-                        log_message('debug', 'coverage_type type: ' . gettype($insuranceDetails['coverage_type'] ?? null));
                         
                         // Map insurance_details fields to patient data fields
                         // Handle both old schema (provider) and new schema (insurance_provider)
@@ -337,22 +329,6 @@ class PatientService
                         
                         $patient['plan_name'] = $insuranceDetails['plan_name'] ?? $patient['plan_name'] ?? null;
                         
-                        // MBL - handle DECIMAL type properly (might be returned as string)
-                        // Check both 'mbl' and 'maximum_benefit_limit' columns
-                        $mblValue = $insuranceDetails['mbl'] ?? $insuranceDetails['maximum_benefit_limit'] ?? null;
-                        if ($mblValue !== null && $mblValue !== '' && $mblValue !== '0.00' && $mblValue !== '0') {
-                            // Convert to number if it's a string
-                            $mblValue = is_numeric($mblValue) ? (float)$mblValue : $mblValue;
-                            $patient['mbl'] = $mblValue;
-                            $patient['maximum_benefit_limit'] = $mblValue;
-                            $patient['max_benefit_limit'] = $mblValue;
-                        } else {
-                            $patient['mbl'] = null;
-                            $patient['maximum_benefit_limit'] = null;
-                            $patient['max_benefit_limit'] = null;
-                        }
-                        
-                        $patient['pre_existing_coverage'] = $insuranceDetails['pre_existing_coverage'] ?? $patient['pre_existing_coverage'] ?? null;
                         // Handle both old schema (start_date/end_date) and new schema (coverage_start_date/coverage_end_date)
                         $patient['coverage_start_date'] = $insuranceDetails['start_date'] ?? $insuranceDetails['coverage_start_date'] ?? $patient['coverage_start_date'] ?? null;
                         $patient['coverage_end_date'] = $insuranceDetails['end_date'] ?? $insuranceDetails['coverage_end_date'] ?? $patient['coverage_end_date'] ?? null;
@@ -412,7 +388,7 @@ class PatientService
                             $patient['coverage_types'] = $patient['plan_coverage_types'];
                         }
                         
-                        log_message('debug', 'Mapped insurance fields - relationship: ' . var_export($patient['relationship'], true) . ', mbl: ' . var_export($patient['mbl'], true) . ', coverage_types: ' . json_encode($patient['plan_coverage_types'] ?? []));
+                        log_message('debug', 'Mapped insurance fields - relationship: ' . var_export($patient['relationship'], true) . ', coverage_types: ' . json_encode($patient['plan_coverage_types'] ?? []));
                         log_message('debug', 'Final patient data includes insurance_provider: ' . var_export($patient['insurance_provider'] ?? 'NOT SET', true));
                     } else {
                         log_message('debug', 'No insurance_details record found for patient ' . $id);
@@ -424,10 +400,6 @@ class PatientService
                         $patient['member_type'] = null;
                         $patient['relationship'] = null;
                         $patient['plan_name'] = null;
-                        $patient['mbl'] = null;
-                        $patient['maximum_benefit_limit'] = null;
-                        $patient['max_benefit_limit'] = null;
-                        $patient['pre_existing_coverage'] = null;
                         $patient['coverage_start_date'] = null;
                         $patient['coverage_end_date'] = null;
                         $patient['card_status'] = null;
@@ -445,10 +417,6 @@ class PatientService
                     $patient['member_type'] = null;
                     $patient['relationship'] = null;
                     $patient['plan_name'] = null;
-                    $patient['mbl'] = null;
-                    $patient['maximum_benefit_limit'] = null;
-                    $patient['max_benefit_limit'] = null;
-                    $patient['pre_existing_coverage'] = null;
                     $patient['coverage_start_date'] = null;
                     $patient['coverage_end_date'] = null;
                     $patient['card_status'] = null;
@@ -1235,16 +1203,14 @@ class PatientService
             'relationship' => $input['relationship'] ?? $input['hmo_relationship'] ?? null,
             'plan_name' => $planName,
             'coverage_type' => $coverageType,
-            'mbl' => $input['mbl'] ?? $input['hmo_mbl'] ?? $input['maximum_benefit_limit'] ?? null,
-            'pre_existing_coverage' => $input['pre_existing_coverage'] ?? null,
             'start_date' => $startDate,
             'end_date' => $endDate,
             'card_status' => $input['card_status'] ?? 'Active',
             'created_at' => date('Y-m-d H:i:s'),
         ];
 
-        // Filter to only include columns that exist in the table
         try {
+            // Filter to only include columns that exist in the table
             $fields = $this->db->getFieldData('insurance_details');
             $existingColumns = array_map(static fn($field) => $field->name ?? null, $fields);
             $existingColumns = array_filter($existingColumns);

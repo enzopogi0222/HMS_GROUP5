@@ -378,14 +378,6 @@
                                             <?php endforeach; ?>
                                         </div>
                                     </div>
-                                    <div>
-                                        <label class="form-label" for="outpatient_mbl">MBL</label>
-                                        <input type="number" min="0" step="0.01" id="outpatient_mbl" name="mbl" class="form-input" placeholder="Maximum Benefit Limit">
-                                    </div>
-                                    <div class="full">
-                                        <label class="form-label" for="outpatient_preexisting">Pre-existing Coverage</label>
-                                        <textarea id="outpatient_preexisting" name="pre_existing_coverage" class="form-input" rows="2" placeholder="Specify any pre-existing coverage conditions"></textarea>
-                                    </div>
                                 </div>
 
                                 <h5 class="subsection-title">Validity</h5>
@@ -602,23 +594,16 @@
                                     </div>
                                     <div>
                                         <label class="form-label" for="admitting_doctor">Admitting Doctor*</label>
-                                        <select id="admitting_doctor" name="admitting_doctor" class="form-select" required>
-                                            <option value="">Select doctor...</option>
+                                        <input type="text" id="admitting_doctor" name="admitting_doctor" class="form-input" list="admitting_doctor_list" placeholder="Type or select a doctor" required>
+                                        <datalist id="admitting_doctor_list">
                                             <?php if (!empty($availableDoctors)): ?>
                                                 <?php foreach ($availableDoctors as $d): ?>
-                                                    <option value="<?= esc($d['staff_id'] ?? $d['id']) ?>" 
-                                                            data-specialization="<?= esc($d['specialization'] ?? '') ?>"
-                                                            data-doctor-name="<?= esc(trim(($d['first_name'] ?? '') . ' ' . ($d['last_name'] ?? ''))) ?>">
-                                                        <?= esc(trim(($d['first_name'] ?? '') . ' ' . ($d['last_name'] ?? ''))) ?>
-                                                        <?php if (!empty($d['specialization'])): ?>
-                                                            - <?= esc($d['specialization']) ?>
-                                                        <?php endif; ?>
+                                                    <option value="<?= esc(trim(($d['first_name'] ?? '') . ' ' . ($d['last_name'] ?? ''))) ?>" data-specialization="<?= esc($d['specialization'] ?? '') ?>">
+                                                        <?= esc(trim(($d['first_name'] ?? '') . ' ' . ($d['last_name'] ?? ''))) ?><?php if (!empty($d['specialization'])): ?> - <?= esc($d['specialization']) ?><?php endif; ?>
                                                     </option>
                                                 <?php endforeach; ?>
-                                            <?php else: ?>
-                                                <option value="">No doctors available</option>
                                             <?php endif; ?>
-                                        </select>
+                                        </datalist>
                                         <small id="err_admitting_doctor" class="form-error"></small>
                                     </div>
                                     <div>
@@ -817,14 +802,6 @@
                                                 </label>
                                             <?php endforeach; ?>
                                         </div>
-                                    </div>
-                                    <div>
-                                        <label class="form-label" for="inpatient_mbl">MBL</label>
-                                        <input type="number" min="0" step="0.01" id="inpatient_mbl" name="mbl" class="form-input" placeholder="Maximum Benefit Limit">
-                                    </div>
-                                    <div class="full">
-                                        <label class="form-label" for="inpatient_preexisting">Pre-existing Coverage</label>
-                                        <textarea id="inpatient_preexisting" name="pre_existing_coverage" class="form-input" rows="2" placeholder="Specify any pre-existing coverage conditions"></textarea>
                                     </div>
                                 </div>
 

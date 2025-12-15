@@ -173,6 +173,12 @@ const AddPatientModal = {
             }
         });
 
+        const admittingDoctorInput = document.getElementById('admitting_doctor');
+        if (admittingDoctorInput) {
+            admittingDoctorInput.addEventListener('input', () => this.clearFieldError(admittingDoctorInput));
+            admittingDoctorInput.addEventListener('change', () => this.clearFieldError(admittingDoctorInput));
+        }
+
         // Date of birth change - update age display and pediatric logic
         // Outpatient form uses 'inpatient_date_of_birth' (incorrectly named)
         const outpatientDobInput = document.getElementById('inpatient_date_of_birth');
@@ -1050,16 +1056,15 @@ const AddPatientModal = {
      * Filter admitting doctors based on patient age and specialization
      */
     filterAdmittingDoctors(ageYears) {
-        const doctorSelect = document.getElementById('admitting_doctor');
-        if (!doctorSelect) return;
+        const datalist = document.getElementById('admitting_doctor_list');
+        if (!datalist) return;
 
-        // Cache all doctor options the first time (including specialization from data attribute)
+        // Cache all doctor options the first time
         if (!this.admittingDoctorsCache) {
-            this.admittingDoctorsCache = Array.from(doctorSelect.options).map(opt => ({
+            this.admittingDoctorsCache = Array.from(datalist.querySelectorAll('option')).map(opt => ({
                 value: opt.value,
-                text: opt.textContent,
-                specialization: opt.getAttribute('data-specialization') || '',
-                doctorName: opt.getAttribute('data-doctor-name') || ''
+                text: opt.textContent || opt.value,
+                specialization: opt.getAttribute('data-specialization') || ''
             }));
         }
 
@@ -1093,53 +1098,33 @@ const AddPatientModal = {
             }
         });
 
-        // Update the dropdown
-        doctorSelect.innerHTML = '';
+        // Update the suggestion list
+        datalist.innerHTML = '';
         filtered.forEach(optData => {
             const opt = document.createElement('option');
             opt.value = optData.value;
-            opt.textContent = optData.text;
-            if (optData.specialization) {
-                opt.setAttribute('data-specialization', optData.specialization);
+            if (optData.text) {
+                opt.textContent = optData.text;
             }
-            if (optData.doctorName) {
-                opt.setAttribute('data-doctor-name', optData.doctorName);
-            }
-            doctorSelect.appendChild(opt);
+            datalist.appendChild(opt);
         });
-
-        // If no doctors match, show a message
-        if (filtered.length <= 1 && filtered[0]?.value === '') {
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = isPediatricAge 
-                ? 'No pediatric doctors available' 
-                : 'No adult doctors available';
-            opt.disabled = true;
-            opt.selected = true;
-            doctorSelect.appendChild(opt);
-        }
     },
 
     /**
      * Restore all admitting doctor options
      */
     restoreAdmittingDoctorOptions() {
-        const doctorSelect = document.getElementById('admitting_doctor');
-        if (!doctorSelect || !this.admittingDoctorsCache) return;
+        const datalist = document.getElementById('admitting_doctor_list');
+        if (!datalist || !this.admittingDoctorsCache) return;
 
-        doctorSelect.innerHTML = '';
+        datalist.innerHTML = '';
         this.admittingDoctorsCache.forEach(optData => {
             const opt = document.createElement('option');
             opt.value = optData.value;
-            opt.textContent = optData.text;
-            if (optData.specialization) {
-                opt.setAttribute('data-specialization', optData.specialization);
+            if (optData.text) {
+                opt.textContent = optData.text;
             }
-            if (optData.doctorName) {
-                opt.setAttribute('data-doctor-name', optData.doctorName);
-            }
-            doctorSelect.appendChild(opt);
+            datalist.appendChild(opt);
         });
     },
 

@@ -28,11 +28,15 @@ window.ShiftModalUtils = {
      * Open modal
      */
     openModal(modalId) {
+        console.log('ShiftModalUtils.openModal called with modalId:', modalId);
         const modal = document.getElementById(modalId);
         if (modal) {
+            console.log('Found modal element, adding active class');
             modal.classList.add('active');
             modal.setAttribute('aria-hidden', 'false');
             document.body.style.overflow = 'hidden';
+        } else {
+            console.error('Modal element not found for ID:', modalId);
         }
     },
 

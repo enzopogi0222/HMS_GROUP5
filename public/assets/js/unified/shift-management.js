@@ -6,11 +6,9 @@
 class ShiftManager {
     constructor() {
         this.config = this.getConfig();
-        this.calendar = null;
-        this.currentView = 'list';
-        this.filters = {};
         this.shifts = [];
-        
+        this.filters = {};
+        this.calendar = null;
         this.init();
     }
 
@@ -42,6 +40,7 @@ class ShiftManager {
         this.loadShifts();
         this.initCalendar();
         this.setupAutoRefresh();
+        this.initEventListeners();
     }
 
     bindEvents() {
@@ -209,9 +208,11 @@ class ShiftManager {
         if (!tbody) return;
 
         if (this.shifts.length === 0) {
+            const isDoctorView = (window.userRole || '').toString().toLowerCase() === 'doctor';
+            const colspan = isDoctorView ? 4 : 5;
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="empty-state" style="text-align: center; padding: 2rem;">
+                    <td colspan="${colspan}" class="empty-state" style="text-align: center; padding: 2rem;">
                         <i class="fas fa-calendar-times" style="font-size: 2rem; color: #d1d5db; margin-bottom: 1rem;"></i>
                         <h3 style="color: #6b7280; margin: 0.5rem 0;">No shifts found</h3>
                         <p style="color: #9ca3af;">No shifts match your current filters.</p>
@@ -255,6 +256,8 @@ class ShiftManager {
 
     renderShiftRow(shift) {
         // Map schedule data (weekday/time/status) to the table row
+
+        const isDoctorView = (window.userRole || '').toString().toLowerCase() === 'doctor';
 
         // If this is a grouped shift, we may have multiple weekdays.
         let weekdayLabel = '-';
@@ -304,11 +307,13 @@ class ShiftManager {
 
         return `
             <tr class="fade-in">
+                ${isDoctorView ? '' : `
                 <td>
                     <div class="doctor-info">
                         <div class="doctor-name">${this.escapeHtml(shift.doctor_name || 'Unknown')}</div>
                     </div>
                 </td>
+                `}
                 <td>${this.escapeHtml(weekdayLabel)}</td>
                 <td>${this.escapeHtml(timeLabel)}</td>
                 <td>
@@ -318,20 +323,132 @@ class ShiftManager {
                 </td>
                 <td>
                     <div class="action-buttons">
+                        <button type="button" class="btn btn-sm btn-view" data-shift-id="${primaryId}" title="View Shift">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        ${this.canUpdateStatus(shift) ? `
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-sm btn-status dropdown-toggle" data-shift-id="${primaryId}" data-bs-toggle="dropdown" aria-expanded="false" title="Change Status">
+                                    <i class="fas fa-flag"></i> Status
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item status-option" href="#" data-shift-id="${primaryId}" data-status="completed"><i class="fas fa-check text-success"></i> Completed</a></li>
+                                    <li><a class="dropdown-item status-option" href="#" data-shift-id="${primaryId}" data-status="cancelled"><i class="fas fa-times text-danger"></i> Cancelled</a></li>
+                                    <li><a class="dropdown-item status-option" href="#" data-shift-id="${primaryId}" data-status="rescheduled"><i class="fas fa-calendar-alt text-warning"></i> Rescheduled</a></li>
+                                </ul>
+                            </div>
+                        ` : ''}
                         ${canEdit ? `
                             <button type="button" class="btn btn-sm btn-edit" data-shift-id="${primaryId}" title="Edit Shift">
-                                <i class="fas fa-edit"></i>
+                                <i class="fas fa-edit"></i> Edit
                             </button>
                         ` : ''}
                         ${canDelete ? `
                             <button type="button" class="btn btn-sm btn-delete" data-shift-ids='${idsJson}' title="Delete All Weekdays">
-                                <i class="fas fa-trash"></i>
+                                <i class="fas fa-trash"></i> Delete
                             </button>
                         ` : ''}
                     </div>
                 </td>
             </tr>
         `;
+    }
+
+    initEventListeners() {
+        const tbody = document.getElementById('shiftsTableBody');
+        if (!tbody) return;
+
+        // Use event delegation for action buttons
+        tbody.addEventListener('click', async (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+
+            const shiftId = btn.dataset.shiftId;
+            const shiftIds = btn.dataset.shiftIds;
+
+            if (btn.classList.contains('btn-view') && shiftId) {
+                e.preventDefault();
+                this.viewShift(shiftId);
+            } else if (btn.classList.contains('btn-status') && shiftId) {
+                // Bootstrap dropdown will handle this; no action needed here
+                return;
+            } else if (btn.classList.contains('btn-edit') && shiftId) {
+                e.preventDefault();
+                this.editShift(shiftId);
+            } else if (btn.classList.contains('btn-delete') && shiftIds) {
+                e.preventDefault();
+                this.deleteShifts(JSON.parse(shiftIds));
+            }
+        });
+
+        // Handle status option clicks
+        tbody.addEventListener('click', async (e) => {
+            const statusOption = e.target.closest('.status-option');
+            if (!statusOption) return;
+
+            e.preventDefault();
+            const shiftId = statusOption.dataset.shiftId;
+            const newStatus = statusOption.dataset.status;
+            if (shiftId && newStatus) {
+                this.updateShiftStatus(shiftId, newStatus);
+            }
+        });
+    }
+
+    viewShift(shiftId) {
+        console.log('viewShift called with shiftId:', shiftId);
+        console.log('ViewShiftModal available:', !!window.ViewShiftModal);
+        if (window.ViewShiftModal && window.ViewShiftModal.open) {
+            console.log('Opening ViewShiftModal...');
+            window.ViewShiftModal.open(shiftId);
+        } else {
+            console.error('ViewShiftModal not available');
+            this.showNotification('View modal not available', 'error');
+        }
+    }
+
+    editShift(shiftId) {
+        if (window.EditShiftModal && window.EditShiftModal.open) {
+            window.EditShiftModal.open(shiftId);
+        } else {
+            this.showNotification('Edit modal not available', 'error');
+        }
+    }
+
+    async deleteShifts(shiftIds) {
+        if (!Array.isArray(shiftIds) || shiftIds.length === 0) {
+            this.showNotification('No shifts selected for deletion', 'error');
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to delete ${shiftIds.length} shift(s)? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            const baseUrl = document.querySelector('meta[name="base-url"]')?.content?.replace(/\/+$/, '') || '';
+            const response = await fetch(`${baseUrl}/shifts/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ ids: shiftIds })
+            });
+
+            const result = await response.json().catch(() => ({ status: 'error', message: 'Invalid response' }));
+
+            if (response.ok && result.status === 'success') {
+                this.showNotification('Shift(s) deleted successfully', 'success');
+                this.loadShifts(); // Refresh the list
+            } else {
+                this.showNotification(result.message || 'Failed to delete shift(s)', 'error');
+            }
+        } catch (error) {
+            console.error('Failed to delete shift(s):', error);
+            this.showNotification('Server error while deleting shift(s)', 'error');
+        }
     }
 
     initCalendar() {
@@ -566,11 +683,11 @@ class ShiftManager {
 
     // Permission methods
     canEditShift(shift) {
-        return ['admin', 'it_staff'].includes(this.config.userRole) || (this.config.userRole === 'doctor' && shift.staff_id === this.getCurrentStaffId());
+        return ['admin', 'it_staff'].includes(this.config.userRole) || this.config.userRole === 'doctor';
     }
 
     canDeleteShift(shift) {
-        return this.config.userRole === 'admin';
+        return ['admin', 'it_staff'].includes(this.config.userRole) || this.config.userRole === 'doctor';
     }
 
     canUpdateStatus(shift) {

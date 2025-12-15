@@ -12,16 +12,20 @@ window.ViewShiftModal = {
     },
     
     async open(shiftId) {
+        console.log('ViewShiftModal.open called with shiftId:', shiftId);
         if (!shiftId) {
+            console.error('No shiftId provided');
             this.showNotification('Shift ID is required', 'error');
             return;
         }
         
         if (this.modal) {
+            console.log('Opening modal...');
             ShiftModalUtils.openModal('viewShiftModal');
             
             try {
                 await this.loadShiftDetails(shiftId);
+                console.log('Shift details loaded:', this.currentShift);
                 // Ensure form is populated after modal is visible
                 if (this.currentShift) {
                     // Use requestAnimationFrame to ensure DOM is ready
@@ -34,6 +38,8 @@ window.ViewShiftModal = {
                 this.showNotification('Failed to load shift details', 'error');
                 this.close();
             }
+        } else {
+            console.error('Modal element not found');
         }
     },
     
@@ -46,16 +52,21 @@ window.ViewShiftModal = {
     },
     
     async loadShiftDetails(shiftId) {
+        console.log('loadShiftDetails called with shiftId:', shiftId);
         if (!window.shiftManager) {
+            console.error('ShiftManager not available');
             throw new Error('ShiftManager not available');
         }
         
         const shift = window.shiftManager.shifts.find(s => String(s.id) === String(shiftId));
+        console.log('Found shift:', shift);
         if (!shift) {
+            console.error('Shift not found in shifts array');
             throw new Error('Shift not found');
         }
         
         this.currentShift = shift;
+        console.log('Set currentShift:', this.currentShift);
         // populateForm will be called after modal is opened
     },
     

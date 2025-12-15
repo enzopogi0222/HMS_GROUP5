@@ -253,7 +253,7 @@
                     <label for="searchFilter" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
                         <i class="fas fa-search"></i> Search
                     </label>
-                    <input type="text" id="searchFilter" class="form-control" placeholder="Search by doctor, day..." autocomplete="off">
+                    <input type="text" id="searchFilter" class="form-control" placeholder="<?= (($userRole ?? '') === 'doctor') ? 'Search by day...' : 'Search by doctor, day...' ?>" autocomplete="off">
                 </div>
                 <div class="filter-group" style="margin: 0;">
                     <label for="dateFilter" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
@@ -300,7 +300,9 @@
                     <table class="table" id="shiftsTable" aria-describedby="shiftsTableCaption">
                         <thead>
                             <tr>
+                                <?php if (($userRole ?? '') !== 'doctor'): ?>
                                 <th scope="col">Doctor</th>
+                                <?php endif; ?>
                                 <th scope="col">Day</th>
                                 <th scope="col">Time</th>
                                 <th scope="col">Status</th>

@@ -40,8 +40,7 @@
                         <small id="err_appointment_date" style="color:#dc2626"></small>
                     </div>
                     <div>
-                        <label class="form-label" for="appointment_time">Time*</label>
-                        <input type="time" id="appointment_time" name="appointment_time" class="form-input" required>
+                        <input type="hidden" id="appointment_time" name="appointment_time">
                         <small id="err_appointment_time" style="color:#dc2626"></small>
                         <div id="appointment_slots" class="form-text" style="color:#6b7280; margin-top:6px;"></div>
                     </div>

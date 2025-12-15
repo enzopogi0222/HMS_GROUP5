@@ -112,38 +112,50 @@ window.EditAppointmentModal = {
         }
     },
     
-    loadAvailableDoctors(date) {
+    async loadAvailableDoctors(date, selectedDoctorId = null) {
         const doctorSelect = document.getElementById('edit_appointment_doctor');
         const dateHelp = document.getElementById('edit_appointment_date_help');
         if (!doctorSelect) return;
-        
+
         doctorSelect.innerHTML = '<option value="">Loading available doctors...</option>';
         if (dateHelp) dateHelp.textContent = '';
-        
+
         const weekday = this.getWeekdayName(date);
         const url = `${this.config.baseUrl}/appointments/available-doctors?date=${encodeURIComponent(date)}&weekday=${encodeURIComponent(weekday)}`;
-        
-        fetch(url)
-            .then(response => response.json())
-            .then(data => {
-                doctorSelect.innerHTML = '<option value="">Select Doctor...</option>';
-                if (data.status === 'success' && Array.isArray(data.data) && data.data.length) {
-                    data.data.forEach(doctor => {
-                        const option = document.createElement('option');
-                        option.value = doctor.staff_id;
-                        option.textContent = `${doctor.first_name} ${doctor.last_name}${doctor.specialization ? ' - ' + doctor.specialization : ''}`;
-                        doctorSelect.appendChild(option);
-                    });
-                    if (dateHelp) dateHelp.textContent = 'Doctors listed are available on this date.';
-                } else {
-                    if (dateHelp) dateHelp.textContent = 'No doctors are available on this date.';
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+
+            doctorSelect.innerHTML = '<option value="">Select Doctor...</option>';
+            if (data.status === 'success' && Array.isArray(data.data) && data.data.length) {
+                data.data.forEach(doctor => {
+                    const option = document.createElement('option');
+                    option.value = doctor.staff_id;
+                    option.textContent = `${doctor.first_name} ${doctor.last_name}${doctor.specialization ? ' - ' + doctor.specialization : ''}`;
+                    doctorSelect.appendChild(option);
+                });
+                if (dateHelp) dateHelp.textContent = 'Doctors listed are available on this date.';
+            } else {
+                if (dateHelp) dateHelp.textContent = 'No doctors are available on this date.';
+            }
+
+            if (selectedDoctorId) {
+                const targetValue = String(selectedDoctorId);
+                let foundOption = Array.from(doctorSelect.options).find(opt => String(opt.value) === targetValue);
+                if (!foundOption) {
+                    const fallbackOption = document.createElement('option');
+                    fallbackOption.value = targetValue;
+                    fallbackOption.textContent = `Doctor #${targetValue}`;
+                    doctorSelect.appendChild(fallbackOption);
                 }
-            })
-            .catch(error => {
-                console.error('Error loading available doctors:', error);
-                doctorSelect.innerHTML = '<option value="">Error loading doctors</option>';
-                if (dateHelp) dateHelp.textContent = 'Failed to load doctor availability.';
-            });
+                doctorSelect.value = targetValue;
+            }
+        } catch (error) {
+            console.error('Error loading available doctors:', error);
+            doctorSelect.innerHTML = '<option value="">Error loading doctors</option>';
+            if (dateHelp) dateHelp.textContent = 'Failed to load doctor availability.';
+        }
     },
     
     getWeekdayName(dateStr) {
@@ -152,42 +164,33 @@ window.EditAppointmentModal = {
         return isNaN(d.getTime()) ? '' : days[d.getDay()];
     },
     
-    populateForm(appointment) {
-        setTimeout(() => {
-            const patientSelect = document.getElementById('edit_appointment_patient');
-            const doctorSelect = document.getElementById('edit_appointment_doctor');
-            const dateInput = document.getElementById('edit_appointment_date');
-            const typeSelect = document.getElementById('edit_appointment_type');
-            const notesTextarea = document.getElementById('edit_appointment_notes');
-            const idInput = document.getElementById('edit_appointment_id');
-            
-            if (idInput) idInput.value = appointment.appointment_id || appointment.id || '';
-            if (patientSelect) patientSelect.value = appointment.patient_id || '';
-            
-            if (doctorSelect && appointment.doctor_id) {
-                const targetValue = String(appointment.doctor_id);
-                let foundOption = Array.from(doctorSelect.options).find(opt => String(opt.value) === targetValue);
-                if (!foundOption) {
-                    const opt = document.createElement('option');
-                    opt.value = targetValue;
-                    opt.textContent = appointment.doctor_name || `Doctor #${targetValue}`;
-                    doctorSelect.appendChild(opt);
-                }
-                doctorSelect.value = targetValue;
+    async populateForm(appointment) {
+        const patientSelect = document.getElementById('edit_appointment_patient');
+        const dateInput = document.getElementById('edit_appointment_date');
+        const typeSelect = document.getElementById('edit_appointment_type');
+        const notesTextarea = document.getElementById('edit_appointment_notes');
+        const idInput = document.getElementById('edit_appointment_id');
+
+        if (idInput) idInput.value = appointment.appointment_id || appointment.id || '';
+        if (patientSelect) patientSelect.value = appointment.patient_id || '';
+
+        const doctorId = appointment.doctor_id || appointment.doctor_staff_id || appointment.doctorId || null;
+
+        if (dateInput) {
+            const dateVal = appointment.appointment_date || appointment.date || '';
+            if (dateVal) {
+                const isoDate = dateVal.split('T')[0].split(' ')[0];
+                dateInput.value = isoDate;
+                await this.loadAvailableDoctors(isoDate, doctorId);
+            } else if (doctorId) {
+                await this.loadAvailableDoctors(new Date().toISOString().split('T')[0], doctorId);
             }
-            
-            if (dateInput) {
-                const dateVal = appointment.appointment_date || appointment.date || '';
-                if (dateVal) {
-                    const isoDate = dateVal.split('T')[0].split(' ')[0];
-                    dateInput.value = isoDate;
-                    this.loadAvailableDoctors(isoDate);
-                }
-            }
-            
-            if (typeSelect) typeSelect.value = appointment.appointment_type || appointment.type || '';
-            if (notesTextarea) notesTextarea.value = appointment.notes || appointment.reason || '';
-        }, 300);
+        } else if (doctorId) {
+            await this.loadAvailableDoctors(new Date().toISOString().split('T')[0], doctorId);
+        }
+
+        if (typeSelect) typeSelect.value = appointment.appointment_type || appointment.type || '';
+        if (notesTextarea) notesTextarea.value = appointment.notes || appointment.reason || '';
     },
     
     async handleSubmit(e) {

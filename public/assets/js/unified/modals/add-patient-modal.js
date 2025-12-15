@@ -127,6 +127,49 @@ const AddPatientModal = {
     currentRoomTypeRooms: [],
     addressControls: {},
 
+    applyRoomAssignmentToInventory(formData) {
+        try {
+            const patientType = (formData?.patient_type || '').toLowerCase();
+            if (patientType !== 'inpatient') return;
+
+            const roomTypeId = (formData?.room_type || '').toString().trim();
+            const roomNumber = (formData?.room_number || '').toString().trim();
+            const bedNumber = (formData?.bed_number || '').toString().trim();
+            if (!roomTypeId || !roomNumber) return;
+
+            const inventory = this.roomInventory || window.PatientRoomInventory || {};
+            const list = inventory?.[roomTypeId] || inventory?.[Number(roomTypeId)] || null;
+            if (!Array.isArray(list)) return;
+
+            for (const room of list) {
+                if ((room?.room_number || '').toString() === roomNumber) {
+                    const occupiedBeds = Array.isArray(room.occupied_beds) ? room.occupied_beds : [];
+                    if (bedNumber && !occupiedBeds.includes(bedNumber)) {
+                        occupiedBeds.push(bedNumber);
+                    }
+                    room.occupied_beds = occupiedBeds;
+
+                    const cap = parseInt(room?.bed_capacity ?? 0, 10);
+                    if (Number.isFinite(cap) && cap > 0 && occupiedBeds.length >= cap) {
+                        room.status = 'occupied';
+                    } else {
+                        // Room is still available when there are free beds
+                        room.status = 'available';
+                    }
+                    break;
+                }
+            }
+
+            this.roomInventory = inventory;
+            window.PatientRoomInventory = inventory;
+
+            // If the modal is still open for some reason, refresh the pickers
+            this.handleRoomTypeChange();
+        } catch (e) {
+            // Best-effort only
+        }
+    },
+
     /**
      * Initialize the modal
      */
@@ -712,8 +755,19 @@ const AddPatientModal = {
 
         const filteredRooms = (Array.isArray(roomsByType) ? roomsByType : []).filter(room => {
             const roomDeptId = (room.department_id ?? '').toString().trim();
+            const status = (room.status ?? 'available').toString().toLowerCase();
+            const capacity = parseInt(room?.bed_capacity ?? 0, 10);
+            const occupiedBeds = Array.isArray(room?.occupied_beds) ? room.occupied_beds : [];
+
+            const effectiveCapacity = Number.isFinite(capacity) && capacity > 0
+                ? capacity
+                : (Array.isArray(room?.bed_names) && room.bed_names.length > 0 ? room.bed_names.length : 1);
+
+            const hasFreeBed = occupiedBeds.length < effectiveCapacity;
 
             if (selectedDepartmentId && roomDeptId !== selectedDepartmentId) return false;
+            if (status === 'maintenance') return false;
+            if (!hasFreeBed) return false;
             return true;
         });
 
@@ -825,6 +879,7 @@ const AddPatientModal = {
         const room = rooms.find(r => (r.room_number || '').toString() === selectedRoomNumber.toString());
 
         const bedNames = room && Array.isArray(room.bed_names) ? room.bed_names : [];
+        const occupiedBeds = room && Array.isArray(room.occupied_beds) ? room.occupied_beds : [];
 
         // Prefer capacity from the selected option's data attribute; fall back to room object or bedNames length.
         let capacity = selectedRoomOption.dataset.bedCapacity
@@ -844,21 +899,30 @@ const AddPatientModal = {
         }
 
         const fragment = document.createDocumentFragment();
+        let availableCount = 0;
         for (let i = 0; i < capacity; i++) {
-            const opt = document.createElement('option');
             const label = bedNames[i] ? String(bedNames[i]) : `Bed ${i + 1}`;
+            if (occupiedBeds.includes(label)) {
+                continue;
+            }
+            const opt = document.createElement('option');
             opt.value = label;
             opt.textContent = label;
             fragment.appendChild(opt);
+            availableCount++;
         }
 
         const totalBeds = bedNames.length > 0 ? bedNames.length : capacity;
+        const freeBedsLabel = availableCount === 1
+            ? '1 bed available'
+            : `${availableCount} beds available`;
         const capacityLabel = totalBeds === 1
             ? '1 bed in this room'
             : `${totalBeds} beds in this room`;
-        this.bedNumberSelect.innerHTML = `<option value="">Select a bed... (${capacityLabel})</option>`;
+
+        this.bedNumberSelect.innerHTML = `<option value="">Select a bed... (${freeBedsLabel}, ${capacityLabel})</option>`;
         this.bedNumberSelect.appendChild(fragment);
-        this.bedNumberSelect.disabled = false;
+        this.bedNumberSelect.disabled = availableCount === 0;
     },
 
     updateDailyRateDisplay(roomTypeOption) {
@@ -1180,6 +1244,7 @@ const AddPatientModal = {
             );
             
             if (response.status === 'success') {
+                this.applyRoomAssignmentToInventory(formData);
                 PatientUtils.showNotification('Patient added successfully!', 'success');
                 this.close();
                 
@@ -1252,7 +1317,7 @@ const AddPatientModal = {
                 admission_datetime: { required: true, label: 'Admission Date & Time' },
                 admission_type: { required: true, label: 'Admission Type' },
                 admitting_diagnosis: { required: true, label: 'Admitting Diagnosis' },
-                admitting_doctor: { required: true, label: 'Admitting Doctor' },
+                admitting_doctor: { required: false, label: 'Admitting Doctor' },
                 level_of_consciousness: { required: true, label: 'Level of Consciousness' }
             };
         }

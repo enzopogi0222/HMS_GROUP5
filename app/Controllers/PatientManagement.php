@@ -58,6 +58,47 @@ class PatientManagement extends BaseController
             $rooms = $this->roomService->getRooms();
         }
 
+        $occupiedBedsByRoomId = [];
+        if ($this->db->tableExists('inpatient_room_assignments') && $this->db->tableExists('inpatient_admissions')) {
+            try {
+                $builder = $this->db->table('inpatient_room_assignments ira')
+                    ->select('ira.room_id, ira.bed_number')
+                    ->join('inpatient_admissions ia', 'ia.admission_id = ira.admission_id', 'inner')
+                    ->where('ira.room_id IS NOT NULL', null, false);
+
+                if ($this->db->fieldExists('discharge_datetime', 'inpatient_admissions')) {
+                    $builder->where('ia.discharge_datetime IS NULL', null, false);
+                } elseif ($this->db->fieldExists('discharge_date', 'inpatient_admissions')) {
+                    $builder->groupStart()
+                        ->where('ia.discharge_date IS NULL', null, false)
+                        ->orWhere('ia.discharge_date', '')
+                    ->groupEnd();
+                } elseif ($this->db->fieldExists('status', 'inpatient_admissions')) {
+                    $builder->where('ia.status', 'active');
+                }
+
+                $rows = $builder->get()->getResultArray();
+
+                foreach ($rows as $row) {
+                    $roomId = (int) ($row['room_id'] ?? 0);
+                    if ($roomId <= 0) {
+                        continue;
+                    }
+                    $bed = trim((string) ($row['bed_number'] ?? ''));
+                    if ($bed === '') {
+                        continue;
+                    }
+                    $occupiedBedsByRoomId[$roomId][$bed] = true;
+                }
+
+                foreach ($occupiedBedsByRoomId as $roomId => $beds) {
+                    $occupiedBedsByRoomId[$roomId] = array_keys($beds);
+                }
+            } catch (\Throwable $e) {
+                // best-effort only
+            }
+        }
+
         foreach ($rooms as $room) {
             $typeId = (int) ($room['room_type_id'] ?? 0);
             if (! $typeId) {
@@ -81,6 +122,7 @@ class PatientManagement extends BaseController
                 'status'        => (string) ($room['status'] ?? ''),
                 'bed_capacity'  => (int) ($room['bed_capacity'] ?? 0),
                 'bed_names'     => $bedNames,
+                'occupied_beds' => $occupiedBedsByRoomId[(int) ($room['room_id'] ?? 0)] ?? [],
             ];
         }
         $permissions = PermissionManager::getRolePermissions($this->userRole);

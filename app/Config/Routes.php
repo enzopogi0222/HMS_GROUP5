@@ -121,6 +121,7 @@ $routes->post('laboratorist/resource-management/delete', 'ResourceManagement::de
 
 $routes->get('admin/room-management', 'RoomManagement::index', ['filter' => 'roleauth:admin']);
 $routes->get('rooms/api', 'RoomManagement::getRoomsAPI', ['filter' => 'roleauth:admin']);
+$routes->get('room-types/api', 'RoomManagement::getRoomTypesAPI', ['filter' => 'roleauth:admin']);
 $routes->get('rooms/(:num)', 'RoomManagement::getRoom/$1', ['filter' => 'roleauth:admin']);
 $routes->get('rooms/patients', 'RoomManagement::getPatientsForAssignment', ['filter' => 'roleauth:admin']);
 $routes->post('rooms/create', 'RoomManagement::createRoom', ['filter' => 'roleauth:admin']);

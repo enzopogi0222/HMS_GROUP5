@@ -1310,56 +1310,33 @@ class PatientService
         }
     }
 
-    /**
-     * Create inpatient admission + related inpatient records
-     */
     private function createInpatientAdmissionRecord(int $patientId, array $input): void
     {
         if (! $this->db->tableExists('inpatient_admissions')) {
             return;
         }
 
-        $consent = $input['consent_uploaded'] ?? $input['consent_signed'] ?? null;
+        $consent = $input['consent_signed'] ?? $input['consent_uploaded'] ?? null;
+        $normalizedAdmissionType = $input['admission_type'] ?? null;
 
-        // Normalize admission_type to match ENUM values in inpatient_admissions table
-        $rawAdmissionType = $input['admission_type'] ?? null;
-        $normalizedAdmissionType = null;
-
-        if ($rawAdmissionType !== null && $rawAdmissionType !== '') {
-            switch ($rawAdmissionType) {
-                case 'Transfer from other facility/hospital':
-                    $normalizedAdmissionType = 'Transfer';
-                    break;
-                default:
-                    $normalizedAdmissionType = $rawAdmissionType;
-                    break;
-            }
-
-            if (! in_array($normalizedAdmissionType, ['ER', 'Scheduled', 'Transfer'], true)) {
-                $normalizedAdmissionType = null;
-            }
-        }
-
-        // Base admission data
         $admissionData = [
-            'patient_id'          => $patientId,
-            'admission_datetime'  => $input['admission_datetime'] ?? null,
-            'admission_type'      => $normalizedAdmissionType,
-            'admitting_diagnosis' => $input['admitting_diagnosis'] ?? null,
-            'admitting_doctor'    => $input['admitting_doctor'] ?? null,
-            'consent_signed'      => in_array($consent, ['1', 'true', 'yes', 'on'], true) ? 1 : 0,
-            'insurance_provider'  => $input['insurance_provider'] ?? null,
+            'patient_id'            => $patientId,
+            'admission_datetime'    => $input['admission_datetime'] ?? null,
+            'admission_type'        => $normalizedAdmissionType,
+            'admitting_diagnosis'   => $input['admitting_diagnosis'] ?? null,
+            'admitting_doctor'      => $input['admitting_doctor'] ?? null,
+            'consent_signed'        => in_array($consent, ['1', 'true', 'yes', 'on'], true) ? 1 : 0,
+            'insurance_provider'    => $input['insurance_provider'] ?? null,
             'insurance_card_number' => $input['insurance_card_number'] ?? null,
-            'insurance_validity'  => $input['insurance_validity'] ?? null,
-            'hmo_member_id'       => $input['hmo_member_id'] ?? null,
-            'hmo_approval_code'   => $input['hmo_approval_code'] ?? null,
-            'hmo_cardholder_name' => $input['hmo_cardholder_name'] ?? null,
-            'hmo_coverage_type'   => $input['hmo_coverage_type'] ?? null,
-            'hmo_expiry_date'     => $input['hmo_expiry_date'] ?? null,
-            'hmo_contact_person'  => $input['hmo_contact_person'] ?? null,
+            'insurance_validity'    => $input['insurance_validity'] ?? null,
+            'hmo_member_id'         => $input['hmo_member_id'] ?? null,
+            'hmo_approval_code'     => $input['hmo_approval_code'] ?? null,
+            'hmo_cardholder_name'   => $input['hmo_cardholder_name'] ?? null,
+            'hmo_coverage_type'     => $input['hmo_coverage_type'] ?? null,
+            'hmo_expiry_date'       => $input['hmo_expiry_date'] ?? null,
+            'hmo_contact_person'    => $input['hmo_contact_person'] ?? null,
         ];
 
-        // Filter admission data to only include columns that actually exist on inpatient_admissions
         try {
             $fields = $this->db->getFieldData('inpatient_admissions');
             $existingColumns = array_map(static fn($field) => $field->name ?? null, $fields);
@@ -1367,72 +1344,22 @@ class PatientService
 
             $admissionData = array_intersect_key($admissionData, array_flip($existingColumns));
         } catch (\Throwable $e) {
-            // If schema inspection fails, continue with raw $admissionData; insert try/catch below
-            // will still guard the transaction and log any concrete DB error.
+            // best-effort only
         }
 
         try {
             $this->db->table('inpatient_admissions')->insert($admissionData);
-
             $admissionId = (int) $this->db->insertID();
 
             if ($admissionId) {
                 $this->createInpatientMedicalHistoryRecord($admissionId, $input);
                 $this->createInpatientInitialAssessmentRecord($admissionId, $input);
                 $this->createInpatientRoomAssignmentRecord($admissionId, $input);
-
                 $this->createInsuranceClaimForInpatient($patientId, $admissionId, $input);
             }
         } catch (\Throwable $e) {
             log_message('error', 'Failed to insert inpatient admission for patient ' . $patientId . ': ' . $e->getMessage());
-        }
-    }
-
-    private function createInpatientMedicalHistoryRecord(int $admissionId, array $input): void
-    {
-        if (! $this->db->tableExists('inpatient_medical_history')) {
-            return;
-        }
-
-        $historyData = [
-            'admission_id' => $admissionId,
-            'allergies' => $input['history_allergies'] ?? $input['allergies'] ?? null,
-            'past_medical_history' => $input['past_medical_history'] ?? null,
-            'past_surgical_history' => $input['past_surgical_history'] ?? null,
-            'family_history' => $input['family_history'] ?? null,
-            'current_medications' => $input['history_current_medications'] ?? $input['current_medications'] ?? null,
-        ];
-
-        try {
-            $this->db->table('inpatient_medical_history')->insert($historyData);
-        } catch (\Throwable $e) {
-            log_message('error', 'Failed to insert inpatient medical history for admission ' . $admissionId . ': ' . $e->getMessage());
-        }
-    }
-
-    private function createInpatientInitialAssessmentRecord(int $admissionId, array $input): void
-    {
-        if (! $this->db->tableExists('inpatient_initial_assessment')) {
-            return;
-        }
-
-        $assessmentData = [
-            'admission_id' => $admissionId,
-            'blood_pressure' => $input['assessment_bp'] ?? null,
-            'heart_rate' => $input['assessment_hr'] ?? null,
-            'respiratory_rate' => $input['assessment_rr'] ?? null,
-            'temperature' => $input['assessment_temp'] ?? null,
-            'spo2' => $input['assessment_spo2'] ?? null,
-            'level_of_consciousness' => $input['level_of_consciousness'] ?? null,
-            'pain_level' => $input['pain_level'] ?? null,
-            'initial_findings' => $input['initial_findings'] ?? null,
-            'remarks' => $input['assessment_remarks'] ?? null,
-        ];
-
-        try {
-            $this->db->table('inpatient_initial_assessment')->insert($assessmentData);
-        } catch (\Throwable $e) {
-            log_message('error', 'Failed to insert inpatient initial assessment for admission ' . $admissionId . ': ' . $e->getMessage());
+            throw $e;
         }
     }
 
@@ -1442,67 +1369,49 @@ class PatientService
             return;
         }
 
-        $roomNumber = $input['room_number'] ?? null;
+        $roomNumber  = $input['room_number'] ?? null;
         $floorNumber = $input['floor_number'] ?? null;
-        $bedNumber = $input['bed_number'] ?? null;
-        $roomType = $input['room_type'] ?? null;
+        $bedNumber   = $input['bed_number'] ?? null;
+        $roomType    = $input['room_type'] ?? null;
 
         $hasSelection = ($roomNumber !== null && $roomNumber !== '')
             || ($floorNumber !== null && $floorNumber !== '')
             || ($bedNumber !== null && $bedNumber !== '')
             || ($roomType !== null && $roomType !== '');
 
-        if (!$hasSelection) {
+        if (! $hasSelection) {
             return;
         }
 
-        // Normalize daily_rate: the UI may submit a placeholder like 'Auto-calculated'
-        // which is not a valid DECIMAL value for the DB schema.
         $rawDailyRate = $input['daily_rate'] ?? null;
         $normalizedDailyRate = null;
-
-        if ($rawDailyRate !== null && $rawDailyRate !== '') {
-            // Accept numeric strings, otherwise leave as NULL
-            $numeric = is_numeric($rawDailyRate) ? (float) $rawDailyRate : null;
-            if ($numeric !== null) {
-                $normalizedDailyRate = $numeric;
-            }
+        if ($rawDailyRate !== null && $rawDailyRate !== '' && is_numeric($rawDailyRate)) {
+            $normalizedDailyRate = (float) $rawDailyRate;
         }
 
-        // If UI submitted room_type as numeric room_type_id, map it to enum-friendly type_name.
-        // Also, if daily_rate wasn't provided, try to derive it from room_type.base_daily_rate.
         if ($roomType !== null && $roomType !== '' && is_numeric($roomType) && $this->db->tableExists('room_type')) {
             try {
-                $builder = $this->db->table('room_type')
-                    ->select('type_name');
-
+                $builder = $this->db->table('room_type')->select('type_name');
                 if ($this->db->fieldExists('base_daily_rate', 'room_type')) {
                     $builder->select('base_daily_rate');
                 }
 
-                $row = $builder
-                    ->where('room_type_id', (int) $roomType)
-                    ->get()
-                    ->getRowArray();
-
+                $row = $builder->where('room_type_id', (int) $roomType)->get()->getRowArray();
                 if ($row) {
                     $typeName = trim((string) ($row['type_name'] ?? ''));
                     if ($typeName !== '') {
                         $roomType = $typeName;
                     }
-
                     if ($normalizedDailyRate === null && isset($row['base_daily_rate']) && is_numeric($row['base_daily_rate'])) {
                         $normalizedDailyRate = (float) $row['base_daily_rate'];
                     }
                 }
             } catch (\Throwable $e) {
-                // Best-effort mapping only
+                // best-effort only
             }
         }
 
-        // Get room_type from input, handling both text and enum values
         if ($roomType && !in_array($roomType, ['Ward', 'Semi-Private', 'Private', 'Isolation', 'ICU'], true)) {
-            // Try to map common variations
             $roomTypeMap = [
                 'ward' => 'Ward',
                 'semi-private' => 'Semi-Private',
@@ -1511,7 +1420,7 @@ class PatientService
                 'isolation' => 'Isolation',
                 'icu' => 'ICU',
             ];
-            $roomType = $roomTypeMap[strtolower($roomType)] ?? null;
+            $roomType = $roomTypeMap[strtolower((string) $roomType)] ?? null;
         }
 
         $assignedAt = $input['assigned_at'] ?? null;
@@ -1519,135 +1428,114 @@ class PatientService
             $assignedAt = date('Y-m-d H:i:s');
         }
 
-        $roomId = null;
+        if (! $this->db->tableExists('room')) {
+            return;
+        }
 
-        // Look up room_id from room table if room_number is provided
-        if ($roomNumber && $this->db->tableExists('room')) {
-            $roomBuilder = $this->db->table('room')
-                ->where('room_number', $roomNumber);
+        $roomBuilder = $this->db->table('room')->where('room_number', (string) $roomNumber);
+        if ($floorNumber) {
+            $roomBuilder->where('floor_number', $floorNumber);
+        }
+        $room = $roomBuilder->get()->getRowArray();
+        if (! $room || !isset($room['room_id'])) {
+            throw new \RuntimeException('Room not found: ' . (string) $roomNumber);
+        }
 
-            // Match floor_number if provided
-            if ($floorNumber) {
-                $roomBuilder->where('floor_number', $floorNumber);
+        $roomId = (int) $room['room_id'];
+        $status = (string) ($room['status'] ?? 'available');
+        if ($status === 'maintenance') {
+            throw new \RuntimeException('Room is under maintenance: ' . (string) $roomNumber);
+        }
+
+        $capacity = isset($room['bed_capacity']) ? (int) $room['bed_capacity'] : 0;
+        $bedNames = [];
+        if (!empty($room['bed_names'])) {
+            $decoded = json_decode((string) $room['bed_names'], true);
+            if (is_array($decoded)) {
+                $bedNames = array_values(array_filter(array_map('strval', $decoded)));
             }
+        }
 
-            $room = $roomBuilder->get()->getRowArray();
+        $effectiveCapacity = $capacity > 0 ? $capacity : (count($bedNames) > 0 ? count($bedNames) : 1);
 
-            if ($room && isset($room['room_id'])) {
-                $roomId = (int) $room['room_id'];
+        $occupiedBeds = [];
+        if ($this->db->tableExists('inpatient_admissions')) {
+            try {
+                $occBuilder = $this->db->table('inpatient_room_assignments ira')
+                    ->select('ira.bed_number')
+                    ->join('inpatient_admissions ia', 'ia.admission_id = ira.admission_id', 'inner')
+                    ->where('ira.room_id', $roomId)
+                    ->where('ira.bed_number IS NOT NULL', null, false)
+                    ->where('ira.bed_number !=', '');
 
-                // Validate room is available or can be assigned
-                $roomStatus = $room['status'] ?? 'available';
-                if ($roomStatus === 'maintenance') {
-                    log_message('warning', "Attempted to assign patient to room {$roomNumber} which is under maintenance");
-                    // Continue anyway, but log the warning
+                if ($this->db->fieldExists('discharge_datetime', 'inpatient_admissions')) {
+                    $occBuilder->where('ia.discharge_datetime IS NULL', null, false);
+                } elseif ($this->db->fieldExists('discharge_date', 'inpatient_admissions')) {
+                    $occBuilder->groupStart()
+                        ->where('ia.discharge_date IS NULL', null, false)
+                        ->orWhere('ia.discharge_date', '')
+                    ->groupEnd();
+                } elseif ($this->db->fieldExists('status', 'inpatient_admissions')) {
+                    $occBuilder->where('ia.status', 'active');
                 }
 
-                // Update room status to 'occupied' if it's available
-                if ($roomStatus === 'available') {
-                    try {
-                        $this->db->table('room')
-                            ->where('room_id', $roomId)
-                            ->update(['status' => 'occupied']);
-                    } catch (\Throwable $e) {
-                        log_message('error', 'Failed to update room status to occupied: ' . $e->getMessage());
+                foreach ($occBuilder->get()->getResultArray() as $r) {
+                    $b = trim((string) ($r['bed_number'] ?? ''));
+                    if ($b !== '') {
+                        $occupiedBeds[$b] = true;
                     }
                 }
-            } else {
-                log_message('warning', "Room {$roomNumber} on floor {$floorNumber} not found in room table");
+            } catch (\Throwable $e) {
+                // best-effort only
+            }
+        }
+
+        if ($bedNumber === null || $bedNumber === '') {
+            $candidates = count($bedNames) > 0
+                ? $bedNames
+                : array_map(static fn ($i) => 'Bed ' . ($i + 1), range(0, $effectiveCapacity - 1));
+
+            foreach ($candidates as $candidate) {
+                if (!isset($occupiedBeds[$candidate])) {
+                    $bedNumber = $candidate;
+                    break;
+                }
+            }
+        }
+
+        if ($bedNumber === null || $bedNumber === '') {
+            throw new \RuntimeException('No available beds in room: ' . (string) $roomNumber);
+        }
+
+        if (isset($occupiedBeds[$bedNumber])) {
+            throw new \RuntimeException('Bed is already occupied: ' . (string) $bedNumber);
+        }
+
+        $occupiedAfter = count($occupiedBeds) + 1;
+        $newStatus = $occupiedAfter >= $effectiveCapacity ? 'occupied' : 'available';
+        if ($status !== $newStatus) {
+            try {
+                $this->db->table('room')->where('room_id', $roomId)->update(['status' => $newStatus]);
+            } catch (\Throwable $e) {
+                log_message('error', 'Failed to update room status: ' . $e->getMessage());
             }
         }
 
         $roomData = [
-            'admission_id' => $admissionId,
-            'room_id' => $roomId,
-            'room_type' => $roomType,
-            'floor_number' => $floorNumber,
-            'room_number' => $roomNumber,
-            'bed_number' => $bedNumber,
-            'daily_rate' => $normalizedDailyRate,
-            'assigned_at' => $assignedAt,
+            'admission_id'  => $admissionId,
+            'room_id'       => $roomId,
+            'room_type'     => $roomType,
+            'floor_number'  => $floorNumber,
+            'room_number'   => $roomNumber,
+            'bed_number'    => $bedNumber,
+            'daily_rate'    => $normalizedDailyRate,
+            'assigned_at'   => $assignedAt,
         ];
 
-        try {
-            $this->db->table('inpatient_room_assignments')->insert($roomData);
-            $roomAssignmentId = (int) $this->db->insertID();
-
-            // Also store in legacy room_assignment table (for reporting/compat)
-            if ($roomAssignmentId > 0 && $this->db->tableExists('room_assignment')) {
-                $patientId = null;
-                if ($this->db->tableExists('inpatient_admissions')) {
-                    $admissionRow = $this->db->table('inpatient_admissions')
-                        ->select('patient_id')
-                        ->where('admission_id', $admissionId)
-                        ->get()
-                        ->getRowArray();
-                    if ($admissionRow && isset($admissionRow['patient_id'])) {
-                        $patientId = (int) $admissionRow['patient_id'];
-                    }
-                }
-
-                if ($patientId) {
-                    $legacyBedId = null;
-                    if ($roomId && $bedNumber && $this->db->tableExists('bed')) {
-                        $bedRow = $this->db->table('bed')
-                            ->select('bed_id')
-                            ->where('room_id', $roomId)
-                            ->where('bed_number', $bedNumber)
-                            ->get()
-                            ->getRowArray();
-                        if ($bedRow && isset($bedRow['bed_id'])) {
-                            $legacyBedId = (int) $bedRow['bed_id'];
-                        }
-                    }
-
-                    $legacyDateIn = $assignedAt ?: date('Y-m-d H:i:s');
-                    $legacyPayload = [
-                        'patient_id' => $patientId,
-                        'room_id' => $roomId,
-                        'bed_id' => $legacyBedId,
-                        'admission_id' => $admissionId,
-                        'date_in' => $legacyDateIn,
-                        'date_out' => null,
-                        'total_days' => null,
-                        'status' => 'active',
-                    ];
-
-                    $existingLegacyRow = $this->db->table('room_assignment')
-                        ->select('assignment_id')
-                        ->where('admission_id', $admissionId)
-                        ->where('status', 'active')
-                        ->orderBy('assignment_id', 'DESC')
-                        ->get()
-                        ->getRowArray();
-
-                    if ($existingLegacyRow && isset($existingLegacyRow['assignment_id'])) {
-                        $this->db->table('room_assignment')
-                            ->where('assignment_id', (int) $existingLegacyRow['assignment_id'])
-                            ->update($legacyPayload);
-                    } else {
-                        $this->db->table('room_assignment')->insert($legacyPayload);
-                    }
-                }
-            }
-
-            // Auto-add room charge to billing if room assignment was created successfully
-            if ($roomAssignmentId > 0 && (!empty($roomNumber) || !empty($roomType))) {
-                $this->addRoomChargeToBilling($admissionId, $roomAssignmentId, $normalizedDailyRate);
-            }
-        } catch (\Throwable $e) {
-            log_message('error', 'Failed to insert inpatient room assignment for admission ' . $admissionId . ': ' . $e->getMessage());
-            
-            // Rollback room status if assignment failed
-            if ($roomId && $this->db->tableExists('room')) {
-                try {
-                    $this->db->table('room')
-                        ->where('room_id', $roomId)
-                        ->update(['status' => 'available']);
-                } catch (\Throwable $rollbackError) {
-                    log_message('error', 'Failed to rollback room status: ' . $rollbackError->getMessage());
-                }
-            }
+        $this->db->table('inpatient_room_assignments')->insert($roomData);
+        $roomAssignmentId = (int) $this->db->insertID();
+        if ($roomAssignmentId > 0 && (!empty($roomNumber) || !empty($roomType))) {
+            $this->addRoomChargeToBilling($admissionId, $roomAssignmentId, $normalizedDailyRate);
         }
     }
 

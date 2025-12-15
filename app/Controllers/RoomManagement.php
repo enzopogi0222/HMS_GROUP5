@@ -114,6 +114,15 @@ class RoomManagement extends BaseController
         return $this->jsonResponse(['status' => 'success', 'data' => $this->roomService->getRooms()]);
     }
 
+    public function getRoomTypesAPI()
+    {
+        return $this->jsonResponse($this->appendCsrfHash([
+            'success' => true,
+            'status'  => 'success',
+            'data'    => $this->getRoomTypes(),
+        ]));
+    }
+
     public function getRoom(int $roomId)
     {
         $room = $this->roomService->getRoomById($roomId);

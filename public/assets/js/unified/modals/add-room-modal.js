@@ -11,6 +11,8 @@
     const form = document.getElementById(formId);
     const submitBtn = document.getElementById('saveRoomBtn');
     const roomTypeInput = document.getElementById('modal_room_type');
+    const customRoomTypeWrapper = document.getElementById('modal_custom_room_type_wrapper');
+    const customRoomTypeInput = document.getElementById('modal_custom_room_type');
     const departmentSelect = document.getElementById('modal_department');
     const floorInput = document.getElementById('modal_floor');
     const roomNumberInput = document.getElementById('modal_room_number');
@@ -41,6 +43,80 @@
             bedCapacityInput.addEventListener('input', syncBedNameInputsFromCapacity);
             bedCapacityInput.addEventListener('change', syncBedNameInputsFromCapacity);
         }
+
+        if (roomTypeInput) {
+            roomTypeInput.addEventListener('change', syncCustomRoomTypeVisibility);
+            syncCustomRoomTypeVisibility();
+        }
+    }
+
+    function syncCustomRoomTypeVisibility() {
+        const isCustom = (roomTypeInput?.value || '') === '__custom__';
+
+        if (customRoomTypeWrapper) {
+            customRoomTypeWrapper.style.display = isCustom ? 'block' : 'none';
+        }
+
+        if (customRoomTypeInput) {
+            customRoomTypeInput.required = isCustom;
+            if (!isCustom) {
+                customRoomTypeInput.value = '';
+            }
+        }
+
+        if (roomTypeInput) {
+            roomTypeInput.required = !isCustom;
+        }
+    }
+
+    async function refreshRoomTypes(selectedTypeName = '') {
+        if (!roomTypeInput) return;
+
+        try {
+            const response = await fetch(`${baseUrl}/room-types/api`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+            });
+
+            const result = await response.json();
+            utils.refreshCsrfHash(result?.csrf_hash);
+
+            const types = Array.isArray(result?.data) ? result.data : [];
+
+            const currentValue = roomTypeInput.value;
+            roomTypeInput.innerHTML = '';
+
+            const placeholderOpt = document.createElement('option');
+            placeholderOpt.value = '';
+            placeholderOpt.textContent = 'Select room type';
+            roomTypeInput.appendChild(placeholderOpt);
+
+            let selectedId = '';
+            for (const t of types) {
+                const id = (t?.room_type_id ?? '').toString();
+                const name = (t?.type_name ?? '').toString();
+                if (!id || !name) continue;
+
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = name;
+                roomTypeInput.appendChild(opt);
+
+                if (selectedTypeName && name.toLowerCase() === selectedTypeName.toLowerCase()) {
+                    selectedId = id;
+                }
+            }
+
+            const customOpt = document.createElement('option');
+            customOpt.value = '__custom__';
+            customOpt.textContent = 'Other (type manually)';
+            roomTypeInput.appendChild(customOpt);
+
+            roomTypeInput.value = selectedId || (currentValue && currentValue !== '__custom__' ? currentValue : '');
+            syncCustomRoomTypeVisibility();
+        } catch (e) {
+            // Ignore refresh failures; dropdown will still work with existing options
+        }
     }
 
     function open(room = null) {
@@ -49,6 +125,7 @@
         form.reset();
         editingRoomId = null;
         form.removeAttribute('data-room-id');
+        syncCustomRoomTypeVisibility();
         syncBedNameInputsFromCapacity();
 
         if (room) {
@@ -73,6 +150,7 @@
         if (roomTypeInput) {
             roomTypeInput.value = room.room_type_id || '';
         }
+        syncCustomRoomTypeVisibility();
         if (roomNumberInput) roomNumberInput.value = room.room_number || '';
         if (floorInput) floorInput.value = room.floor_number || '';
         if (departmentSelect) departmentSelect.value = room.department_id || '';
@@ -116,9 +194,18 @@
         if (!form) return;
 
         const selectedRoomTypeId = (roomTypeInput?.value || '').trim();
+        const isCustomRoomType = selectedRoomTypeId === '__custom__';
+        const customTypeName = (customRoomTypeInput?.value || '').trim();
+
         if (!selectedRoomTypeId) {
             utils.showNotification('Please select a room type.', 'error');
             roomTypeInput?.focus();
+            return;
+        }
+
+        if (isCustomRoomType && !customTypeName) {
+            utils.showNotification('Please enter a room type.', 'error');
+            customRoomTypeInput?.focus();
             return;
         }
 
@@ -129,8 +216,13 @@
 
         try {
             const formData = new FormData(form);
-            formData.set('room_type_id', selectedRoomTypeId);
-            formData.set('custom_room_type', '');
+            if (isCustomRoomType) {
+                formData.set('room_type_id', '');
+                formData.set('custom_room_type', customTypeName);
+            } else {
+                formData.set('room_type_id', selectedRoomTypeId);
+                formData.set('custom_room_type', '');
+            }
 
             const endpoint = editingRoomId
                 ? `${baseUrl}/rooms/${editingRoomId}/update`
@@ -147,6 +239,10 @@
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to save room');
+            }
+
+            if (isCustomRoomType && customTypeName) {
+                await refreshRoomTypes(customTypeName);
             }
 
             utils.showNotification(`Room ${editingRoomId ? 'updated' : 'saved'} successfully.`, 'success');

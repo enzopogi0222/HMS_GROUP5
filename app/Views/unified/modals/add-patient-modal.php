@@ -593,8 +593,8 @@
                                         <textarea id="admitting_diagnosis" name="admitting_diagnosis" class="form-input" rows="2" required></textarea>
                                     </div>
                                     <div>
-                                        <label class="form-label" for="admitting_doctor">Admitting Doctor*</label>
-                                        <input type="text" id="admitting_doctor" name="admitting_doctor" class="form-input" list="admitting_doctor_list" placeholder="Type or select a doctor" required>
+                                        <label class="form-label" for="admitting_doctor">Admitting Doctor</label>
+                                        <input type="text" id="admitting_doctor" name="admitting_doctor" class="form-input" list="admitting_doctor_list" placeholder="Type or select a doctor">
                                         <datalist id="admitting_doctor_list">
                                             <?php if (!empty($availableDoctors)): ?>
                                                 <?php foreach ($availableDoctors as $d): ?>

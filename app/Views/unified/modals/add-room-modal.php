@@ -32,7 +32,11 @@
                                     </option>
                                 <?php endforeach; ?>
                             <?php endif; ?>
+                            <option value="__custom__">Other (type manually)</option>
                         </select>
+                        <div id="modal_custom_room_type_wrapper" style="display:none;margin-top:0.5rem;">
+                            <input type="text" id="modal_custom_room_type" name="custom_room_type" class="form-input" placeholder="Enter room type" />
+                        </div>
                         <small class="form-hint">Select the room type.</small>
                     </div>
                     <div>

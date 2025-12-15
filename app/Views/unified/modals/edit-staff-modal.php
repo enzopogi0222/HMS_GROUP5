@@ -9,6 +9,17 @@
             <input type="hidden" id="e_staff_id" name="staff_id">
             <div class="hms-modal-body">
                 <div class="form-grid">
+                    <div>
+                        <label class="form-label" for="e_designation">Role/Designation*</label>
+                        <p class="form-hint">Select a role to see or edit the appropriate requirements.</p>
+                        <select id="e_designation" name="designation" class="form-select" required>
+                            <option value="">Select role</option>
+                            <?php foreach (['admin', 'doctor', 'nurse', 'pharmacist', 'receptionist', 'laboratorist', 'it_staff', 'accountant'] as $role): ?>
+                                <option value="<?= $role ?>"><?= ucfirst(str_replace('_', ' ', $role)) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small id="e_err_designation" style="color:#dc2626"></small>
+                    </div>
                     <?= $this->include('unified/modals/shared/common-fields', ['prefix' => 'e_', 'required' => false, 'departments' => $departments ?? []]) ?>
                     <?= $this->include('unified/modals/shared/role-fields', ['prefix' => 'e_']) ?>
                 </div>
@@ -20,4 +31,3 @@
         </form>
     </div>
 </div>
-S

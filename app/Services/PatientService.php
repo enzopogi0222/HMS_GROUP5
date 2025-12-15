@@ -1363,6 +1363,72 @@ class PatientService
         }
     }
 
+    private function createInpatientMedicalHistoryRecord(int $admissionId, array $input): void
+    {
+        if (! $this->db->tableExists('inpatient_medical_history')) {
+            return;
+        }
+
+        $historyData = [
+            'admission_id' => $admissionId,
+            'allergies' => $input['allergies'] ?? null,
+            'past_medical_history' => $input['past_medical_history'] ?? null,
+            'past_surgical_history' => $input['past_surgical_history'] ?? null,
+            'family_history' => $input['family_history'] ?? null,
+            'current_medications' => $input['current_medications'] ?? null,
+        ];
+
+        try {
+            $fields = $this->db->getFieldData('inpatient_medical_history');
+            $existingColumns = array_map(static fn($field) => $field->name ?? null, $fields);
+            $existingColumns = array_filter($existingColumns);
+            $historyData = array_intersect_key($historyData, array_flip($existingColumns));
+        } catch (\Throwable $e) {
+            // best-effort only
+        }
+
+        try {
+            $this->db->table('inpatient_medical_history')->insert($historyData);
+        } catch (\Throwable $e) {
+            log_message('warning', 'Failed to insert inpatient medical history for admission ' . $admissionId . ': ' . $e->getMessage());
+        }
+    }
+
+    private function createInpatientInitialAssessmentRecord(int $admissionId, array $input): void
+    {
+        if (! $this->db->tableExists('inpatient_initial_assessment')) {
+            return;
+        }
+
+        $assessmentData = [
+            'admission_id' => $admissionId,
+            'blood_pressure' => $input['blood_pressure'] ?? null,
+            'heart_rate' => $input['heart_rate'] ?? null,
+            'respiratory_rate' => $input['respiratory_rate'] ?? null,
+            'temperature' => $input['temperature'] ?? null,
+            'spo2' => $input['spo2'] ?? ($input['oxygen_saturation'] ?? null),
+            'level_of_consciousness' => $input['level_of_consciousness'] ?? null,
+            'pain_level' => $input['pain_level'] ?? null,
+            'initial_findings' => $input['initial_findings'] ?? null,
+            'remarks' => $input['remarks'] ?? null,
+        ];
+
+        try {
+            $fields = $this->db->getFieldData('inpatient_initial_assessment');
+            $existingColumns = array_map(static fn($field) => $field->name ?? null, $fields);
+            $existingColumns = array_filter($existingColumns);
+            $assessmentData = array_intersect_key($assessmentData, array_flip($existingColumns));
+        } catch (\Throwable $e) {
+            // best-effort only
+        }
+
+        try {
+            $this->db->table('inpatient_initial_assessment')->insert($assessmentData);
+        } catch (\Throwable $e) {
+            log_message('warning', 'Failed to insert inpatient initial assessment for admission ' . $admissionId . ': ' . $e->getMessage());
+        }
+    }
+
     private function createInpatientRoomAssignmentRecord(int $admissionId, array $input): void
     {
         if (! $this->db->tableExists('inpatient_room_assignments')) {

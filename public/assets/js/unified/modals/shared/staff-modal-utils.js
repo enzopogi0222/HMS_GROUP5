@@ -34,22 +34,33 @@ window.StaffModalUtils = {
         const selectEl = document.getElementById(`${prefix}doctor_specialization`);
         if (!selectEl) return;
 
+        // Cache server-rendered options so we can fall back when there is no department mapping.
+        if (!selectEl.__defaultOptionsHtml) {
+            selectEl.__defaultOptionsHtml = selectEl.innerHTML;
+        }
+
         const currentValue = selectedValue !== undefined && selectedValue !== null
             ? String(selectedValue)
             : (selectEl.value || '');
 
         const specs = StaffModalUtils.departmentSpecializations[deptKey] || [];
 
-        selectEl.innerHTML = '<option value="">Select specialization</option>';
-        specs.forEach((spec) => {
-            const opt = document.createElement('option');
-            opt.value = spec;
-            opt.textContent = spec;
-            selectEl.appendChild(opt);
-        });
+        // If the department has no mapping, keep the default (server-rendered) list.
+        if (!specs.length) {
+            selectEl.innerHTML = selectEl.__defaultOptionsHtml;
+        } else {
+            selectEl.innerHTML = '<option value="">Select specialization</option>';
+            specs.forEach((spec) => {
+                const opt = document.createElement('option');
+                opt.value = spec;
+                opt.textContent = spec;
+                selectEl.appendChild(opt);
+            });
+        }
 
         // Preserve current selection if it still exists; otherwise clear.
-        if (currentValue && specs.includes(currentValue)) {
+        const optionValues = Array.from(selectEl.options).map(o => o.value);
+        if (currentValue && optionValues.includes(currentValue)) {
             selectEl.value = currentValue;
         } else {
             selectEl.value = '';
@@ -156,7 +167,6 @@ window.StaffModalUtils = {
      */
     validateRoleFields(formData, errors) {
         const roleValidations = {
-            doctor: { field: 'doctor_specialization', msg: 'Doctor specialization is required.' },
             nurse: { field: 'nurse_license_no', msg: 'Nurse license number is required.' },
             accountant: { field: 'accountant_license_no', msg: 'Accountant license number is required.' },
             laboratorist: { field: 'laboratorist_license_no', msg: 'Laboratorist license number is required.' },

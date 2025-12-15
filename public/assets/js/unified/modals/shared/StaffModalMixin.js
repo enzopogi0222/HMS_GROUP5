@@ -151,9 +151,7 @@ const StaffModalMixin = {
         const designation = formData.designation || formData.role || '';
         
         if (designation === 'doctor') {
-            if (!formData.doctor_specialization || String(formData.doctor_specialization).trim().length < 2) {
-                errors.doctor_specialization = 'Doctor specialization is required.';
-            }
+            // specialization is optional
         }
         
         if (designation === 'nurse') {

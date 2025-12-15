@@ -599,20 +599,18 @@ class StaffService
         ];
 
         $roleRules = [
-            'doctor' => ['doctor_specialization' => ($isUpdate ? 'permit_empty' : 'required') . '|max_length[100]', 'doctor_license_no' => 'permit_empty|max_length[50]', 'doctor_consultation_fee' => 'permit_empty|decimal'],
+            'doctor' => ['doctor_specialization' => 'permit_empty|max_length[100]', 'doctor_license_no' => 'permit_empty|max_length[50]', 'doctor_consultation_fee' => 'permit_empty|decimal'],
             'nurse' => ['nurse_license_no' => ($isUpdate ? 'permit_empty' : 'required') . '|max_length[100]'],
             'pharmacist' => ['pharmacist_license_no' => ($isUpdate ? 'permit_empty' : 'required') . '|max_length[100]'],
             'laboratorist' => ['laboratorist_license_no' => ($isUpdate ? 'permit_empty' : 'required') . '|max_length[100]', 'laboratorist_specialization' => 'permit_empty|max_length[150]', 'lab_room_no' => 'permit_empty|max_length[50]'],
             'accountant' => ['accountant_license_no' => ($isUpdate ? 'permit_empty' : 'required') . '|max_length[100]'],
             'receptionist' => ['receptionist_desk_no' => 'permit_empty|max_length[50]'],
             'it_staff' => ['it_expertise' => 'permit_empty|max_length[150]'],
+            'admin' => ['username' => 'permit_empty|min_length[3]|max_length[50]', 'password' => 'permit_empty|min_length[4]|max_length[50]']
         ];
 
         if (isset($roleRules[$role])) {
             $baseRules = array_merge($baseRules, $roleRules[$role]);
-            if ($role === 'doctor' && !$isUpdate) {
-                $baseRules['doctor_specialization'] = 'required|min_length[2]|max_length[100]';
-            }
         }
 
         return $baseRules;

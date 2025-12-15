@@ -4,11 +4,10 @@ $prefix = $prefix ?? '';
 $specializations = ['Pediatrics', 'Cardiology', 'Internal Medicine', 'General Practice', 'Obstetrics and Gynecology', 'Surgery', 'Orthopedics', 'Neurology', 'Psychiatry', 'Dermatology', 'Ophthalmology', 'Otolaryngology', 'Emergency Medicine', 'Radiology', 'Anesthesiology'];
 ?>
 <!-- Doctor-specific fields -->
-<?php if (false): ?>
 <div id="<?= $prefix ?>doctorFields" class="full" style="display:none; grid-column: 1 / -1;">
     <div class="form-grid">
         <div>
-            <label class="form-label" for="<?= $prefix ?>doctor_specialization">Doctor Specialization*</label>
+            <label class="form-label" for="<?= $prefix ?>doctor_specialization">Doctor Specialization</label>
             <select id="<?= $prefix ?>doctor_specialization" name="doctor_specialization" class="form-select">
                 <option value="">Select specialization</option>
                 <?php foreach ($specializations as $spec): ?><option value="<?= esc($spec) ?>"><?= esc($spec) ?></option><?php endforeach; ?>
@@ -29,7 +28,6 @@ $specializations = ['Pediatrics', 'Cardiology', 'Internal Medicine', 'General Pr
         <?php endif; ?>
     </div>
 </div>
-<?php endif; ?>
 <!-- Accountant-specific fields -->
 <div id="<?= $prefix ?>accountantFields" class="full" style="display:none; grid-column: 1 / -1;">
     <div class="form-grid">

@@ -101,6 +101,65 @@
             });
     }
 
+    // ==========================
+    // Billing accounts filtering
+    // ==========================
+
+    function normaliseString(value) {
+        return String(value || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/\p{Diacritic}+/gu, '');
+    }
+
+    function applyBillingFilters() {
+        if (!tableBody) return;
+
+        const dateInput = document.getElementById('dateFilter');
+        const categoryInput = document.getElementById('categoryFilter');
+        const searchInput = document.getElementById('searchFilter');
+
+        const selectedDate = (dateInput && dateInput.value) ? dateInput.value : '';
+        const selectedCategory = (categoryInput && categoryInput.value) ? categoryInput.value : '';
+        const searchTerm = normaliseString(searchInput && searchInput.value ? searchInput.value : '');
+
+        const rows = tableBody.querySelectorAll('tr');
+        rows.forEach(row => {
+            // Skip placeholder rows without billing data
+            const billingIdCell = row.querySelector('td');
+            if (!billingIdCell) return;
+
+            const rowDate = row.getAttribute('data-created-at') || '';
+            const rowCategory = row.getAttribute('data-category') || '';
+            const rowPatientName = row.getAttribute('data-patient-name') || '';
+
+            const matchesDate = !selectedDate || rowDate === selectedDate;
+            const matchesCategory = !selectedCategory || rowCategory === selectedCategory;
+
+            let matchesSearch = true;
+            if (searchTerm) {
+                const patient = normaliseString(rowPatientName);
+                const billingIdText = normaliseString(billingIdCell.textContent || '');
+                matchesSearch = patient.includes(searchTerm) || billingIdText.includes(searchTerm);
+            }
+
+            const visible = matchesDate && matchesCategory && matchesSearch;
+            row.style.display = visible ? '' : 'none';
+        });
+    }
+
+    function clearBillingFilters() {
+        const dateInput = document.getElementById('dateFilter');
+        const categoryInput = document.getElementById('categoryFilter');
+        const searchInput = document.getElementById('searchFilter');
+
+        if (dateInput) dateInput.value = '';
+        if (categoryInput) categoryInput.value = '';
+        if (searchInput) searchInput.value = '';
+
+        applyBillingFilters();
+    }
+
     window.closeTransactionDetailsModal = function() {
         const modal = document.getElementById('transactionDetailsModal');
         if (!modal) return;
@@ -536,6 +595,10 @@
         const transactionDateTo = document.getElementById('transactionDateTo');
         const transactionSearch = document.getElementById('transactionSearch');
         const clearTransactionFiltersBtn = document.getElementById('clearTransactionFilters');
+        const billingDateFilter = document.getElementById('dateFilter');
+        const billingCategoryFilter = document.getElementById('categoryFilter');
+        const billingSearchFilter = document.getElementById('searchFilter');
+        const billingClearFiltersBtn = document.getElementById('clearFilters');
         const tabButtons = document.querySelectorAll('.financial-tab-button');
         const tabContents = document.querySelectorAll('.financial-tab-content');
         const transactionsTableBody = document.getElementById('transactionsTableBody');
@@ -561,6 +624,26 @@
         }
         if (clearTransactionFiltersBtn) {
             clearTransactionFiltersBtn.addEventListener('click', clearTransactionFilters);
+        }
+
+        // Billing filters (billing accounts tab)
+        if (billingDateFilter) {
+            billingDateFilter.addEventListener('change', applyBillingFilters);
+        }
+        if (billingCategoryFilter) {
+            billingCategoryFilter.addEventListener('change', applyBillingFilters);
+        }
+        if (billingSearchFilter) {
+            let billingSearchTimeout;
+            billingSearchFilter.addEventListener('input', function () {
+                clearTimeout(billingSearchTimeout);
+                billingSearchTimeout = setTimeout(applyBillingFilters, 300);
+            });
+        }
+        if (billingClearFiltersBtn) {
+            billingClearFiltersBtn.addEventListener('click', function () {
+                clearBillingFilters();
+            });
         }
 
         if (transactionsTableBody) {

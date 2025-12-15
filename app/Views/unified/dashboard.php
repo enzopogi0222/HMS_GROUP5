@@ -575,32 +575,6 @@
                 <!-- Accountant Dashboard Cards -->
                 <div class="overview-card" tabindex="0">
                     <div class="card-header-modern">
-                        <div class="card-icon-modern green" aria-hidden="true">
-                            <i class="fas fa-dollar-sign"></i>
-                        </div>
-                        <div class="card-info">
-                            <h3 class="card-title-modern">Revenue</h3>
-                            <p class="card-subtitle">Financial overview</p>
-                        </div>
-                    </div>
-                    <div class="card-metrics">
-                        <div class="metric">
-                            <div class="metric-value green">₱<?= number_format($stats['total_revenue'] ?? 0, 2) ?></div>
-                            <div class="metric-label">Total Revenue</div>
-                        </div>
-                        <div class="metric">
-                            <div class="metric-value blue">₱<?= number_format($stats['today_revenue'] ?? 0, 2) ?></div>
-                            <div class="metric-label">Today</div>
-                        </div>
-                        <div class="metric">
-                            <div class="metric-value purple">₱<?= number_format($stats['monthly_revenue'] ?? 0, 2) ?></div>
-                            <div class="metric-label">This Month</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="overview-card" tabindex="0">
-                    <div class="card-header-modern">
                         <div class="card-icon-modern orange" aria-hidden="true">
                             <i class="fas fa-file-invoice-dollar"></i>
                         </div>
@@ -617,24 +591,6 @@
                         <div class="metric">
                             <div class="metric-value green"><?= esc($stats['paid_bills'] ?? 0) ?></div>
                             <div class="metric-label">Paid</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="overview-card" tabindex="0">
-                    <div class="card-header-modern">
-                        <div class="card-icon-modern blue" aria-hidden="true">
-                            <i class="fas fa-exchange-alt"></i>
-                        </div>
-                        <div class="card-info">
-                            <h3 class="card-title-modern">Transactions</h3>
-                            <p class="card-subtitle">Payment records</p>
-                        </div>
-                    </div>
-                    <div class="card-metrics">
-                        <div class="metric">
-                            <div class="metric-value blue"><?= esc($stats['total_transactions'] ?? 0) ?></div>
-                            <div class="metric-label">Total</div>
                         </div>
                     </div>
                 </div>

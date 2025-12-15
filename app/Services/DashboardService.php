@@ -900,95 +900,12 @@ class DashboardService
      */
     private function getAccountantStats()
     {
-        $stats = [];
-        $today = date('Y-m-d');
-        $todayStart = $today . ' 00:00:00';
-        $todayEnd = $today . ' 23:59:59';
-        $monthStart = date('Y-m-01');
-        $monthEnd = date('Y-m-t');
+        $stats = [
+            'pending_bills' => 0,
+            'paid_bills'    => 0,
+        ];
 
-        // Initialize default values
-        $stats['total_revenue'] = 0;
-        $stats['today_revenue'] = 0;
-        $stats['monthly_revenue'] = 0;
-        $stats['pending_bills'] = 0;
-        $stats['paid_bills'] = 0;
-        $stats['total_transactions'] = 0;
-
-        // Revenue/Income statistics
-        try {
-            // Try transactions table first (newer structure)
-            if ($this->db->tableExists('transactions')) {
-                // Total revenue from completed payments
-                $totalRevenueRow = $this->db->table('transactions')
-                    ->selectSum('amount')
-                    ->where('type', 'payment')
-                    ->where('payment_status', 'completed')
-                    ->get()
-                    ->getRow();
-                $stats['total_revenue'] = (float)($totalRevenueRow->amount ?? 0);
-
-                // Today's revenue
-                $todayRevenueRow = $this->db->table('transactions')
-                    ->selectSum('amount')
-                    ->where('type', 'payment')
-                    ->where('payment_status', 'completed')
-                    ->where('transaction_date', $today)
-                    ->get()
-                    ->getRow();
-                $stats['today_revenue'] = (float)($todayRevenueRow->amount ?? 0);
-
-                // Monthly revenue
-                $monthlyRevenueRow = $this->db->table('transactions')
-                    ->selectSum('amount')
-                    ->where('type', 'payment')
-                    ->where('payment_status', 'completed')
-                    ->where('transaction_date >=', $monthStart)
-                    ->where('transaction_date <=', $monthEnd)
-                    ->get()
-                    ->getRow();
-                $stats['monthly_revenue'] = (float)($monthlyRevenueRow->amount ?? 0);
-
-                // Total transactions count
-                $stats['total_transactions'] = $this->db->table('transactions')
-                    ->where('type', 'payment')
-                    ->countAllResults();
-            }
-            // Fallback to payments table if transactions doesn't exist
-            elseif ($this->db->tableExists('payments')) {
-                $totalRevenueRow = $this->db->table('payments')
-                    ->selectSum('amount')
-                    ->where('status', 'completed')
-                    ->get()
-                    ->getRow();
-                $stats['total_revenue'] = (float)($totalRevenueRow->amount ?? 0);
-
-                if ($this->db->fieldExists('payment_date', 'payments')) {
-                    $todayRevenueRow = $this->db->table('payments')
-                        ->selectSum('amount')
-                        ->where('status', 'completed')
-                        ->where('payment_date', $today)
-                        ->get()
-                        ->getRow();
-                    $stats['today_revenue'] = (float)($todayRevenueRow->amount ?? 0);
-
-                    $monthlyRevenueRow = $this->db->table('payments')
-                        ->selectSum('amount')
-                        ->where('status', 'completed')
-                        ->where('payment_date >=', $monthStart)
-                        ->where('payment_date <=', $monthEnd)
-                        ->get()
-                        ->getRow();
-                    $stats['monthly_revenue'] = (float)($monthlyRevenueRow->amount ?? 0);
-                }
-
-                $stats['total_transactions'] = $this->db->table('payments')->countAllResults();
-            }
-        } catch (\Exception $e) {
-            log_message('error', 'Accountant revenue stats error: ' . $e->getMessage());
-        }
-
-        // Billing accounts statistics
+        // Billing accounts statistics (used by accountant dashboard Billing Accounts card)
         try {
             if ($this->db->tableExists('billing_accounts')) {
                 // Pending bills (unpaid billing accounts)

@@ -277,8 +277,22 @@
                                 // Debug: log each account
                                 log_message('debug', "Rendering billing account ID: {$account['billing_id']}, Patient ID: {$account['patient_id']}, Patient Name: " . ($account['patient_name'] ?? 'NOT SET'));
                             ?>
+                                <?php
+                                    $status = strtolower($account['status'] ?? 'open');
+                                    $label  = ucfirst($status);
+                                    $badge  = ($status === 'paid') ? 'paid' : 'open';
+                                    // Map billing account to a simple financial category for filtering
+                                    $category = ($status === 'paid') ? 'Income' : 'Expense';
+                                    $createdAt = $account['created_at'] ?? '';
+                                    $createdDate = $createdAt ? substr($createdAt, 0, 10) : '';
+                                ?>
 
-                                <tr>
+                                <tr
+                                    data-billing-id="<?= esc($account['billing_id']) ?>"
+                                    data-patient-name="<?= esc($account['patient_name'] ?? ($account['first_name'] ?? '') . ' ' . ($account['last_name'] ?? '') ?: 'Patient #' . $account['patient_id']) ?>"
+                                    data-created-at="<?= esc($createdDate) ?>"
+                                    data-category="<?= esc($category) ?>"
+                                >
                                     <td><?= esc($account['billing_id']) ?></td>
 
                                     <td>
@@ -295,11 +309,6 @@
                                     </td>
 
                                     <td>
-                                        <?php
-                                            $status = strtolower($account['status'] ?? 'open');
-                                            $label  = ucfirst($status);
-                                            $badge  = ($status === 'paid') ? 'paid' : 'open';
-                                        ?>
                                         <span class="status-badge <?= $badge ?>">
                                             <?= esc($label) ?>
                                         </span>
@@ -310,7 +319,7 @@
                                         <?php if (in_array($userRole, ['admin','accountant']) && $status !== 'paid'): ?>
                                             <button class="btn btn-success btn-small" data-action="mark-paid" data-billing-id="<?= esc($account['billing_id']) ?>"><i class="fas fa-check-circle"></i> Mark as Paid</button>
                                         <?php endif; ?>
-                                        <?php if (in_array($userRole, ['admin','accountant'])): ?>
+                                        <?php if ($userRole === 'admin'): ?>
                                             <button class="btn btn-danger btn-small" data-action="delete" data-billing-id="<?= esc($account['billing_id']) ?>"><i class="fas fa-trash"></i> Delete</button>
                                         <?php endif; ?>
                                     </td>

@@ -28,14 +28,21 @@ class AddMedicationFieldsToResourcesTable extends Migration
 
             // Add expiry_date field for medication expiration tracking
             if (!$db->fieldExists('expiry_date', 'resources')) {
-                $fields = [
-                    'expiry_date' => [
-                        'type' => 'DATE',
-                        'null' => true,
-                        'after' => 'batch_number',
-                    ],
-                ];
-                $this->forge->addColumn('resources', $fields);
+                $afterField = $db->fieldExists('batch_number', 'resources') ? 'batch_number' : 'location';
+                try {
+                    $fields = [
+                        'expiry_date' => [
+                            'type' => 'DATE',
+                            'null' => true,
+                            'after' => $afterField,
+                        ],
+                    ];
+                    $this->forge->addColumn('resources', $fields);
+                } catch (\Throwable $e) {
+                    if (! $db->fieldExists('expiry_date', 'resources')) {
+                        throw $e;
+                    }
+                }
             }
 
             // Add serial_number field for individual item tracking (optional)

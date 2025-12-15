@@ -22,15 +22,167 @@
     let editingRoomId = null;
     const existingRoomNumbers = new Set();
 
-    const roomTypeOptionsByAccommodation = {
-        'General Ward / General Accommodation': ['Ward', 'Semi-Private Room', 'Private Room', 'Deluxe Room', 'Executive Room', 'Suite / VIP Suite'],
-        'Intensive / Critical Care Units': ['ICU Bed (Intensive Care Unit)', 'CCU Bed (Coronary Care Unit)', 'NICU Incubator (Neonatal ICU)', 'PICU Bed (Pediatric ICU)', 'SICU Bed (Surgical ICU)', 'MICU Bed (Medical ICU)', 'HDU Bed (High Dependency Unit)'],
-        'Maternity / Obstetrics Accommodation': ['Labor Room', 'Delivery Room', 'Birthing Room (LDR – Labor, Delivery, Recovery)', 'Postpartum Room', 'Maternity Ward', 'Nursery Room'],
-        'Pediatric Accommodation': ['Pediatric Ward', 'Pediatric Private Room', 'Pediatric Isolation Room', 'PICU Bed', 'Neonatal Room'],
-        'Isolation Accommodation': ['Negative Pressure Isolation Room', 'Positive Pressure Isolation Room', 'Isolation Private Room', 'Isolation Ward'],
-        'Surgical / Post-Operative Accommodation': ['Recovery Room', 'PACU Bed (Post-Anesthesia Care Unit)', 'Post-Op Ward', 'Post-Op Private Room'],
-        'Specialty Units': ['Dialysis Station', 'Oncology Room', 'Rehabilitation / Physical Therapy Room', 'Psychiatric Room', 'TB-DOTS Isolation Room'],
+    const departmentAccommodationMap = {
+        'Internal Medicine / General Medicine': {
+            'General Ward': ['Ward Room'],
+            'Semi-Private': ['Semi-Private Room'],
+            'Private': ['Private Room'],
+        },
+        'Pediatrics': {
+            'Pediatric Ward': ['Pediatric Ward Room'],
+            'PICU': ['Pediatric ICU Room'],
+            'Private': ['Private Room'],
+        },
+        'Surgery': {
+            'Surgical Ward': ['Ward Room'],
+            'Private': ['Private Room'],
+            'ICU': ['ICU Room'],
+        },
+        'Orthopedics': {
+            'Orthopedic Ward': ['Ward Room'],
+            'Semi-Private': ['Semi-Private Room'],
+            'Private': ['Private Room'],
+        },
+        'Obstetrics & Gynecology (OB/GYN)': {
+            'Maternity Ward': ['Ward Room'],
+            'Labor & Delivery': ['Delivery Room'],
+            'Private': ['Private Room'],
+        },
+        'Ophthalmology': {
+            'Day Care': ['Day Care / Recovery Room'],
+            'Private': ['Private Room'],
+        },
+        'ENT (Ear, Nose, Throat)': {
+            'General Ward': ['Ward Room'],
+            'Private': ['Private Room'],
+        },
+        'Cardiology': {
+            'Cardiac Ward': ['Ward Room'],
+            'ICU / CCU': ['ICU Room'],
+            'Private': ['Private Room'],
+        },
+        'Neurology': {
+            'Neurology Ward': ['Ward Room'],
+            'ICU': ['ICU Room'],
+            'Private': ['Private Room'],
+        },
+        'Dermatology': {
+            'Day Care': ['Day Care Room'],
+            'General Ward': ['Ward Room'],
+        },
+        'Psychiatry / Mental Health': {
+            'Psychiatric Ward': ['Psychiatric Room'],
+            'Isolation': ['Isolation Room'],
+        },
+        'Radiology / Imaging': {
+            '—': ['No inpatient room'],
+        },
+        'Pathology / Laboratory': {
+            '—': ['No inpatient room'],
+        },
+        'Anesthesiology': {
+            'Recovery': ['Recovery Room (PACU)'],
+            'ICU': ['ICU Room'],
+        },
+        'Emergency / Accident & Trauma': {
+            'Emergency': ['Emergency / Trauma Room'],
+            'ICU': ['ICU Room'],
+        },
+        'Oncology': {
+            'Oncology Ward': ['Ward Room'],
+            'Private': ['Private Room'],
+            'Isolation': ['Isolation Room'],
+        },
+        'Urology': {
+            'General Ward': ['Ward Room'],
+            'Private': ['Private Room'],
+        },
+        'Gastroenterology': {
+            'General Ward': ['Ward Room'],
+            'Private': ['Private Room'],
+        },
+        'Nephrology': {
+            'Dialysis': ['Dialysis Room'],
+            'General Ward': ['Ward Room'],
+        },
+        'Pulmonology / Respiratory Medicine': {
+            'Pulmonary Ward': ['Ward Room'],
+            'ICU': ['ICU Room'],
+            'Isolation': ['Isolation Room'],
+        },
     };
+
+    function normalizeDepartmentName(rawName) {
+        const name = (rawName || '').trim();
+        if (!name) return '';
+
+        const aliases = {
+            'Internal Medicine': 'Internal Medicine / General Medicine',
+            'General Medicine': 'Internal Medicine / General Medicine',
+            'Internal Medicine / General Medicine': 'Internal Medicine / General Medicine',
+            'OB-GYN': 'Obstetrics & Gynecology (OB/GYN)',
+            'OB/GYN': 'Obstetrics & Gynecology (OB/GYN)',
+            'Obstetrics & Gynecology': 'Obstetrics & Gynecology (OB/GYN)',
+            'ENT': 'ENT (Ear, Nose, Throat)',
+            'Psychiatry': 'Psychiatry / Mental Health',
+            'Pulmonology': 'Pulmonology / Respiratory Medicine',
+            'Respiratory Medicine': 'Pulmonology / Respiratory Medicine',
+            'Emergency Department': 'Emergency / Accident & Trauma',
+            'Emergency': 'Emergency / Accident & Trauma',
+            'Radiology': 'Radiology / Imaging',
+            'Laboratory': 'Pathology / Laboratory',
+            'Pathology': 'Pathology / Laboratory',
+        };
+
+        return aliases[name] || name;
+    }
+
+    function getSelectedDepartmentKey() {
+        if (!departmentSelect) return '';
+        const selectedOption = departmentSelect.options[departmentSelect.selectedIndex];
+        const selectedName = selectedOption ? selectedOption.textContent : '';
+        return normalizeDepartmentName(selectedName);
+    }
+
+    function populateAccommodationOptionsForDepartment(departmentKey, preferValue = '') {
+        if (!accommodationSelect) return;
+
+        accommodationSelect.innerHTML = '<option value="">Select accommodation type</option>';
+        const accommodations = Object.keys(departmentAccommodationMap[departmentKey] || {});
+
+        accommodations.forEach(label => {
+            const opt = document.createElement('option');
+            opt.value = label;
+            opt.textContent = label;
+            accommodationSelect.appendChild(opt);
+        });
+
+        if (preferValue && accommodations.includes(preferValue)) {
+            accommodationSelect.value = preferValue;
+        } else {
+            accommodationSelect.value = '';
+        }
+    }
+
+    function populateRoomTypeOptionsForDepartment(departmentKey, accommodationValue, preferValue = '') {
+        if (!roomTypeInput) return;
+
+        roomTypeInput.innerHTML = '<option value="">Select room type</option>';
+        const roomTypes = (departmentAccommodationMap[departmentKey] || {})[accommodationValue] || [];
+
+        roomTypes.forEach(label => {
+            const opt = document.createElement('option');
+            opt.value = label;
+            opt.textContent = label;
+            roomTypeInput.appendChild(opt);
+        });
+
+        if (preferValue && roomTypes.includes(preferValue)) {
+            roomTypeInput.value = preferValue;
+        } else {
+            roomTypeInput.value = '';
+        }
+    }
 
     function init() {
         if (!modal || !form) return;
@@ -39,18 +191,23 @@
         form.addEventListener('submit', handleSubmit);
         if (submitBtn) submitBtn.addEventListener('click', () => form.requestSubmit());
 
-        if (departmentSelect && floorInput) {
+        if (departmentSelect) {
             departmentSelect.addEventListener('change', () => {
                 const selectedOption = departmentSelect.options[departmentSelect.selectedIndex];
-                if (selectedOption) {
+                if (floorInput && selectedOption) {
                     floorInput.value = selectedOption.getAttribute('data-floor') || '';
                 }
+
+                const deptKey = getSelectedDepartmentKey();
+                populateAccommodationOptionsForDepartment(deptKey);
+                populateRoomTypeOptionsForDepartment(deptKey, accommodationSelect?.value || '');
             });
         }
 
-        if (accommodationSelect && roomTypeInput) {
+        if (accommodationSelect) {
             accommodationSelect.addEventListener('change', () => {
-                populateRoomTypeOptions(accommodationSelect.value);
+                const deptKey = getSelectedDepartmentKey();
+                populateRoomTypeOptionsForDepartment(deptKey, accommodationSelect.value);
             });
         }
 
@@ -72,10 +229,12 @@
             editingRoomId = room.room_id;
             form.setAttribute('data-room-id', room.room_id);
             populateForm(room);
+            applyDepartmentFilters(room.accommodation_type || '', room.room_type || '');
             if (modalTitle) {
                 modalTitle.innerHTML = '<i class="fas fa-hotel" style="color:#0ea5e9"></i> Edit Room';
             }
         } else {
+            applyDepartmentFilters();
             if (modalTitle) {
                 modalTitle.innerHTML = '<i class="fas fa-hotel" style="color:#0ea5e9"></i> Add New Room';
             }
@@ -93,6 +252,7 @@
         if (roomNumberInput) roomNumberInput.value = room.room_number || '';
         if (floorInput) floorInput.value = room.floor_number || '';
         if (departmentSelect) departmentSelect.value = room.department_id || '';
+        if (accommodationSelect) accommodationSelect.value = room.accommodation_type || '';
         if (bedCapacityInput) bedCapacityInput.value = room.bed_capacity || '';
         if (document.getElementById('modal_status')) {
             document.getElementById('modal_status').value = room.status || 'available';
@@ -102,17 +262,11 @@
         syncBedNameInputsFromCapacity(bedNames);
     }
 
-    function populateRoomTypeOptions(accommodationValue) {
-        if (!roomTypeInput) return;
-
-        roomTypeInput.innerHTML = '<option value="">Select room type</option>';
-        const labels = roomTypeOptionsByAccommodation[accommodationValue] || [];
-        labels.forEach(label => {
-            const opt = document.createElement('option');
-            opt.value = label;
-            opt.textContent = label;
-            roomTypeInput.appendChild(opt);
-        });
+    function applyDepartmentFilters(preferAccommodation = '', preferRoomType = '') {
+        const deptKey = getSelectedDepartmentKey();
+        populateAccommodationOptionsForDepartment(deptKey, preferAccommodation);
+        const accommodationValue = accommodationSelect?.value || '';
+        populateRoomTypeOptionsForDepartment(deptKey, accommodationValue, preferRoomType);
     }
 
     function syncBedNameInputsFromCapacity(existingNames = []) {

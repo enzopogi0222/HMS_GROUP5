@@ -86,6 +86,15 @@ class RoomManagement extends BaseController
         if (!$this->db->tableExists('department')) {
             return [];
         }
+        if ($this->db->tableExists('medical_department')) {
+            return $this->db->table('department d')
+                ->select('d.department_id, d.name, d.floor')
+                ->join('medical_department md', 'md.department_id = d.department_id', 'inner')
+                ->orderBy('d.name', 'ASC')
+                ->get()
+                ->getResultArray();
+        }
+
         return $this->db->table('department')
             ->select('department_id, name, floor')
             ->orderBy('name', 'ASC')

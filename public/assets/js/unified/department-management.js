@@ -262,8 +262,9 @@
     // Notification functions
     window.showDepartmentsNotification = function(message, type = 'success') {
         const container = document.getElementById('departmentsNotification');
-        const messageEl = document.getElementById('departmentsNotificationMessage');
-        if (!container || !messageEl) {
+        const messageEl = document.getElementById('departmentsNotificationText');
+        const iconEl = document.getElementById('departmentsNotificationIcon');
+        if (!container || !messageEl || !iconEl) {
             if (typeof showUniversalNotification === 'function') {
                 showUniversalNotification(message, 'error');
             }
@@ -274,9 +275,29 @@
             clearTimeout(window.departmentsNotificationTimeout);
         }
 
-        container.className = `notification ${type}`;
+        const t = String(type || 'success').toLowerCase();
+        const isError = t === 'error';
+        const isSuccess = t === 'success';
+
+        container.className = `notification ${t}`;
         messageEl.textContent = String(message || '');
+
+        // Force toast-like placement (top-right), matching the Staff toast UX.
+        container.style.position = 'fixed';
+        container.style.top = '20px';
+        container.style.right = '20px';
+        container.style.left = 'auto';
+        container.style.margin = '0';
+        container.style.maxWidth = '420px';
+        container.style.width = 'calc(100% - 40px)';
+        container.style.border = isError ? '1px solid #fecaca' : '1px solid #bbf7d0';
+        container.style.background = isError ? '#fee2e2' : '#10b981';
+        container.style.color = isError ? '#991b1b' : '#ffffff';
+        container.style.boxShadow = '0 4px 12px rgba(15, 23, 42, 0.25)';
+        container.style.zIndex = '10050';
         container.style.display = 'flex';
+
+        iconEl.className = 'fas ' + (isError ? 'fa-exclamation-triangle' : (isSuccess ? 'fa-check-circle' : 'fa-info-circle'));
 
         window.departmentsNotificationTimeout = setTimeout(dismissDepartmentsNotification, 5000);
     };

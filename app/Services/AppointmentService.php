@@ -116,13 +116,8 @@ if ($patientId > 0) {
             $this->db->table('appointments')->insert($data);
             $insertId = $this->db->insertID();
 
-            // Automatically create billing entry as soon as the appointment is created
-            try {
-                $this->addAppointmentToBilling($insertId, $data, $staffId);
-            } catch (\Throwable $billingError) {
-                // Log billing error but do not prevent appointment creation
-                log_message('error', 'Failed to auto-bill newly created appointment ' . $insertId . ': ' . $billingError->getMessage());
-            }
+            // Do NOT auto-add to billing on creation. Billing will be added when
+            // the appointment is actually completed (see updateAppointmentStatus).
 
             return [
                 'success' => true,

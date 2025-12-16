@@ -85,7 +85,21 @@
             const deptId = dept.department_id || dept.id || 'N/A';
             const name = escapeHtml(dept.name || 'Unnamed Department');
             const code = dept.code ? `<span class="text-muted">(${escapeHtml(dept.code)})</span>` : '';
-            const type = dept.type ? `<span class="badge badge-info">${escapeHtml(dept.type)}</span>` : '';
+
+            // Map detailed department type to high-level category for display
+            // Clinical / Emergency / Diagnostic => Medical
+            // Administrative / Support          => Non Medical
+            let categoryLabel = '';
+            if (dept.type) {
+                const typeLower = String(dept.type).toLowerCase();
+                if (["clinical", "emergency", "diagnostic"].includes(typeLower)) {
+                    categoryLabel = 'Medical';
+                } else if (["administrative", "support"].includes(typeLower)) {
+                    categoryLabel = 'Non Medical';
+                }
+            }
+
+            const type = categoryLabel ? `<span class="badge badge-info">${escapeHtml(categoryLabel)}</span>` : '';
             const status = dept.status || 'Active';
             const statusClass = status.toLowerCase() === 'active' ? 'badge-success' : 'badge-danger';
             const head = dept.department_head_id ? 'Assigned' : '<span class="text-muted">Not assigned</span>';

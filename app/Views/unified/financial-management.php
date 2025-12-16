@@ -477,6 +477,12 @@
                                                 data-transaction-id="<?= esc($transaction['transaction_id'] ?? '') ?>">
                                                 <i class="fas fa-eye"></i> View
                                             </button>
+                                            <button
+                                                class="btn btn-danger btn-small"
+                                                data-action="delete-transaction"
+                                                data-transaction-id="<?= esc($transaction['transaction_id'] ?? '') ?>">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </button>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>

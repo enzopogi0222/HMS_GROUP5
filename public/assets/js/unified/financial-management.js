@@ -51,9 +51,14 @@
                     ? `${t.type === 'stock_out' ? '-' : '+'}${t.quantity || 0} unit(s)`
                     : `${t.type === 'expense' ? '-' : '+'}₱${parseFloat(t.amount || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 
-                const paymentMethod = isStockTransaction
-                    ? 'N/A'
-                    : ((t.payment_method || 'N/A').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
+                // Purchase Amount (per-unit purchase cost when available)
+                let purchaseAmountDisplay = 'N/A';
+                if (t.amount !== null && t.amount !== undefined && t.amount !== '') {
+                    const numericAmount = parseFloat(t.amount);
+                    if (!isNaN(numericAmount) && numericAmount > 0) {
+                        purchaseAmountDisplay = `₱${numericAmount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+                    }
+                }
 
                 content.innerHTML = `
                     <div>
@@ -77,8 +82,8 @@
                         <div>${escapeHtml(amountQuantity)}</div>
                     </div>
                     <div>
-                        <strong>Payment Method</strong>
-                        <div>${escapeHtml(paymentMethod)}</div>
+                        <strong>Purchase Amount</strong>
+                        <div>${escapeHtml(purchaseAmountDisplay)}</div>
                     </div>
                     <div>
                         <strong>Status</strong>
@@ -511,8 +516,6 @@
                 </strong>`;
             }
             
-            const paymentMethod = isStockTransaction ? 'N/A' : ((transaction.payment_method || 'N/A').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
-
             return `
                 <tr>
                     <td>${escapeHtml(transaction.transaction_id || 'N/A')}</td>
@@ -527,7 +530,6 @@
                     </td>
                     <td>${displayEntity}</td>
                     <td>${amountQuantityDisplay}</td>
-                    <td>${escapeHtml(paymentMethod)}</td>
                     <td>
                         <span class="status-badge ${(transaction.payment_status || 'pending').toLowerCase()}">
                             ${escapeHtml((transaction.payment_status || 'Pending').charAt(0).toUpperCase() + (transaction.payment_status || 'Pending').slice(1))}
@@ -540,6 +542,12 @@
                             data-action="view-transaction"
                             data-transaction-id="${escapeHtml(transaction.transaction_id || '')}">
                             <i class="fas fa-eye"></i> View
+                        </button>
+                        <button
+                            class="btn btn-danger btn-small"
+                            data-action="delete-transaction"
+                            data-transaction-id="${escapeHtml(transaction.transaction_id || '')}">
+                            <i class="fas fa-trash"></i> Delete
                         </button>
                     </td>
                 </tr>
@@ -647,11 +655,47 @@
         }
 
         if (transactionsTableBody) {
-            transactionsTableBody.addEventListener('click', function (event) {
-                const btn = event.target.closest('button[data-action="view-transaction"]');
-                if (!btn) return;
-                const transactionId = btn.getAttribute('data-transaction-id');
-                openTransactionDetails(transactionId);
+            transactionsTableBody.addEventListener('click', async function (event) {
+                const viewBtn = event.target.closest('button[data-action="view-transaction"]');
+                const deleteBtn = event.target.closest('button[data-action="delete-transaction"]');
+
+                if (viewBtn) {
+                    const transactionId = viewBtn.getAttribute('data-transaction-id');
+                    openTransactionDetails(transactionId);
+                    return;
+                }
+
+                if (deleteBtn) {
+                    const transactionId = deleteBtn.getAttribute('data-transaction-id');
+                    if (!transactionId) return;
+
+                    if (!confirm('Are you sure you want to delete this transaction? This action cannot be undone.')) {
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`${baseUrl}/financial-management/transactions/${encodeURIComponent(transactionId)}/delete`, {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                        });
+
+                        const result = await response.json();
+
+                        if (!response.ok || !result.success) {
+                            alert(result.message || 'Failed to delete transaction');
+                            return;
+                        }
+
+                        // Reload transactions with current filters
+                        loadTransactions(transactionFilters || {});
+                    } catch (error) {
+                        console.error('Failed to delete transaction', error);
+                        alert('An error occurred while deleting the transaction.');
+                    }
+                }
             });
         }
 

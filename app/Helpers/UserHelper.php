@@ -28,14 +28,33 @@ class UserHelper
             // Fallback to session or generic label
             try {
                 $session = session();
-                $username = $session ? (string) $session->get('username') : '';
-                if ($username) {
-                    $name = $username;
-                } else {
-                    $email = $session ? (string) $session->get('email') : '';
-                    if ($email) {
-                        $atPos = strpos($email, '@');
-                        $name = $atPos !== false ? substr($email, 0, $atPos) : $email;
+
+                if ($session) {
+                    // Prefer first_name + last_name from session when available
+                    $first = (string) $session->get('first_name');
+                    $last  = (string) $session->get('last_name');
+                    $full  = trim("{$first} {$last}");
+
+                    if ($full !== '') {
+                        $name = $full;
+                    } else {
+                        // Then fall back to a friendly display name from session
+                        $sessionName = (string) ($session->get('name') ?: $session->get('display_name'));
+                        if ($sessionName !== '') {
+                            $name = $sessionName;
+                        } else {
+                            // Then fall back to username, then email prefix
+                            $username = (string) $session->get('username');
+                            if ($username) {
+                                $name = $username;
+                            } else {
+                                $email = (string) $session->get('email');
+                                if ($email) {
+                                    $atPos = strpos($email, '@');
+                                    $name = $atPos !== false ? substr($email, 0, $atPos) : $email;
+                                }
+                            }
+                        }
                     }
                 }
             } catch (\Throwable $e) {

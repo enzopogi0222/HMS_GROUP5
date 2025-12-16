@@ -80,6 +80,7 @@ class Auth extends BaseController
                 if ($passwordMatches) {
                     // Determine role, preferring staff.role_id -> roles.slug mapping
                     $resolvedRole = null;
+                    $staffRow = [];
                     if (!empty($user['staff_id'])) {
                         $staffRow = $db->table('staff s')
                                       ->select('s.*, rl.slug as role_slug')
@@ -97,13 +98,23 @@ class Auth extends BaseController
                         $resolvedRole = strtolower($user['role']);
                     }
 
+                    // Derive friendly name pieces for session so header can show full name
+                    $firstName = $user['first_name'] ?? ($staffRow['first_name'] ?? null);
+                    $lastName  = $user['last_name'] ?? ($staffRow['last_name'] ?? null);
+                    $displayName = $user['name']
+                        ?? ($staffRow['name'] ?? ($user['display_name'] ?? ($staffRow['display_name'] ?? null)));
+
                     $session->set([
-                        'user_id'    => $user['user_id'],
-                        'staff_id'   => $user['staff_id'] ?? null,
-                        'username'   => $user['username'],
-                        'email'      => $user['email'],
-                        'role'       => $resolvedRole,
-                        'isLoggedIn' => true
+                        'user_id'       => $user['user_id'],
+                        'staff_id'      => $user['staff_id'] ?? null,
+                        'username'      => $user['username'],
+                        'email'         => $user['email'],
+                        'role'          => $resolvedRole,
+                        'first_name'    => $firstName,
+                        'last_name'     => $lastName,
+                        'name'          => $displayName,
+                        'display_name'  => $displayName,
+                        'isLoggedIn'    => true
                     ]);
 
                     $role = $resolvedRole ?? '';

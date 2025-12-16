@@ -308,57 +308,9 @@
         </header>
 
         <main class="main-content">
-            <section class="hero-section">
-                <div>
-                    <div class="section-heading">Unified Hospital Platform</div>
-                    <h1 class="hero-title">Streamline patient care, appointments, and staff in one modern system.</h1>
-                    <p class="hero-subtitle">
-                        Our Hospital Management System gives your team a centralized, secure, and intuitive workspace
-                        for managing patients, appointments, billing, prescriptions, and more.
-                    </p>
-
-                    <div class="hero-badges">
-                        <span class="badge-pill primary">Role-based dashboards for doctors, nurses, and admin</span>
-                        <span class="badge-pill success">Secure, unified workflows across all departments</span>
-                    </div>
-
-                    <div class="hero-cta">
-                        <a href="<?= base_url('login') ?>" class="text-decoration-none">
-                            <button type="button" class="button-active">Log In to Dashboard</button>
-                        </a>
-                        <span class="hero-meta">Access restricted to authorized hospital staff.</span>
-                    </div>
-                </div>
-
-                <div class="hero-illustration">
-                    <div class="hero-illustration-title">Today at a glance</div>
-                    <p style="font-size: 0.85rem; color: #4b5563; margin-bottom: 0.75rem;">
-                        A snapshot of how HMS keeps your operations running smoothly.
-                    </p>
-                    <div class="hero-stats">
-                        <div class="hero-stat">
-                            <div class="hero-stat-value">+120</div>
-                            <div class="hero-stat-label">Active Patients</div>
-                        </div>
-                        <div class="hero-stat">
-                            <div class="hero-stat-value">36</div>
-                            <div class="hero-stat-label">Todays Appointments</div>
-                        </div>
-                        <div class="hero-stat">
-                            <div class="hero-stat-value">8</div>
-                            <div class="hero-stat-label">Clinical Departments</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+           
 
             <section class="features-section mt-4">
-                <div class="section-title">Built for real hospital workflows</div>
-                <p class="section-subtitle">
-                    Inside the system, each role gets a tailored dashboard and tools. The internal design is modern,
-                    consistent, and focused on clarity and patient safety.
-                </p>
-
                 <div class="features-grid">
                     <div class="feature-card">
                         <div class="feature-icon">👨‍⚕️</div>
@@ -367,7 +319,6 @@
                             Unified views for doctors, nurses, and receptionists to manage patient records, schedules,
                             and follow-ups with clear status indicators.
                         </p>
-                        <div class="feature-meta">Role-based access  b7 Real-time stats  b7 Modern table layouts</div>
                     </div>
 
                     <div class="feature-card">
@@ -377,7 +328,6 @@
                             Integrated prescription, laboratory, and financial modules that share a consistent design
                             with color-coded badges and clear actions.
                         </p>
-                        <div class="feature-meta">Consistent UI  b7 Status badges  b7 Unified workflows</div>
                     </div>
 
                     <div class="feature-card">
@@ -387,7 +337,16 @@
                             Modern dashboards for administrators and IT staff to manage teams, schedules, resources,
                             and analytics from a single place.
                         </p>
-                        <div class="feature-meta">Unified dashboards  b7 Department views  b7 Analytics-ready</div>
+                    </div>
+                </div>
+            </section>
+            <br><br>
+            <section class="hero-section" style="display: flex; justify-content: center; text-align: center;">
+                <div>
+                    <div class="hero-cta" style="justify-content: center;">
+                        <a href="<?= base_url('login') ?>" class="text-decoration-none">
+                            <button type="button" class="button-active">Log In to Dashboard</button>
+                        </a>
                     </div>
                 </div>
             </section>

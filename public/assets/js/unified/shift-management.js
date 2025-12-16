@@ -216,7 +216,7 @@ class ShiftManager {
             return;
         }
 
-        // Group shifts by doctor + time range + status so multiple weekdays
+        // Group shifts by doctor + time range so multiple weekdays
         // with the same time range appear as a single row in the UI.
         const groupsMap = new Map();
 
@@ -224,9 +224,8 @@ class ShiftManager {
             const staffId   = shift.staff_id || shift.doctor_id || '';
             const startVal  = shift.start_time || shift.start || '';
             const endVal    = shift.end_time || shift.end || '';
-            const rawStatus = (shift.status || 'active').toString().toLowerCase();
 
-            const key = `${staffId}|${startVal}|${endVal}|${rawStatus}`;
+            const key = `${staffId}|${startVal}|${endVal}`;
 
             if (!groupsMap.has(key)) {
                 const base = { ...shift };
@@ -268,24 +267,6 @@ class ShiftManager {
         const timeLabel = (shift.start_time || shift.start || '') && (shift.end_time || shift.end || '')
             ? `${(shift.start_time || shift.start || '').slice(0,5)} - ${(shift.end_time || shift.end || '').slice(0,5)}`
             : '-';
-
-        const rawStatus = (shift.status || 'active').toString().toLowerCase();
-        let displayStatus = 'Scheduled';
-        let statusClass = 'scheduled';
-
-        if (rawStatus === 'active' || rawStatus === 'scheduled') {
-            displayStatus = 'Scheduled';
-            statusClass = 'scheduled';
-        } else if (rawStatus === 'completed' || rawStatus === 'done' || rawStatus === 'finished') {
-            displayStatus = 'Completed';
-            statusClass = 'completed';
-        } else if (rawStatus === 'cancelled' || rawStatus === 'canceled' || rawStatus === 'inactive') {
-            displayStatus = 'Cancelled';
-            statusClass = 'cancelled';
-        } else {
-            // Fallback: title-case any other status value
-            displayStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1);
-        }
 
         const canEdit = this.canEditShift(shift);
         const canDelete = this.canDeleteShift(shift);
@@ -719,6 +700,5 @@ if (document.readyState === 'loading') {
 // Global functions for backward compatibility
 window.editShift = (id) => window.shiftManager?.editShift(id);
 window.deleteShift = (id) => window.shiftManager?.deleteShift(id);
-window.updateShiftStatus = (id, status) => window.shiftManager?.updateShiftStatus(id, status);
 window.closeAddShiftModal = () => window.AddShiftModal?.close();
 window.closeEditShiftModal = () => window.EditShiftModal?.close();

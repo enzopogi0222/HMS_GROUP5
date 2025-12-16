@@ -308,7 +308,7 @@
     margin: 2% auto;
     border-radius: 12px;
     width: 90%;
-    max-width: 600px;
+    max-width: 1000px;
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
@@ -420,6 +420,13 @@
     border-radius: 8px;
     font-size: 0.875rem;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-control:disabled {
+    background-color: #f3f4f6;
+    color: #9ca3af;
+    cursor: not-allowed;
+    border-color: #e5e7eb;
 }
 
 .form-control:focus {

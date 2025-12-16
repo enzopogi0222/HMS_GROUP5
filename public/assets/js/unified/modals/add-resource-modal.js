@@ -21,22 +21,46 @@
         // Additional validation for selling price when category is Medications
         const categorySelect = document.getElementById('res_category');
         if (categorySelect) {
+            console.log('Category select found');
             categorySelect.addEventListener('change', () => {
+                console.log('Category changed to:', categorySelect.value);
                 const isMedication = categorySelect.value === 'Medications';
                 const sellingPriceInput = document.getElementById('res_selling_price');
                 if (sellingPriceInput) {
                     sellingPriceInput.required = isMedication;
                 }
+                
+                // Enable/disable resource name based on category selection
+                const resourceNameInput = document.getElementById('res_name');
+                if (resourceNameInput) {
+                    console.log('Setting resource name disabled to:', !categorySelect.value);
+                    resourceNameInput.disabled = !categorySelect.value;
+                }
             });
+        }
+        
+        // Disable resource name initially until category is selected
+        const resourceNameInput = document.getElementById('res_name');
+        if (resourceNameInput) {
+            console.log('Disabling resource name initially');
+            resourceNameInput.disabled = true;
         }
     }
 
     function open() {
         if (!modal || !form) return;
 
+        console.log('Opening modal');
         form.reset();
         utils.clearErrors('err_res_');
         utils.open(modalId);
+        
+        // Disable resource name initially until category is selected
+        const resourceNameInput = document.getElementById('res_name');
+        if (resourceNameInput) {
+            console.log('Disabling resource name on open');
+            resourceNameInput.disabled = true;
+        }
     }
 
     function close() {

@@ -10,19 +10,19 @@
                     <h4><i class="fas fa-info-circle"></i> Resource Information</h4>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="res_name">Resource Name*</label>
-                            <input id="res_name" name="equipment_name" type="text" class="form-control" required autocomplete="off" placeholder="Enter resource name">
-                            <small id="err_res_name" style="color:#dc2626"></small>
-                        </div>
-                        <div class="form-group">
                             <label for="res_category">Category*</label>
-                            <select id="res_category" name="category" class="form-control" required>
+                            <select id="res_category" name="category" class="form-control" required onchange="toggleResourceName()">
                                 <option value="">Select category</option>
                                 <?php foreach ($categories ?? [] as $cat): ?>
                                     <option value="<?= esc($cat) ?>"><?= esc($cat) ?></option>
                                 <?php endforeach; ?>
                             </select>
                             <small id="err_res_category" style="color:#dc2626"></small>
+                        </div>
+                        <div class="form-group">
+                            <label for="res_name">Name*</label>
+                            <input id="res_name" name="equipment_name" type="text" class="form-control" required autocomplete="off" placeholder="Enter resource name" disabled>
+                            <small id="err_res_name" style="color:#dc2626"></small>
                         </div>
                     </div>
                     <div class="form-row">
@@ -88,3 +88,25 @@
         </form>
     </div>
 </div>
+
+<script>
+function toggleResourceName() {
+    const categorySelect = document.getElementById('res_category');
+    const resourceNameInput = document.getElementById('res_name');
+    
+    if (categorySelect && resourceNameInput) {
+        const hasCategory = categorySelect.value !== '';
+        resourceNameInput.disabled = !hasCategory;
+        
+        // Clear resource name if category is cleared
+        if (!hasCategory) {
+            resourceNameInput.value = '';
+        }
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleResourceName();
+});
+</script>

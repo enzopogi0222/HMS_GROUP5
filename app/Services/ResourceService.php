@@ -492,11 +492,19 @@ class ResourceService
             $transactionModel = new TransactionModel();
             $transactionId = $transactionModel->generateTransactionId();
 
+            // For stock_in with a known purchase cost, record the *per-unit* purchase cost on this row
+            // $purchaseCost here is the total cost (unit cost * quantity) passed from createResource.
+            $stockAmount = null;
+            if ($type === 'stock_in' && $purchaseCost !== null && $purchaseCost > 0) {
+                $unitCost = $quantity > 0 ? ($purchaseCost / $quantity) : $purchaseCost;
+                $stockAmount = (float) $unitCost; // 1 product = 1 price (unit purchase cost)
+            }
+
             $transactionData = [
                 'transaction_id' => $transactionId,
                 'type' => $type,
                 'category' => 'Stock Management',
-                'amount' => null, // Stock transactions don't have monetary value
+                'amount' => $stockAmount, // Used by Purchase Amount column for stock_in when available
                 'quantity' => $quantity,
                 'description' => ucfirst(str_replace('_', ' ', $type)) . ': ' . $quantity . ' unit(s) of ' . $resourceName,
                 'resource_id' => $resourceId,

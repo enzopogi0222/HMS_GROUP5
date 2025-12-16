@@ -69,7 +69,7 @@
                             <label for="res_purchase_cost"><i class="fas fa-shopping-cart"></i> Purchase Cost (₱) <small style="color: #666;">(Optional - creates expense transaction)</small></label>
                             <input id="res_purchase_cost" name="purchase_cost" type="number" step="0.01" min="0" class="form-control" autocomplete="off" placeholder="0.00">
                             <small id="err_res_purchase_cost" style="color:#dc2626"></small>
-                            <small style="color: #666; font-size: 0.85em;">Enter the total cost paid to purchase this stock. This will create an expense transaction.</small>
+                            <small style="color: #666; font-size: 0.85em;">Enter the total cost paid to purchase this stock. The system will compute the per-unit purchase price and create an expense transaction.</small>
                         </div>
                     </div>
                     <div class="form-row">

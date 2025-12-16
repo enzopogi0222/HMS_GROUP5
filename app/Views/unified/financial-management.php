@@ -406,7 +406,7 @@
                                 <th>Type</th>
                                 <th>Patient/Resource</th>
                                 <th>Amount/Quantity</th>
-                                <th>Payment Method</th>
+                                <th>Purchase Amount</th>
                                 <th>Status</th>
                                 <th>Description</th>
                                 <th>Actions</th>
@@ -451,10 +451,17 @@
                                             <?php endif; ?>
                                         </td>
                                         <td>
-                                            <?php if ($isStockTransaction): ?>
-                                                N/A
+                                            <?php
+                                            // Purchase Amount column
+                                            $category = strtolower(trim($transaction['category'] ?? ''));
+
+                                            // Prefer explicit monetary amount when present
+                                            $hasAmount = isset($transaction['amount']) && $transaction['amount'] !== null;
+
+                                            if ($hasAmount && ($isStockTransaction || $category === 'stock purchase' || ($transaction['type'] ?? '') === 'expense')): ?>
+                                                <strong>₱<?= number_format((float)$transaction['amount'], 2) ?></strong>
                                             <?php else: ?>
-                                                <?= esc(ucfirst(str_replace('_', ' ', $transaction['payment_method'] ?? 'N/A'))) ?>
+                                                N/A
                                             <?php endif; ?>
                                         </td>
                                         <td>

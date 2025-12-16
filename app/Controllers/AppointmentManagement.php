@@ -225,12 +225,13 @@ class AppointmentManagement extends BaseController
                 ]);
             }
 
-            // Only doctors can mark appointments as completed
-            if (strtolower((string) $status) === 'completed' && $this->userRole !== 'doctor') {
+            // Only doctors and admins can mark appointments as completed
+            if (strtolower((string) $status) === 'completed' && !in_array($this->userRole, ['doctor', 'admin'], true)) {
+
                 return $this->response->setStatusCode(403)->setJSON([
                     'status' => 'error',
                     'success' => false,
-                    'message' => 'Only the doctor can mark the appointment as completed.',
+                    'message' => 'Only the doctor or admin can mark the appointment as completed.',
                     'csrf' => ['name' => csrf_token(), 'value' => csrf_hash()]
                 ]);
             }

@@ -56,6 +56,87 @@ class AnalyticsService
     }
 
     /**
+     * Generate a specific report based on type and filters
+     */
+    public function generateReport(string $reportType, string $userRole, ?int $userId = null, array $filters = []): array
+    {
+        if (empty($reportType)) {
+            return [
+                'success' => false,
+                'message' => 'Report type is required',
+            ];
+        }
+
+        try {
+            $dateRange = $this->getDateRange($filters);
+            $reportData = [];
+
+            switch ($reportType) {
+                case 'patient_summary':
+                    $reportData = $this->getPatientAnalytics($dateRange);
+                    break;
+
+                case 'appointment_summary':
+                    $reportData = $this->getAppointmentAnalytics($dateRange);
+                    break;
+
+                case 'financial_summary':
+                    $reportData = $this->getFinancialAnalytics($dateRange);
+                    break;
+
+                case 'lab_summary':
+                    $reportData = $this->getLabAnalytics($dateRange);
+                    break;
+
+                case 'prescription_summary':
+                    $reportData = $this->getPrescriptionAnalytics($dateRange);
+                    break;
+
+                case 'staff_performance':
+                    $reportData = $this->getStaffAnalytics($dateRange);
+                    break;
+
+                case 'room_utilization':
+                    $reportData = $this->getRoomAnalytics($dateRange);
+                    break;
+
+                case 'doctor_performance':
+                    // For doctor performance reports we need the current doctor id
+                    if ($userRole !== 'doctor' || !$userId) {
+                        return [
+                            'success' => false,
+                            'message' => 'Doctor performance report is only available for logged-in doctors',
+                        ];
+                    }
+                    $reportData = $this->getDoctorAnalytics($userId, $filters);
+                    break;
+
+                default:
+                    return [
+                        'success' => false,
+                        'message' => 'Unsupported report type: ' . $reportType,
+                    ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Report generated successfully',
+                'report' => [
+                    'type' => $reportType,
+                    'filters' => $dateRange,
+                    'data' => $reportData,
+                ],
+            ];
+        } catch (\Throwable $e) {
+            log_message('error', 'AnalyticsService::generateReport error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Failed to generate report. Please try again later.',
+            ];
+        }
+    }
+
+    /**
      * Get system-wide analytics
      */
     private function getSystemWideAnalytics(array $filters = []): array

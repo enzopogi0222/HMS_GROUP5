@@ -44,9 +44,27 @@ class AppointmentService
             return ['success' => false, 'message' => 'Invalid appointment date'];
         }
 
-        $appointmentTime = $data['appointment_time'] ?? null;
-        if (!$appointmentTime) {
-            return ['success' => false, 'message' => 'Invalid appointment time'];
+        // Additional validation: inpatients must have an active room assignment before an appointment can be created.
+        $patientId = (int)($data['patient_id'] ?? $input['patient_id'] ?? 0);
+        if ($patientId > 0) {
+            $patientType = $this->getPatientType($patientId);
+            if ($patientType === 'inpatient') {
+                $hasRoom = false;
+                $admissionId = $this->getActiveAdmissionId($patientId);
+                if ($admissionId && $this->db->tableExists('inpatient_room_assignments')) {
+                    $hasRoom = $this->db->table('inpatient_room_assignments')
+                        ->where('admission_id', $admissionId)
+                        ->countAllResults() > 0;
+                }
+
+                if (!$hasRoom) {
+                    return [
+                        'success' => false,
+                        'message' => 'Cannot create appointment: inpatient has no room assigned.',
+                        'errors'  => ['patient_id' => 'This inpatient must have a room assigned before an appointment can be scheduled.']
+                    ];
+                }
+            }
         }
 
         $weekdayName = (int) date('N', $timestamp);
@@ -56,6 +74,13 @@ class AppointmentService
         }
 
         [$dutyStart, $dutyEnd] = $dutyWindow;
+
+        // If no explicit time was chosen (slot UI removed), default to the start of the duty window.
+        $appointmentTime = $data['appointment_time'] ?? null;
+        if (!$appointmentTime) {
+            $appointmentTime = $dutyStart;
+            $data['appointment_time'] = $dutyStart;
+        }
 
         // Duration is no longer collected; only ensure the start time is within duty window.
         if (!$this->isTimeWithin($appointmentTime, $dutyStart, $dutyEnd)) {
@@ -70,6 +95,15 @@ class AppointmentService
         try {
             $this->db->table('appointments')->insert($data);
             $insertId = $this->db->insertID();
+
+            // Automatically create billing entry as soon as the appointment is created
+            try {
+                $this->addAppointmentToBilling($insertId, $data, $staffId);
+            } catch (\Throwable $billingError) {
+                // Log billing error but do not prevent appointment creation
+                log_message('error', 'Failed to auto-bill newly created appointment ' . $insertId . ': ' . $billingError->getMessage());
+            }
+
             return [
                 'success' => true,
                 'message' => 'Appointment scheduled successfully',
@@ -370,7 +404,9 @@ class AppointmentService
         $baseRules = [
             'patient_id' => 'required|numeric',
             'appointment_date' => 'required|valid_date',
-            'appointment_time' => 'required',
+            // appointment_time is now selected implicitly (or defaulted) when slots UI is removed,
+            // so it is not required for non-doctor roles.
+            'appointment_time' => 'permit_empty',
             'appointment_type' => 'required|in_list[Consultation,Follow-up,Check-up]',
         ];
 
@@ -524,17 +560,24 @@ class AppointmentService
             ->join('staff s', 's.staff_id = a.doctor_id', 'left');
 
         if ($this->db->tableExists('inpatient_admissions') && $this->db->tableExists('inpatient_room_assignments')) {
+            // Base subqueries scoped by patient
             $roomSubquery = 'SELECT ira.room_number FROM inpatient_room_assignments ira JOIN inpatient_admissions ia2 ON ia2.admission_id = ira.admission_id WHERE ia2.patient_id = a.patient_id';
             $bedSubquery = 'SELECT ira.bed_number FROM inpatient_room_assignments ira JOIN inpatient_admissions ia2 ON ia2.admission_id = ira.admission_id WHERE ia2.patient_id = a.patient_id';
             $floorSubquery = 'SELECT ira.floor_number FROM inpatient_room_assignments ira JOIN inpatient_admissions ia2 ON ia2.admission_id = ira.admission_id WHERE ia2.patient_id = a.patient_id';
 
+            // We only want the *current* admission, not any clearly discharged one.
+            // Treat any non-discharged admission as current; do not over-filter by admission_type/patient_type.
+            $extraConditions = [];
+
             if ($this->db->fieldExists('discharge_date', 'inpatient_admissions')) {
-                $condition = ' AND (ia2.discharge_date IS NULL OR ia2.discharge_date = "")';
-                $roomSubquery .= $condition;
-                $bedSubquery .= $condition;
-                $floorSubquery .= $condition;
+                $extraConditions[] = '(ia2.discharge_date IS NULL OR ia2.discharge_date = "" OR ia2.discharge_date = "0000-00-00" OR ia2.discharge_date = "0000-00-00 00:00:00")';
             } elseif ($this->db->fieldExists('status', 'inpatient_admissions')) {
-                $condition = ' AND ia2.status = "active"';
+                // Fallback: use status as an activity indicator when no discharge_date column exists
+                $extraConditions[] = 'ia2.status IN ("active", "ACTIVE", "Active", "admitted", "Admitted", "ADMITTED")';
+            }
+
+            if (! empty($extraConditions)) {
+                $condition = ' AND ' . implode(' AND ', $extraConditions);
                 $roomSubquery .= $condition;
                 $bedSubquery .= $condition;
                 $floorSubquery .= $condition;

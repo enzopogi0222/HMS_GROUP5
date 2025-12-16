@@ -159,7 +159,7 @@
                                         <?php $apptId = esc($appointment['appointment_id'] ?? 0); $statusLower = strtolower($status); ?>
                                         <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
                                             <button class="btn btn-primary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="viewAppointment(<?= $apptId ?>)"><i class="fas fa-eye"></i> View</button>
-                                            <?php if ($userRole === 'doctor' && $statusLower !== 'completed'): ?>
+                                            <?php if (in_array($userRole, ['doctor', 'admin']) && $statusLower !== 'completed'): ?>
                                                 <button class="btn btn-success" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="markCompleted(<?= $apptId ?>)"><i class="fas fa-check"></i> Complete</button>
                                             <?php endif; ?>
                                             <?php if (in_array($userRole, ['admin', 'doctor', 'receptionist'])): ?>

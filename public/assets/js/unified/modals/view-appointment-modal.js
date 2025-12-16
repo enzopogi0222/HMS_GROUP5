@@ -115,7 +115,8 @@ window.ViewAppointmentModal = {
                 roomParts.push('Floor ' + floorNumber);
             }
 
-            roomInput.value = roomParts.length ? roomParts.join(' • ') : '';
+            // If there is no active room assignment, show a clear message instead of leaving it blank
+            roomInput.value = roomParts.length ? roomParts.join(' • ') : 'No room assigned';
         }
 
         if (notesTextarea) {

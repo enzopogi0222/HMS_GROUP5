@@ -21,7 +21,7 @@ window.AddAppointmentModal = {
                     if (dateInput.value) {
                         this.loadPatients(dateInput.value);
                         this.loadAvailableDoctors(dateInput.value);
-                        this.loadDoctorSlots();
+                        // Time-slot UI removed: no longer loading doctor slots here.
                     }
                 });
             }
@@ -29,7 +29,7 @@ window.AddAppointmentModal = {
             const doctorSelect = document.getElementById('appointment_doctor');
             if (doctorSelect) {
                 doctorSelect.addEventListener('change', () => {
-                    this.loadDoctorSlots();
+                    // Time-slot UI removed: no longer loading doctor slots when doctor changes.
                 });
             }
 
@@ -72,7 +72,7 @@ window.AddAppointmentModal = {
             if (dateInput && !dateInput.value) dateInput.value = dateValue;
             this.loadPatients(dateValue);
             this.loadAvailableDoctors(dateValue);
-            this.loadDoctorSlots();
+            // Time-slot UI removed: no longer loading doctor slots when opening the modal.
         }
     },
     

@@ -270,11 +270,11 @@ class RoomManagement extends BaseController
         try {
             $patientService = new \App\Services\PatientService();
             $patients = $patientService->getPatientsByRole('admin', null); // Get all patients for admin
-            
-            // Filter to prefer inpatients, but include all
+
+            // Filter: only include inpatients for room assignment
             $filteredPatients = array_filter($patients, function($p) {
-                // Prefer inpatients, but include all patients
-                return true;
+                $type = strtolower(trim($p['patient_type'] ?? ''));
+                return $type === 'inpatient';
             });
 
             // Format for dropdown

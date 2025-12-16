@@ -44,28 +44,48 @@ class AppointmentService
             return ['success' => false, 'message' => 'Invalid appointment date'];
         }
 
-        // Additional validation: inpatients must have an active room assignment before an appointment can be created.
-        $patientId = (int)($data['patient_id'] ?? $input['patient_id'] ?? 0);
-        if ($patientId > 0) {
-            $patientType = $this->getPatientType($patientId);
-            if ($patientType === 'inpatient') {
-                $hasRoom = false;
-                $admissionId = $this->getActiveAdmissionId($patientId);
-                if ($admissionId && $this->db->tableExists('inpatient_room_assignments')) {
-                    $hasRoom = $this->db->table('inpatient_room_assignments')
-                        ->where('admission_id', $admissionId)
-                        ->countAllResults() > 0;
-                }
+   // Additional validation: inpatients must have an active room assignment before an appointment can be created.
+$patientId = (int)($data['patient_id'] ?? $input['patient_id'] ?? 0);
+if ($patientId > 0) {
+    $patientType = $this->getPatientType($patientId);
+    if ($patientType === 'inpatient') {
+        $hasRoom = false;
 
-                if (!$hasRoom) {
-                    return [
-                        'success' => false,
-                        'message' => 'Cannot create appointment: inpatient has no room assigned.',
-                        'errors'  => ['patient_id' => 'This inpatient must have a room assigned before an appointment can be scheduled.']
-                    ];
-                }
+        if ($this->db->tableExists('room_assignment')) {
+            $builder = $this->db->table('room_assignment')
+                ->where('patient_id', $patientId);
+
+            // Treat rows with status not completed OR no date_out as active
+            if ($this->db->fieldExists('status', 'room_assignment')) {
+                $builder->groupStart()
+                    ->whereNotIn('status', ['completed', 'COMPLETED'])
+                    ->orWhere('status', null)
+                    ->orWhere('status', '')
+                ->groupEnd();
             }
+
+            if ($this->db->fieldExists('date_out', 'room_assignment')) {
+                $builder->groupStart()
+                    ->where('date_out', null)
+                    ->orWhere('date_out', '')
+                    ->orWhere('date_out', '0000-00-00 00:00:00')
+                ->groupEnd();
+            }
+
+            $hasRoom = $builder->countAllResults() > 0;
         }
+
+        if (!$hasRoom) {
+            return [
+                'success' => false,
+                'message' => 'Cannot create appointment: inpatient has no active room assignment.',
+                'errors'  => [
+                    'patient_id' => 'This inpatient must have an active room assigned before an appointment can be scheduled.'
+                ],
+            ];
+        }
+    }
+}
 
         $weekdayName = (int) date('N', $timestamp);
         $dutyWindow = $this->getStaffDutyWindow((int) $doctorId, $weekdayName, $appointmentDate);
@@ -293,19 +313,26 @@ class AppointmentService
                 return strtolower($patient['patient_type']);
             }
 
-            // Check for active admission
+            // Check for active admission using flexible discharge/status handling
             if ($this->db->tableExists('inpatient_admissions')) {
                 $builder = $this->db->table('inpatient_admissions')
                     ->where('patient_id', $patientId);
-                
-                // Only check discharge_date if the column exists
-                if ($this->db->fieldExists('discharge_date', 'inpatient_admissions')) {
+
+                // Prefer explicit discharge_datetime when present
+                if ($this->db->fieldExists('discharge_datetime', 'inpatient_admissions')) {
+                    $builder->where('discharge_datetime IS NULL', null, false);
+                } elseif ($this->db->fieldExists('discharge_date', 'inpatient_admissions')) {
                     $builder->groupStart()
-                        ->where('discharge_date', null)
+                        ->where('discharge_date IS NULL', null, false)
                         ->orWhere('discharge_date', '')
+                        ->orWhere('discharge_date', '0000-00-00')
+                        ->orWhere('discharge_date', '0000-00-00 00:00:00')
                     ->groupEnd();
+                } elseif ($this->db->fieldExists('status', 'inpatient_admissions')) {
+                    // Fallback: treat common active-like status values as active
+                    $builder->whereIn('status', ['active', 'ACTIVE', 'Active', 'admitted', 'Admitted', 'ADMITTED']);
                 }
-                
+
                 $admission = $builder->get()->getRowArray();
 
                 if ($admission) {
@@ -333,18 +360,25 @@ class AppointmentService
             $builder = $this->db->table('inpatient_admissions')
                 ->select('admission_id')
                 ->where('patient_id', $patientId);
-            
-            // Only check discharge_date if the column exists
-            if ($this->db->fieldExists('discharge_date', 'inpatient_admissions')) {
+
+            // Prefer explicit discharge_datetime when present
+            if ($this->db->fieldExists('discharge_datetime', 'inpatient_admissions')) {
+                $builder->where('discharge_datetime IS NULL', null, false);
+            } elseif ($this->db->fieldExists('discharge_date', 'inpatient_admissions')) {
                 $builder->groupStart()
-                    ->where('discharge_date', null)
+                    ->where('discharge_date IS NULL', null, false)
                     ->orWhere('discharge_date', '')
+                    ->orWhere('discharge_date', '0000-00-00')
+                    ->orWhere('discharge_date', '0000-00-00 00:00:00')
                 ->groupEnd();
+            } elseif ($this->db->fieldExists('status', 'inpatient_admissions')) {
+                // Fallback: treat common active-like status values as active
+                $builder->whereIn('status', ['active', 'ACTIVE', 'Active', 'admitted', 'Admitted', 'ADMITTED']);
             }
-            
+
             $admission = $builder->get()->getRowArray();
 
-            return $admission ? (int)$admission['admission_id'] : null;
+            return $admission ? (int) $admission['admission_id'] : null;
         } catch (\Throwable $e) {
             log_message('error', 'AppointmentService::getActiveAdmissionId error: ' . $e->getMessage());
             return null;
@@ -359,9 +393,9 @@ class AppointmentService
         // Default fees (can be moved to config or database)
         $fees = [
             'Consultation' => 500.00,
-            'Follow-up' => 300.00,
-            'Check-up' => 400.00,
-            'Emergency' => 1000.00,
+            'Follow-up'    => 300.00,
+            'Check-up'     => 400.00,
+            'Emergency'    => 1000.00,
         ];
 
         return $fees[$appointmentType] ?? 500.00; // Default fee

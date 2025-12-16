@@ -261,18 +261,6 @@
                     </label>
                     <input type="date" id="dateFilter" class="form-control">
                 </div>
-                <div class="filter-group" style="margin: 0;">
-                    <label for="statusFilter" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
-                        <i class="fas fa-filter"></i> Status
-                    </label>
-                    <select id="statusFilter" class="form-control">
-                        <option value="">All Status</option>
-                        <option value="scheduled">Scheduled</option>
-                        <option value="active">Active</option>
-                        <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
-                    </select>
-                </div>
                 <?php if (in_array($userRole ?? '', ['admin', 'it_staff'])): ?>
                 <div class="filter-group" style="margin: 0;">
                     <label for="departmentFilter" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
@@ -305,7 +293,6 @@
                                 <?php endif; ?>
                                 <th scope="col">Day</th>
                                 <th scope="col">Time</th>
-                                <th scope="col">Status</th>
                                 <th scope="col">Actions</th>
                             </tr>
                         </thead>

@@ -79,17 +79,12 @@ class ShiftManager {
 
     bindFilterEvents() {
         const dateFilter = document.getElementById('dateFilter');
-        const statusFilter = document.getElementById('statusFilter');
         const departmentFilter = document.getElementById('departmentFilter');
         const searchFilter = document.getElementById('searchFilter');
         const clearFilters = document.getElementById('clearFilters');
 
         if (dateFilter) {
             dateFilter.addEventListener('change', () => this.applyFilters());
-        }
-
-        if (statusFilter) {
-            statusFilter.addEventListener('change', () => this.applyFilters());
         }
 
         if (departmentFilter) {
@@ -143,8 +138,7 @@ class ShiftManager {
                     } else {
                         this.deleteShift(btn.dataset.shiftId);
                     }
-                },
-                '.btn-status': (btn) => this.updateShiftStatus(btn.dataset.shiftId, btn.dataset.status)
+                }
             };
             
             for (const [selector, handler] of Object.entries(actions)) {
@@ -209,7 +203,7 @@ class ShiftManager {
 
         if (this.shifts.length === 0) {
             const isDoctorView = (window.userRole || '').toString().toLowerCase() === 'doctor';
-            const colspan = isDoctorView ? 4 : 5;
+            const colspan = isDoctorView ? 3 : 4;
             tbody.innerHTML = `
                 <tr>
                     <td colspan="${colspan}" class="empty-state" style="text-align: center; padding: 2rem;">
@@ -317,27 +311,7 @@ class ShiftManager {
                 <td>${this.escapeHtml(weekdayLabel)}</td>
                 <td>${this.escapeHtml(timeLabel)}</td>
                 <td>
-                    <span class="status-badge ${statusClass}">
-                        ${this.escapeHtml(displayStatus)}
-                    </span>
-                </td>
-                <td>
                     <div class="action-buttons">
-                        <button type="button" class="btn btn-sm btn-view" data-shift-id="${primaryId}" title="View Shift">
-                            <i class="fas fa-eye"></i> View
-                        </button>
-                        ${this.canUpdateStatus(shift) ? `
-                            <div class="btn-group" role="group">
-                                <button type="button" class="btn btn-sm btn-status dropdown-toggle" data-shift-id="${primaryId}" data-bs-toggle="dropdown" aria-expanded="false" title="Change Status">
-                                    <i class="fas fa-flag"></i> Status
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item status-option" href="#" data-shift-id="${primaryId}" data-status="completed"><i class="fas fa-check text-success"></i> Completed</a></li>
-                                    <li><a class="dropdown-item status-option" href="#" data-shift-id="${primaryId}" data-status="cancelled"><i class="fas fa-times text-danger"></i> Cancelled</a></li>
-                                    <li><a class="dropdown-item status-option" href="#" data-shift-id="${primaryId}" data-status="rescheduled"><i class="fas fa-calendar-alt text-warning"></i> Rescheduled</a></li>
-                                </ul>
-                            </div>
-                        ` : ''}
                         ${canEdit ? `
                             <button type="button" class="btn btn-sm btn-edit" data-shift-id="${primaryId}" title="Edit Shift">
                                 <i class="fas fa-edit"></i> Edit
@@ -366,31 +340,12 @@ class ShiftManager {
             const shiftId = btn.dataset.shiftId;
             const shiftIds = btn.dataset.shiftIds;
 
-            if (btn.classList.contains('btn-view') && shiftId) {
-                e.preventDefault();
-                this.viewShift(shiftId);
-            } else if (btn.classList.contains('btn-status') && shiftId) {
-                // Bootstrap dropdown will handle this; no action needed here
-                return;
-            } else if (btn.classList.contains('btn-edit') && shiftId) {
+            if (btn.classList.contains('btn-edit') && shiftId) {
                 e.preventDefault();
                 this.editShift(shiftId);
             } else if (btn.classList.contains('btn-delete') && shiftIds) {
                 e.preventDefault();
                 this.deleteShifts(JSON.parse(shiftIds));
-            }
-        });
-
-        // Handle status option clicks
-        tbody.addEventListener('click', async (e) => {
-            const statusOption = e.target.closest('.status-option');
-            if (!statusOption) return;
-
-            e.preventDefault();
-            const shiftId = statusOption.dataset.shiftId;
-            const newStatus = statusOption.dataset.status;
-            if (shiftId && newStatus) {
-                this.updateShiftStatus(shiftId, newStatus);
             }
         });
     }
@@ -537,7 +492,6 @@ class ShiftManager {
     applyFilters() {
         this.filters = {
             date: document.getElementById('dateFilter')?.value || '',
-            status: document.getElementById('statusFilter')?.value || '',
             department: document.getElementById('departmentFilter')?.value || '',
             search: document.getElementById('searchFilter')?.value || ''
         };
@@ -547,12 +501,10 @@ class ShiftManager {
 
     clearFilters() {
         const dateFilter = document.getElementById('dateFilter');
-        const statusFilter = document.getElementById('statusFilter');
         const departmentFilter = document.getElementById('departmentFilter');
         const searchFilter = document.getElementById('searchFilter');
 
         if (dateFilter) dateFilter.value = '';
-        if (statusFilter) statusFilter.value = '';
         if (departmentFilter) departmentFilter.value = '';
         if (searchFilter) searchFilter.value = '';
 
@@ -640,40 +592,6 @@ class ShiftManager {
         }
     }
 
-    async updateShiftStatus(shiftId, status) {
-        try {
-            const response = await fetch(`${this.config.endpoints.updateStatus}/${shiftId}/status`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({
-                    status: status,
-                    [this.config.csrfToken]: this.config.csrfHash
-                })
-            });
-
-            const data = await response.json();
-
-            if (data.status === 'success') {
-                this.showSuccess(`Shift marked as ${status.toLowerCase()}`);
-                this.loadShifts();
-            } else {
-                this.showError(data.message || 'Failed to update shift status');
-            }
-
-            // Update CSRF hash
-            if (data.csrf) {
-                this.config.csrfHash = data.csrf.value;
-            }
-        } catch (error) {
-            console.error('Error updating shift status:', error);
-            this.showError('Failed to update shift status');
-        }
-    }
-
-
     setupAutoRefresh() {
         // Refresh shifts every 5 minutes
         setInterval(() => {
@@ -688,10 +606,6 @@ class ShiftManager {
 
     canDeleteShift(shift) {
         return ['admin', 'it_staff'].includes(this.config.userRole) || this.config.userRole === 'doctor';
-    }
-
-    canUpdateStatus(shift) {
-        return ['admin', 'it_staff'].includes(this.config.userRole) || (this.config.userRole === 'doctor' && shift.staff_id === this.getCurrentStaffId() && shift.status === 'Scheduled');
     }
 
     getCurrentStaffId() {
